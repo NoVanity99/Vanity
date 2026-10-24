@@ -18,6 +18,7 @@ import { audioResponse, MusicLibrary } from './music/library'
 import { themeById } from '@shared/themes'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
+import { secureWebviews } from './steamStoreView'
 import icon from '../../resources/icon.png?asset'
 
 let db: Db | null = null
@@ -69,6 +70,8 @@ app.on('second-instance', () => {
   win.focus()
 })
 
+secureWebviews()
+
 // Dark native controls (scrollbars, dropdowns, date pickers, dialogs where supported).
 nativeTheme.themeSource = 'dark'
 
@@ -87,7 +90,9 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // For the embedded Steam store (locked down in steamStoreView.ts).
+      webviewTag: true
     }
   })
 

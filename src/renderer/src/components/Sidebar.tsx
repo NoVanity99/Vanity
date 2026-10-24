@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, Star, type LucideIcon } from 'lucide-react'
+import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 
-type IconAnimation = 'bounce' | 'flame' | 'rewind' | 'star' | 'gear' | 'plus'
+type IconAnimation = 'bounce' | 'flame' | 'rewind' | 'star' | 'gear' | 'plus' | 'swing'
 
 /** Replays an icon animation on each click: a new key remounts the icon with the animation class. */
 function useClickAnimation(): [number, () => void] {
@@ -112,6 +112,7 @@ export function Sidebar(): React.JSX.Element {
       <nav className="space-y-1 px-3 pt-2">
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
         <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
+        <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
       </nav>

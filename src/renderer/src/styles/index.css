@@ -345,3 +345,19 @@ h2,
 .stagger > *:nth-child(5) { animation-delay: 200ms; }
 .stagger > *:nth-child(6) { animation-delay: 250ms; }
 .stagger > *:nth-child(n + 7) { animation-delay: 300ms; }
+
+@keyframes store-load {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@keyframes icon-swing {
+  20% { transform: rotate(18deg); }
+  45% { transform: rotate(-14deg); }
+  65% { transform: rotate(8deg); }
+  85% { transform: rotate(-4deg); }
+}
+.icon-swing { animation: icon-swing 650ms ease-in-out; transform-origin: 50% 0%; }

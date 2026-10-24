@@ -11,6 +11,7 @@ import { GameDetailPage } from './pages/GameDetailPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendingPage } from './pages/TrendingPage'
+import { SteamStorePage } from './pages/SteamStorePage'
 import { LibraryProvider, useLibrary } from './state/library'
 import { ToastProvider, useToast } from './state/toasts'
 
@@ -42,6 +43,7 @@ function Shell(): React.JSX.Element {
           <Routes>
             <Route path="/library" element={<LibraryPage view="all" />} />
             <Route path="/trending" element={<TrendingPage />} />
+            <Route path="/store" element={<SteamStorePage />} />
             <Route path="/recent" element={<LibraryPage view="recent" />} />
             <Route path="/favorites" element={<LibraryPage view="favorites" />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
