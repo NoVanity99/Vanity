@@ -24,7 +24,8 @@ const settings: Settings = {
   controllerEnabled: true,
   githubToken: '',
   discordPresence: false,
-  discordClientId: ''
+  discordClientId: '',
+  updateKey: ''
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

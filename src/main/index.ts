@@ -258,6 +258,8 @@ app.whenReady().then(() => {
   update = new UpdateService({
     root: app.getAppPath(),
     fetchFn,
+    serverUrl: () => accountServerUrl(),
+    getUpdateKey: () => getSettings().updateKey,
     getToken: () => getSettings().githubToken,
     exec,
     unzip,

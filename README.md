@@ -241,14 +241,14 @@ The Discord desktop app must be running on the same PC, with **Activity Privacy 
 
 ## Updates
 
-Vanity updates itself from this GitHub repo, so you never have to delete it and download everything again.
+Vanity updates itself from your **Vanity server on Vercel**, so you never have to delete it and download everything again.
 
-- **Checking:** every minute, in the background. When a new version is pushed, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
-- **Installing:** Vanity pulls the new code, runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
-- **How it reaches GitHub:** the repo is private.
-  - If your copy was made with `git clone` (recommended), updates use git and your normal GitHub login. Nothing else is needed. If git asks for a login, run `git pull` once in the Vanity folder.
-  - If you downloaded a zip, add a GitHub token in **Settings → Updates**: a fine-grained token with read-only **Contents** access to this repo. You can also put it in `.env.local` as `MAIN_VITE_GITHUB_TOKEN`. Your `.env.local`, `node_modules` and data are never overwritten.
-- **Where updates come from:** the `vanity.updateBranch` field in `package.json`, or for a git clone, the branch it tracks.
+- **Checking:** every minute, in the background. When a new version is out, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
+- **Where updates come from:** every Vercel deploy of the server runs `npm run build` in `server/`. That packs the app, the version from `package.json` and `CHANGELOG.md` into the deployment (`server/scripts/build-update-bundle.mjs`). The server hands them out at `/api/update` (version and notes) and `/api/update/download` (the files). So pushing a new version and letting Vercel deploy is all it takes.
+- **Which server:** the one set on the **Account** page, or `MAIN_VITE_VANITY_API_URL` in `.env.local` (e.g. `https://<project>.vercel.app/api`). Settings → Updates shows which one it uses.
+- **Keeping it private:** the bundle is the full app source. To stop anyone else downloading it, set `UPDATE_KEY` (any long random string) in the Vercel project's environment variables. Put the same key in **Settings → Updates** (or `MAIN_VITE_UPDATE_KEY` in `.env.local`).
+- **Installing:** Vanity downloads the new files over its own, keeping `node_modules`, your `.env.local` and your data. It runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
+- **Without a server address:** Vanity falls back to GitHub. A git clone updates with git and your GitHub login; a downloaded copy needs a GitHub token in Settings → Updates. The branch is `vanity.updateBranch` in `package.json`.
 - **Patch notes:** come from [`CHANGELOG.md`](CHANGELOG.md). Each release bumps `version` in `package.json` and adds an entry there. The current version is at the bottom right of Settings.
 - Installed builds (`npm run dist:win`) don't update themselves. Build a new installer instead.
 

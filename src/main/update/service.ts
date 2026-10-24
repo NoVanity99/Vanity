@@ -15,6 +15,10 @@ export interface UpdateDeps {
   /** The project folder (holds package.json). */
   root: string
   fetchFn: FetchFn
+  /** The Vanity server on Vercel (the account server URL). Updates come from there when it's set. */
+  serverUrl(): string
+  /** Sent as X-Update-Key, for servers with UPDATE_KEY set. */
+  getUpdateKey(): string
   getToken(): string
   /** Runs a program and resolves to its stdout; rejects with its stderr when it fails. */
   exec(cmd: string, args: string[], opts: { cwd: string; timeoutMs?: number }): Promise<string>
@@ -51,16 +55,20 @@ async function fileHash(file: string): Promise<string | null> {
 }
 
 /**
- * Keeps Vanity up to date from its GitHub repo. A git clone updates with git
- * (using your normal GitHub login); a downloaded copy uses the GitHub API with
- * a token. Checks every minute; applying pulls the new code, installs new
- * dependencies if there are any, rebuilds and restarts.
+ * Keeps Vanity up to date. Updates come from the Vanity server on Vercel: each
+ * deploy packs the app (see server/scripts/build-update-bundle.mjs) and serves
+ * it at <server>/update. Without a server URL it falls back to GitHub: git for
+ * a clone, or the GitHub API with a token. Checks every minute; applying
+ * installs the new code, installs new dependencies if there are any, rebuilds
+ * and restarts.
  */
 export class UpdateService {
   private s: UpdateState
   private timer: ReturnType<typeof setInterval> | null = null
   private inFlight: Promise<UpdateState> | null = null
   private remote = 'origin'
+  /** git or github: how to update when no Vercel server is set. */
+  private fallback: 'git' | 'github' | 'unsupported'
   /** GitHub API: last answers by URL, so unchanged files cost nothing (304s don't count against the rate limit). */
   private etags = new Map<string, { etag: string; body: string }>()
   private readonly now: () => number
@@ -68,19 +76,33 @@ export class UpdateService {
   constructor(private deps: UpdateDeps) {
     this.now = deps.now ?? Date.now
     const cfg = readConfig(deps.root)
+    this.fallback = deps.supported ? (existsSync(join(deps.root, '.git')) ? 'git' : 'github') : 'unsupported'
     this.s = {
       current: cfg.version,
       latest: null,
       available: false,
       notes: [],
-      mode: deps.supported ? (existsSync(join(deps.root, '.git')) ? 'git' : 'github') : 'unsupported',
+      mode: this.pickMode(),
       branch: cfg.branch,
+      source: '',
       checking: false,
       lastChecked: null,
       error: null,
       needsToken: false,
       applying: null
     }
+  }
+
+  private pickMode(): UpdateState['mode'] {
+    if (!this.deps.supported) return 'unsupported'
+    return this.deps.serverUrl() ? 'vercel' : this.fallback
+  }
+
+  /** Where updates come from, for Settings. */
+  private source(mode: UpdateState['mode']): string {
+    if (mode === 'vercel') return this.deps.serverUrl()
+    if (mode === 'unsupported') return ''
+    return `github.com/${readConfig(this.deps.root).repo} (${this.s.branch})`
   }
 
   state(): UpdateState {
@@ -93,7 +115,7 @@ export class UpdateService {
   }
 
   start(): void {
-    if (this.timer || this.s.mode === 'unsupported') return
+    if (this.timer || !this.deps.supported) return
     void this.init().then(() => this.check())
     this.timer = setInterval(() => void this.check(), CHECK_INTERVAL_MS)
   }
@@ -105,7 +127,7 @@ export class UpdateService {
 
   /** In a clone, follow the branch it tracks (falls back to the configured one). Without git installed, use the API. */
   private async init(): Promise<void> {
-    if (this.s.mode !== 'git') return
+    if (this.fallback !== 'git') return
     try {
       await this.git(['--version'])
       const upstream = (await this.git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(() => '')).trim()
@@ -115,7 +137,7 @@ export class UpdateService {
         this.s.branch = upstream.slice(slash + 1)
       }
     } catch {
-      this.s.mode = 'github'
+      this.fallback = 'github'
     }
   }
 
@@ -125,21 +147,38 @@ export class UpdateService {
 
   /** Looks for a new version now. Concurrent calls share one check. Never throws. */
   check(): Promise<UpdateState> {
-    if (this.s.mode === 'unsupported' || this.s.applying) return Promise.resolve(this.state())
+    // The server URL can change in the app, so pick the source on every check.
+    const mode = this.pickMode()
+    if (mode !== this.s.mode) this.s = { ...this.s, mode, latest: null, available: false, notes: [], error: null }
+    this.s.source = this.source(mode)
+    if (mode === 'unsupported' || this.s.applying) return Promise.resolve(this.state())
     this.inFlight ??= (async () => {
       this.set({ checking: true })
       try {
         const current = readConfig(this.deps.root).version
-        const found = this.s.mode === 'git' ? await this.checkGit(current) : await this.checkGithub(current)
+        const found = mode === 'vercel' ? await this.checkVercel(current) : mode === 'git' ? await this.checkGit(current) : await this.checkGithub(current)
         this.set({ ...found, current, checking: false, lastChecked: this.now(), error: null })
       } catch (err) {
-        this.set({ checking: false, lastChecked: this.now(), error: describe(err) })
+        this.set({ checking: false, lastChecked: this.now(), error: describe(err, mode) })
       } finally {
         this.inFlight = null
       }
       return this.state()
     })()
     return this.inFlight
+  }
+
+  private async server(path: string): Promise<Response> {
+    const key = this.deps.getUpdateKey()
+    return request(this.deps.fetchFn, `${this.deps.serverUrl()}${path}`, { headers: key ? { 'X-Update-Key': key } : {} }, 'Update server')
+  }
+
+  private async checkVercel(current: string): Promise<Pick<UpdateState, 'latest' | 'available' | 'notes' | 'needsToken'>> {
+    const manifest = (await (await this.server('/update')).json()) as { version?: string; changelog?: string }
+    const latest = typeof manifest.version === 'string' ? manifest.version : current
+    if (compareVersions(latest, current) <= 0) return { latest, available: false, notes: [], needsToken: false }
+    const notes = notesSince(parseChangelog(manifest.changelog ?? ''), current, latest)
+    return { latest, available: true, notes: notes.length ? notes : [{ version: latest, date: null, changes: ['Improvements and fixes.'] }], needsToken: false }
   }
 
   private async checkGit(current: string): Promise<Pick<UpdateState, 'latest' | 'available' | 'notes' | 'needsToken'>> {
@@ -198,13 +237,14 @@ export class UpdateService {
     const before = await fileHash(lock)
     try {
       this.set({ applying: 'Downloading the update…', error: null })
-      if (this.s.mode === 'git') await this.pullGit()
+      if (this.s.mode === 'vercel') await this.installZip(Buffer.from(await (await this.server('/update/download')).arrayBuffer()))
+      else if (this.s.mode === 'git') await this.pullGit()
       else await this.downloadGithub()
 
       if ((await fileHash(lock)) !== before) {
         this.set({ applying: 'Installing new dependencies…' })
         await this.deps.exec('npm', ['install', '--no-audit', '--no-fund'], { cwd: this.deps.root, timeoutMs: 10 * 60_000 }).catch((err) => {
-          throw new Error(`Installing dependencies failed. Close Vanity, run "npm install" in its folder, then start it again. (${describe(err)})`)
+          throw new Error(`Installing dependencies failed. Close Vanity, run "npm install" in its folder, then start it again. (${describe(err, this.s.mode)})`)
         })
       }
       if (!this.deps.isDev) {
@@ -214,7 +254,7 @@ export class UpdateService {
       this.set({ applying: 'Restarting…', available: false })
       this.deps.restart()
     } catch (err) {
-      this.set({ applying: null, error: describe(err) })
+      this.set({ applying: null, error: describe(err, this.s.mode) })
       throw err
     }
   }
@@ -227,24 +267,30 @@ export class UpdateService {
     try {
       await this.git(['merge', '--ff-only', ref])
     } catch (err) {
-      throw new Error(`Your copy has local changes that clash with the update, so it wasn't applied. ${describe(err)}`)
+      throw new Error(`Your copy has local changes that clash with the update, so it wasn't applied. ${describe(err, this.s.mode)}`)
     }
   }
 
   private async downloadGithub(): Promise<void> {
+    const url = `https://api.github.com/repos/${readConfig(this.deps.root).repo}/zipball/${encodeURIComponent(this.s.branch)}`
+    const res = await request(this.deps.fetchFn, url, { headers: { Authorization: `Bearer ${this.deps.getToken()}`, Accept: 'application/vnd.github+json' } }, 'GitHub download')
+    await this.installZip(Buffer.from(await res.arrayBuffer()))
+  }
+
+  /** Unpacks a downloaded copy of Vanity over this one, keeping dependencies, builds and your keys. */
+  private async installZip(data: Buffer): Promise<void> {
     const work = join(this.deps.tmpDir, `vanity-update-${this.now()}`)
     await fs.mkdir(work, { recursive: true })
     try {
-      const url = `https://api.github.com/repos/${readConfig(this.deps.root).repo}/zipball/${encodeURIComponent(this.s.branch)}`
-      const res = await request(this.deps.fetchFn, url, { headers: { Authorization: `Bearer ${this.deps.getToken()}`, Accept: 'application/vnd.github+json' } }, 'GitHub download')
       const zip = join(work, 'update.zip')
-      await fs.writeFile(zip, Buffer.from(await res.arrayBuffer()))
+      await fs.writeFile(zip, data)
       const out = join(work, 'files')
       await fs.mkdir(out)
       await this.deps.unzip(zip, out)
-      // GitHub wraps everything in one "owner-repo-sha" folder.
-      const top = (await fs.readdir(out, { withFileTypes: true })).filter((e) => e.isDirectory())
-      const src = top.length === 1 ? join(out, top[0].name) : out
+      // GitHub wraps everything in one "owner-repo-sha" folder; the Vercel bundle doesn't.
+      const entries = await fs.readdir(out, { withFileTypes: true })
+      const wrapped = !existsSync(join(out, 'package.json')) && entries.length === 1 && entries[0].isDirectory()
+      const src = wrapped ? join(out, entries[0].name) : out
       if (!existsSync(join(src, 'package.json'))) throw new Error('The download did not look like Vanity.')
       for (const e of await fs.readdir(src)) {
         if (KEEP.has(e) || /^\.env\..*local$/.test(e)) continue
@@ -256,7 +302,12 @@ export class UpdateService {
   }
 }
 
-function describe(err: unknown): string {
+function describe(err: unknown, mode: UpdateState['mode']): string {
+  if (mode === 'vercel') {
+    if (err instanceof NetworkError) return "Couldn't reach the Vanity server for updates. Check your internet connection."
+    if (err instanceof HttpError && err.status === 401) return 'The server wants an update key. Add it in Settings → Updates.'
+    if (err instanceof HttpError && err.status === 404) return 'The server has no update bundle yet. Redeploy it on Vercel (its build packs the app).'
+  }
   if (err instanceof NetworkError) return "Couldn't reach GitHub. Check your internet connection."
   if (err instanceof HttpError && (err.status === 401 || err.status === 403)) return 'GitHub rejected the token. Check it in Settings → Updates.'
   if (err instanceof HttpError && err.status === 404) return "GitHub couldn't find the repo or branch. The token may not have access to it."
@@ -264,4 +315,3 @@ function describe(err: unknown): string {
   if (/could not read Username|Authentication failed|terminal prompts disabled/i.test(msg)) return 'Git needs your GitHub login. Run "git pull" once in the Vanity folder to sign in.'
   return msg.trim().split('\n').slice(-3).join(' ').slice(0, 400)
 }
-

@@ -190,6 +190,8 @@ export interface Settings {
   discordPresence: boolean
   /** Application ID of your "Vanity" app in the Discord developer portal. */
   discordClientId: string
+  /** Sent to the update server when it has UPDATE_KEY set (encrypted at rest). */
+  updateKey: string
 }
 
 /** Fields the user can change on a game. */
@@ -458,9 +460,11 @@ export interface UpdateState {
   available: boolean
   /** Patch notes for every version newer than this one, newest first. */
   notes: UpdateNote[]
-  /** How updates are fetched: git (a clone), github (download with a token), or not at all (installed builds). */
-  mode: 'git' | 'github' | 'unsupported'
+  /** Where updates come from: the Vanity server on Vercel, or (without one) git / GitHub; none for installed builds. */
+  mode: 'vercel' | 'git' | 'github' | 'unsupported'
   branch: string
+  /** Where updates come from, for Settings (server URL or GitHub repo). */
+  source: string
   checking: boolean
   lastChecked: number | null
   error: string | null

@@ -132,7 +132,9 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
       description={
         update.mode === 'unsupported'
           ? 'This is an installed build. Install a newer build to update.'
-          : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge.'
+          : update.mode === 'vercel'
+            ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
+            : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
       }
     >
       <div className="flex flex-wrap items-center gap-4">
@@ -157,11 +159,22 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
                   : ''}
         </span>
       </div>
-      {update.mode !== 'unsupported' && (
+      {update.mode !== 'unsupported' && update.source && (
         <p className="mt-4 flex items-center gap-2 text-xs text-muted">
           <GitBranch className="size-3.5" />
-          {update.mode === 'git' ? 'Updates with git from' : 'Downloads updates from'} the <code className="rounded bg-white/5 px-1.5 py-0.5">{update.branch}</code> branch.
+          {update.mode === 'vercel' ? 'Updates from' : update.mode === 'git' ? 'Updates with git from' : 'Downloads updates from'}{' '}
+          <code className="rounded bg-white/5 px-1.5 py-0.5">{update.source}</code>
         </p>
+      )}
+      {update.mode === 'vercel' && (
+        <div className="mt-5">
+          <SecretField
+            label="Update key (optional)"
+            value={settings.updateKey}
+            onSave={(v) => void save({ updateKey: v }, v ? 'Update key saved' : 'Update key removed')}
+            help={<>Only needed if you set <code className="rounded bg-white/5 px-1">UPDATE_KEY</code> on your Vercel server, so that only you can download Vanity from it.</>}
+          />
+        </div>
       )}
       {update.mode === 'github' && (
         <div className="mt-5">

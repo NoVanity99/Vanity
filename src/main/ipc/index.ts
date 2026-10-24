@@ -197,7 +197,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
       metadata.onKeysChanged()
       void trending.refresh()
     }
-    if (before.githubToken !== after.githubToken) void update.check()
+    if (before.githubToken !== after.githubToken || before.updateKey !== after.updateKey || before.accountServerUrl !== after.accountServerUrl) void update.check()
     if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
     onSettingsChanged?.(after)
     return after

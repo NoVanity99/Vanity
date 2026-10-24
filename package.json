@@ -1,7 +1,7 @@
 {
   "name": "vanity",
   "productName": "Vanity",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A unified desktop game launcher for Steam, Epic, GOG, EA, Ubisoft and custom games.",
   "main": "./out/main/index.js",
   "license": "MIT",

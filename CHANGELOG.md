@@ -3,6 +3,11 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.3.1 (2026-10-24)
+- Updates now come from your Vanity server on Vercel instead of GitHub. Each deploy packs the newest Vanity, and the app downloads it from there, so no GitHub login or token is needed.
+- The server address is the one on the Account page. Without one, Vanity falls back to GitHub as before.
+- Optional update key: set UPDATE_KEY on the server and the same key in Settings → Updates, so only you can download it.
+
 ## 0.3.0 (2026-10-24)
 - Discord Rich Presence: turn it on in Settings → Discord to show "Vanity" on your Discord profile.
 - Playing a game shows "Playing <game>" with how long you've been playing, and the game's cover for Steam games.

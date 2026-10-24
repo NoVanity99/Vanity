@@ -32,6 +32,7 @@ Vanity app  ──HTTPS──▶  this API (Vercel, or any Node host)  ──▶
 ```
 DATABASE_URL=<your pooled Neon connection string>
 JWT_SECRET=<long random string>
+UPDATE_KEY=<optional: long random string, needed to download app updates>
 PORT=8787
 ```
 
@@ -72,6 +73,18 @@ Any Node 20+ host works too (Render, Fly.io, Railway, a VPS): run `npm start` wi
 In Vanity, open **Account** (below Settings) → **Server**, and enter the URL: `http://localhost:8787` for local, or your `https://….vercel.app` URL (add `/api` if you deployed from the repo root with services). To build it in, add `MAIN_VITE_VANITY_API_URL=<url>` to the app's `.env.local`.
 
 Everyone who wants to be friends must use the same server URL.
+
+## App updates
+
+The server also hands out Vanity updates, so the desktop app updates from here instead of GitHub.
+
+- **Packing:** `npm run build` (Vercel runs it on every deploy) packs the app in the repo root into `src/generated/update-bundle.ts`. That's the version, `CHANGELOG.md`, and a zip of the source without `node_modules`, builds, git data or `.env` files. The committed placeholder means "no bundle".
+- **Endpoints:**
+  - `GET /update` returns `{ version, changelog, sha, builtAt, size }`.
+  - `GET /update/download` returns the zip.
+  - Both also work under `/api`.
+- **Optional `UPDATE_KEY` environment variable:** when set, both endpoints need it in an `X-Update-Key` header. The app sends the key from Settings → Updates. Without it, anyone with the URL can download the app's source.
+- **Files outside `server/`:** on Vercel, keep **Include files outside the root directory** on (the default), so the build can see the app. If it can't, the deploy still succeeds, but serves no updates.
 
 ## API
 

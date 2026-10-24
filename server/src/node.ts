@@ -26,7 +26,12 @@ async function localApp(): Promise<ReturnType<typeof createApp>> {
     return (await db.query(text, values)).rows as never
   }
   console.log(`Using a local PGlite database${dir ? ` in ${dir}` : ' in memory'} (not Neon).`)
-  return createApp({ sql, jwtSecret: process.env.JWT_SECRET ?? '' })
+  return createApp({
+    sql,
+    jwtSecret: process.env.JWT_SECRET ?? '',
+    updates: () => import('./generated/update-bundle').then((m) => m.updateBundle),
+    updateKey: process.env.UPDATE_KEY?.trim() || undefined
+  })
 }
 
 const app = await localApp()

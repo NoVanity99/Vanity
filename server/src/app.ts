@@ -2,6 +2,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { hashPassword, signToken, verifyPassword, verifyToken } from './auth'
 import type { Sql } from './db'
+import { keyMatches, type UpdateBundle } from './updates'
 
 export interface AppOptions {
   sql: Sql
@@ -11,6 +12,10 @@ export interface AppOptions {
   tokenTtlSeconds?: number
   /** Max sign-in/registration attempts per IP per 10 minutes. */
   authRateLimit?: number
+  /** The Vanity app update bundle built into this deployment, if any. */
+  updates?: () => Promise<UpdateBundle | null>
+  /** When set, /update needs this in the X-Update-Key header. */
+  updateKey?: string
 }
 
 type Env = { Variables: { userId: string; username: string } }
@@ -50,7 +55,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, authRateLimit = 20 }: AppOptions): Hono<Env> {
+export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, authRateLimit = 20, updates, updateKey }: AppOptions): Hono<Env> {
   if (!jwtSecret || jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.')
   const app = new Hono<Env>()
 
@@ -90,6 +95,25 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
   app.get('/', (c) => c.json({ name: 'vanity-api', ok: true }))
 
   // ---- accounts ------------------------------------------------------------
+
+  // ---- app updates (the desktop app checks these every minute) ----
+  const updateBundle = async (c: Context): Promise<UpdateBundle> => {
+    if (updateKey && !keyMatches(c.req.header('x-update-key'), updateKey)) fail(401, 'This update key is wrong.')
+    const bundle = updates ? await updates() : null
+    if (!bundle) fail(404, 'This server has no update bundle. Redeploy it on Vercel to build one.')
+    return bundle!
+  }
+  app.get('/update', async (c) => {
+    const b = await updateBundle(c)
+    c.header('Cache-Control', 'no-store')
+    return c.json({ version: b.version, changelog: b.changelog, sha: b.sha, builtAt: b.builtAt, size: b.size })
+  })
+  app.get('/update/download', async (c) => {
+    const b = await updateBundle(c)
+    return new Response(Buffer.from(b.zipBase64, 'base64'), {
+      headers: { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="vanity-${b.version}.zip"`, 'Cache-Control': 'no-store' }
+    })
+  })
 
   app.post('/auth/register', rateLimit, async (c) => {
     const { username, password } = await body<{ username: string; password: string }>(c)

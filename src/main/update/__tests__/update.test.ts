@@ -53,6 +53,8 @@ function service(root: string, over: Partial<UpdateDeps> = {}) {
   const svc = new UpdateService({
     root,
     fetchFn: async () => new Response('nope', { status: 500 }),
+    serverUrl: () => '',
+    getUpdateKey: () => '',
     getToken: () => '',
     exec: (cmd, args, opts) => {
       calls.push(`${cmd} ${args.join(' ')}`)
@@ -192,5 +194,54 @@ describe('UpdateService (download with a token)', () => {
     const { svc, states } = service(root, { supported: false })
     expect(await svc.check()).toMatchObject({ mode: 'unsupported', available: false })
     expect(states).toEqual([])
+  })
+})
+
+describe('UpdateService (Vercel server)', () => {
+  function serverZip(version: string): Buffer {
+    // The Vercel bundle has the files at the top level (no wrapping folder).
+    const src = mkdtempSync(join(tmpdir(), 'vanity-vsrc-'))
+    execFileSync('mkdir', ['-p', join(src, 'src')])
+    writeFileSync(join(src, 'package.json'), pkg(version))
+    writeFileSync(join(src, 'src', 'feature.ts'), 'export {}')
+    execFileSync('zip', ['-qr', join(src, 'b.zip'), 'package.json', 'src'], { cwd: src })
+    return readFileSync(join(src, 'b.zip'))
+  }
+
+  it('checks the server, shows its patch notes, installs its bundle, and wins over git', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'vanity-v-'))
+    writeFileSync(join(root, 'package.json'), pkg('0.1.0'))
+    execFileSync('mkdir', [join(root, '.git')]) // looks like a clone: Vercel is still used
+    const zipData = serverZip('0.3.0')
+    const seen: { url: string; key: string | null }[] = []
+    const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
+      seen.push({ url, key: new Headers(init?.headers).get('x-update-key') })
+      if (url === 'https://vanity.vercel.app/api/update') return Response.json({ version: '0.3.0', changelog: CHANGELOG })
+      if (url === 'https://vanity.vercel.app/api/update/download') return new Response(zipData)
+      return new Response('?', { status: 404 })
+    }
+    const { svc, restart } = service(root, { fetchFn, serverUrl: () => 'https://vanity.vercel.app/api', getUpdateKey: () => 'k1' })
+    const found = await svc.check()
+    expect(found).toMatchObject({ mode: 'vercel', source: 'https://vanity.vercel.app/api', available: true, latest: '0.3.0' })
+    expect(found.notes.map((n) => n.version)).toEqual(['0.3.0', '0.2.0'])
+    expect(seen[0].key).toBe('k1')
+
+    await svc.apply()
+    expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version).toBe('0.3.0')
+    expect(existsSync(join(root, 'src', 'feature.ts'))).toBe(true)
+    expect(restart).toHaveBeenCalledOnce()
+  })
+
+  it('explains a missing key or bundle, and falls back to GitHub without a server', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'vanity-v-'))
+    writeFileSync(join(root, 'package.json'), pkg('0.1.0'))
+    let status = 401
+    let url = 'https://vanity.vercel.app/api'
+    const { svc } = service(root, { fetchFn: async () => new Response('{}', { status }), serverUrl: () => url })
+    expect((await svc.check()).error).toMatch(/update key/)
+    status = 404
+    expect((await svc.check()).error).toMatch(/no update bundle/)
+    url = ''
+    expect(await svc.check()).toMatchObject({ mode: 'github', needsToken: true, error: null })
   })
 })

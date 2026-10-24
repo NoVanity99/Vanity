@@ -26,7 +26,8 @@ const settings = (keys: boolean): Settings =>
   controllerEnabled: true,
   githubToken: '',
   discordPresence: false,
-  discordClientId: ''
+  discordClientId: '',
+  updateKey: ''
   }) as Settings
 
 function apis() {

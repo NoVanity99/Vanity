@@ -24,13 +24,14 @@ const DEFAULTS: Settings = {
   controllerEnabled: true,
   githubToken: '',
   discordPresence: false,
-  discordClientId: ''
+  discordClientId: '',
+  updateKey: ''
 }
 
 let cache: Settings | null = null
 
 /** API credentials are encrypted at rest with the OS keystore (DPAPI on Windows) when it is available. */
-const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret', 'accountToken', 'githubToken'] as const
+const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret', 'accountToken', 'githubToken', 'updateKey'] as const
 const ENCRYPTED_PREFIX = 'enc:'
 
 function encryptSecrets(settings: Settings): Record<string, unknown> {
@@ -74,7 +75,9 @@ const BUILT_IN: Pick<Settings, (typeof SECRET_FIELDS)[number]> = {
   // Never built in: a session belongs to whoever signs in.
   accountToken: '',
   // Lets the updater read the (private) GitHub repo when Vanity isn't a git checkout.
-  githubToken: import.meta.env.MAIN_VITE_GITHUB_TOKEN?.trim() ?? ''
+  githubToken: import.meta.env.MAIN_VITE_GITHUB_TOKEN?.trim() ?? '',
+  // Only needed when the Vercel server has UPDATE_KEY set.
+  updateKey: import.meta.env.MAIN_VITE_UPDATE_KEY?.trim() ?? ''
 }
 
 /** Merges stored settings over defaults, so new fields get sensible values. */

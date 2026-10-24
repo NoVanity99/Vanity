@@ -30,7 +30,8 @@ const baseSettings: Settings = {
   controllerEnabled: true,
   githubToken: '',
   discordPresence: false,
-  discordClientId: ''
+  discordClientId: '',
+  updateKey: ''
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }
