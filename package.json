@@ -13,7 +13,6 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "postinstall": "electron-builder install-app-deps",
     "dist:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
