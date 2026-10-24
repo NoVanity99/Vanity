@@ -186,6 +186,10 @@ export interface Settings {
   controllerEnabled: boolean
   /** GitHub token for updates when Vanity isn't a git checkout (encrypted at rest). */
   githubToken: string
+  /** Show what you're playing and listening to on your Discord profile. */
+  discordPresence: boolean
+  /** Application ID of your "Vanity" app in the Discord developer portal. */
+  discordClientId: string
 }
 
 /** Fields the user can change on a game. */
@@ -472,4 +476,22 @@ export interface TrackInfo {
   artist: string | null
   album: string | null
   hasArt: boolean
+}
+
+// ---- Discord ---------------------------------------------------------------------
+
+export interface DiscordStatus {
+  state: 'off' | 'needs-id' | 'connecting' | 'connected' | 'unavailable'
+  /** Your Discord name, once connected. */
+  user: string | null
+  error: string | null
+}
+
+/** The song the mini player is playing, for Discord. */
+export interface NowListening {
+  title: string
+  artist: string | null
+  /** When the song started (ms), adjusted for where playback is. */
+  startedAt: number
+  durationMs: number | null
 }

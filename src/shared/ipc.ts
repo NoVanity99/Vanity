@@ -23,7 +23,9 @@ import type {
   StoreLauncher,
   TrendingState,
   UpdateState,
-  TrackInfo
+  TrackInfo,
+  DiscordStatus,
+  NowListening
 } from './types'
 
 export interface PlayStats {
@@ -151,6 +153,12 @@ export interface VanityApi {
     refresh(): Promise<LauncherStatus[]>
     onUpdate(callback: (statuses: LauncherStatus[]) => void): () => void
   }
+  discord: {
+    status(): Promise<DiscordStatus>
+    onStatus(callback: (status: DiscordStatus) => void): () => void
+    /** What the music player is playing (null when paused or stopped). */
+    setListening(now: NowListening | null): void
+  }
   update: {
     state(): Promise<UpdateState>
     /** Looks for a new version now. */
@@ -229,6 +237,9 @@ export const IPC = {
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',
+  discordStatus: 'discord:status',
+  discordStatusChanged: 'discord:status-changed',
+  discordListening: 'discord:listening',
   updateState: 'update:state',
   updateCheck: 'update:check',
   updateApply: 'update:apply',

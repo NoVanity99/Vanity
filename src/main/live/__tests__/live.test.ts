@@ -24,7 +24,9 @@ const settings = (keys: boolean): Settings =>
   accountToken: '',
   accountUsername: '',
   controllerEnabled: true,
-  githubToken: ''
+  githubToken: '',
+  discordPresence: false,
+  discordClientId: ''
   }) as Settings
 
 function apis() {

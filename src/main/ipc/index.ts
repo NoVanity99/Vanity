@@ -2,13 +2,14 @@ import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { IPC, type Result } from '@shared/ipc'
-import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
+import type { NowListening, ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
 import type { TrendingService } from '../trending/service'
 import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
 import type { DetailsService } from '../details/service'
 import type { UpdateService } from '../update/service'
+import type { DiscordPresence } from '../discord/presence'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
@@ -51,6 +52,7 @@ export interface IpcDeps {
   live: LiveService
   details: DetailsService
   update: UpdateService
+  discord: DiscordPresence
   db: Db
   stats: () => unknown
   account: AccountService
@@ -58,7 +60,7 @@ export interface IpcDeps {
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -196,6 +198,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
       void trending.refresh()
     }
     if (before.githubToken !== after.githubToken) void update.check()
+    if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
     onSettingsChanged?.(after)
     return after
   })
@@ -283,6 +286,21 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     await updateSettings({ musicFolder: folder })
     await music.load(folder)
     return music.state()
+  })
+
+  ipcMain.handle(IPC.discordStatus, () => discord.getStatus())
+  ipcMain.on(IPC.discordListening, (_e, now: NowListening | null) => {
+    const ok = now && typeof now.title === 'string' && Number.isFinite(now.startedAt)
+    discord.setMusic(
+      ok
+        ? {
+            title: now.title.slice(0, 200),
+            artist: typeof now.artist === 'string' ? now.artist.slice(0, 200) : null,
+            startedAt: now.startedAt,
+            durationMs: typeof now.durationMs === 'number' && now.durationMs > 0 ? now.durationMs : null
+          }
+        : null
+    )
   })
 
   ipcMain.handle(IPC.updateState, () => update.state())

@@ -18,6 +18,8 @@ import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
 import { UpdateService } from './update/service'
+import { DiscordPresence } from './discord/presence'
+import { steamArtworkUrl } from './metadata/steamStore'
 import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
@@ -34,6 +36,7 @@ let trending: TrendingService | null = null
 let status: StatusService | null = null
 let account: AccountService | null = null
 let update: UpdateService | null = null
+let discord: DiscordPresence | null = null
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
@@ -152,10 +155,32 @@ app.whenReady().then(() => {
       broadcast(IPC.sessionsChanged, { gameId, state })
       minimizeWhilePlaying(state)
       account?.onSessionChange(state)
+      showGameOnDiscord()
     }
   })
 
   const store = createSqliteStore(db)
+
+  discord = new DiscordPresence({
+    enabled: () => getSettings().discordPresence,
+    clientId: () => getSettings().discordClientId.trim(),
+    onStatus: (s) => broadcast(IPC.discordStatusChanged, s)
+  })
+  const showGameOnDiscord = (): void => {
+    const running = tracker?.running()
+    const game = running ? store.get(running.id) : null
+    discord?.setGame(
+      game && running
+        ? {
+            name: game.name,
+            startedAt: running.startedAt,
+            // Discord can show an image by URL: Steam's public cover for Steam games, else Vanity's logo.
+            imageUrl: game.source === 'steam' && /^\d+$/.test(game.externalId) ? steamArtworkUrl('cover', game.externalId) : null
+          }
+        : null
+    )
+  }
+  discord.sync()
   // Electron's net.fetch uses Chromium's network stack, so system proxy settings apply.
   const fetchFn = (url: string, init?: RequestInit): Promise<Response> => net.fetch(url, init)
   const media = new MediaCache(join(app.getPath('userData'), 'media'), fetchFn)
@@ -252,7 +277,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
@@ -286,6 +311,7 @@ app.on('will-quit', () => {
   trending?.dispose()
   status?.dispose()
   update?.dispose()
+  discord?.dispose()
   db?.close()
   db = null
 })

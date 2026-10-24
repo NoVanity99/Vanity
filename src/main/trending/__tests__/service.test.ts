@@ -22,7 +22,9 @@ const settings: Settings = {
   accountToken: '',
   accountUsername: '',
   controllerEnabled: true,
-  githubToken: ''
+  githubToken: '',
+  discordPresence: false,
+  discordClientId: ''
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

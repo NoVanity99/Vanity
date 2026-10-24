@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.3.0 (2026-10-24)
+- Discord Rich Presence: turn it on in Settings → Discord to show "Vanity" on your Discord profile.
+- Playing a game shows "Playing <game>" with how long you've been playing, and the game's cover for Steam games.
+- Using the music player shows "Listening to <song>" by the artist, with how far into the song you are.
+- Doing both shows the game on top and the song underneath.
+- It needs a free Discord application named "Vanity". Settings → Discord explains the two-minute setup, and shows whether it's connected.
+- The server can also be deployed on Vercel as a service under /api.
+
 ## 0.2.1 (2026-10-24)
 - Settings: 17 new font options, 25 in all, grouped into Clean, Friendly, Gaming and Stylish.
 - New fonts: Manrope, DM Sans, Plus Jakarta Sans, Montserrat, Poppins, Nunito, Quicksand, Lexend, Rubik, Sci-fi (Oxanium), Mecha (Chakra Petch), Racing (Russo One), Neon (Audiowide), Retro (Press Start 2P), Poster (Bebas Neue), Sporty (Kanit) and Editorial (Playfair Display).

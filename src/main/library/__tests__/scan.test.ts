@@ -24,7 +24,9 @@ const settings: Settings = {
   accountToken: '',
   accountUsername: '',
   controllerEnabled: true,
-  githubToken: ''
+  githubToken: '',
+  discordPresence: false,
+  discordClientId: ''
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

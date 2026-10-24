@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { DiscordStatus } from '@shared/types'
 import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, GitBranch, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
@@ -184,6 +185,68 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
   )
 }
 
+const DISCORD_STATE: Record<DiscordStatus['state'], { dot: string; text: string }> = {
+  off: { dot: 'bg-white/30', text: 'Off' },
+  'needs-id': { dot: 'bg-amber-400', text: 'Add your Discord application ID below' },
+  connecting: { dot: 'bg-amber-400 animate-pulse', text: 'Connecting to Discord…' },
+  connected: { dot: 'bg-emerald-400', text: 'Connected' },
+  unavailable: { dot: 'bg-red-400', text: "Can't reach Discord" }
+}
+
+/** Discord Rich Presence: on/off, the application ID, and whether it's connected. */
+function DiscordSection({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>, confirmation?: string) => Promise<void> }): React.JSX.Element {
+  const [status, setStatus] = useState<DiscordStatus | null>(null)
+  const [id, setId] = useState(settings.discordClientId)
+  useEffect(() => {
+    window.vanity.discord.status().then(setStatus, () => {})
+    return window.vanity.discord.onStatus(setStatus)
+  }, [])
+  useEffect(() => setId(settings.discordClientId), [settings.discordClientId])
+  const shown = DISCORD_STATE[status?.state ?? 'off']
+  const commitId = (): void => {
+    const v = id.trim()
+    if (v !== settings.discordClientId) void save({ discordClientId: v }, v ? 'Discord application ID saved' : 'Discord application ID removed')
+  }
+
+  return (
+    <Section
+      title="Discord"
+      description="Show Vanity on your Discord profile: the game you're playing and for how long, and the song in the music player. When you do both, the game is shown with the song under it."
+    >
+      <div className="-mx-3">
+        <Toggle label="Discord Rich Presence" checked={!!settings.discordPresence} onChange={(v) => save({ discordPresence: v })} />
+      </div>
+      {settings.discordPresence && (
+        <p className="mt-2 flex items-center gap-2 text-sm text-muted">
+          <span className={cn('size-2 rounded-full', shown.dot)} />
+          {status?.state === 'connected' && status.user ? `Connected as ${status.user}` : shown.text}
+          {status?.error && status.state !== 'connected' && <span className="text-xs">· {status.error}</span>}
+        </p>
+      )}
+      <label className="mt-5 block">
+        <span className="text-sm font-medium">Discord application ID</span>
+        <input
+          value={id}
+          onChange={(e) => setId(e.target.value.replace(/\D/g, ''))}
+          onBlur={commitId}
+          onKeyDown={(e) => e.key === 'Enter' && commitId()}
+          inputMode="numeric"
+          placeholder="e.g. 1234567890123456789"
+          className="mt-1.5 h-10 w-full rounded-lg border border-border bg-surface-2 px-3 text-sm tabular-nums outline-none transition placeholder:text-muted hover:border-white/20 focus:border-accent"
+        />
+      </label>
+      <p className="mt-2 text-xs leading-relaxed text-muted">
+        Discord shows the name of this application, so name it <b className="text-text/80">Vanity</b>: create it at{' '}
+        <a className="text-accent hover:underline" href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">
+          discord.com/developers/applications
+        </a>{' '}
+        (New Application → "Vanity"), then copy its Application ID here. For the logo, upload an image named <code className="rounded bg-white/5 px-1">vanity</code> under
+        Rich Presence → Art Assets. The Discord app must be running on this PC, with Settings → Activity Privacy → "Share your detected activities" turned on.
+      </p>
+    </Section>
+  )
+}
+
 function VersionLabel(): React.JSX.Element | null {
   const update = useUpdate()
   return update ? <p className="!mt-3 text-right text-[11px] tabular-nums text-muted/70">Vanity v{update.current}</p> : null
@@ -336,6 +399,8 @@ export function SettingsPage(): React.JSX.Element {
             <Toggle label="Controller navigation" checked={settings.controllerEnabled !== false} onChange={(v) => save({ controllerEnabled: v })} />
           </div>
         </Section>
+
+        <DiscordSection settings={settings} save={save} />
 
         <UpdatesSection settings={settings} save={save} />
 

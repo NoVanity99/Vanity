@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState } from '@shared/types'
+import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
   games: {
@@ -102,6 +102,15 @@ const api: VanityApi = {
       ipcRenderer.on(IPC.statusUpdated, listener)
       return () => ipcRenderer.removeListener(IPC.statusUpdated, listener)
     }
+  },
+  discord: {
+    status: () => ipcRenderer.invoke(IPC.discordStatus),
+    onStatus(callback) {
+      const listener = (_: Electron.IpcRendererEvent, s: DiscordStatus): void => callback(s)
+      ipcRenderer.on(IPC.discordStatusChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.discordStatusChanged, listener)
+    },
+    setListening: (now) => ipcRenderer.send(IPC.discordListening, now)
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

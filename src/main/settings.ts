@@ -22,7 +22,9 @@ const DEFAULTS: Settings = {
   accountToken: '',
   accountUsername: '',
   controllerEnabled: true,
-  githubToken: ''
+  githubToken: '',
+  discordPresence: false,
+  discordClientId: ''
 }
 
 let cache: Settings | null = null
@@ -83,6 +85,7 @@ function withDefaults(stored: Partial<Settings>): Settings {
     enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources }
   }
   for (const field of SECRET_FIELDS) merged[field] ||= BUILT_IN[field]
+  merged.discordClientId ||= import.meta.env.MAIN_VITE_DISCORD_CLIENT_ID?.trim() ?? ''
   return merged
 }
 

@@ -210,6 +210,32 @@ export function MusicPlayer(): React.JSX.Element {
     if (navigator.mediaSession && info) navigator.mediaSession.metadata = new MediaMetadata({ title: info.title, artist: info.artist ?? '', album: info.album ?? '' })
   }, [info])
 
+  // Tell Discord (if enabled in Settings) what's playing: the song and how far into it we are.
+  const report = useCallback(() => {
+    const el = audio.current
+    if (!el || !info || el.paused || !el.getAttribute('src')) return window.vanity.discord.setListening(null)
+    window.vanity.discord.setListening({
+      title: info.title,
+      artist: info.artist,
+      startedAt: Date.now() - Math.round(el.currentTime * 1000),
+      durationMs: Number.isFinite(el.duration) ? Math.round(el.duration * 1000) : null
+    })
+  }, [info])
+  useEffect(() => {
+    report()
+  }, [report, playing])
+  useEffect(() => {
+    const el = audio.current
+    if (!el) return
+    el.addEventListener('seeked', report)
+    el.addEventListener('durationchange', report)
+    return () => {
+      el.removeEventListener('seeked', report)
+      el.removeEventListener('durationchange', report)
+    }
+  }, [report])
+  useEffect(() => () => window.vanity.discord.setListening(null), [])
+
   const changeVolume = (v: number): void => {
     setVolume(v)
     if (saveTimer.current) clearTimeout(saveTimer.current)

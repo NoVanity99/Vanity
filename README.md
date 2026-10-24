@@ -223,6 +223,22 @@ The schema is versioned with SQLite's `user_version`. Before a schema upgrade, t
 
 Set `VANITY_USER_DATA` to a folder path to run the app with a separate profile.
 
+## Discord Rich Presence
+
+Turn it on in **Settings → Discord** to show what you're doing in Vanity on your Discord profile:
+
+- **Playing a game:** "Vanity", then **Playing \<game>** with an elapsed timer (and the cover, for Steam games).
+- **Music player:** **Listening to \<song>** by the artist, with how far into the song you are.
+- **Both:** the game on top, with **Listening to \<song>** underneath. Discord shows one timer, which counts the game's time.
+
+**One-time setup:** Discord shows the name of the application that sets the status, so you need your own free one:
+
+1. Go to [discord.com/developers/applications](https://discord.com/developers/applications), click **New Application** and name it **Vanity**.
+2. Copy its **Application ID** into Settings → Discord (or put it in `.env.local` as `MAIN_VITE_DISCORD_CLIENT_ID`).
+3. Optional: under **Rich Presence → Art Assets**, upload a logo named `vanity`.
+
+The Discord desktop app must be running on the same PC, with **Activity Privacy → Share your detected activities** turned on. Vanity talks to it locally (`src/main/discord/`), with no extra login, and clears your status when you turn the setting off or quit.
+
 ## Updates
 
 Vanity updates itself from this GitHub repo, so you never have to delete it and download everything again.
