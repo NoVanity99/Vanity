@@ -54,6 +54,20 @@ Registry keys are read with one PowerShell call per lookup, which keeps non-ASCI
 
 To add a source, write a module in `src/main/scanners/` that exports a `Scanner` and add it to `src/main/scanners/index.ts`.
 
+## Launching and playtime
+
+| Source | How Play starts it |
+| --- | --- |
+| Steam | `steam://rungameid/<appid>` |
+| Epic Games | `com.epicgames.launcher://apps/<appname>?action=launch&silent=true` |
+| Everything else | The game's exe, run with its own folder as the working directory. If Windows says it needs admin rights, it is started through the shell so the UAC prompt appears. |
+
+The exe for GOG, EA, Ubisoft, custom and manual games can be changed in **Edit metadata** or on the game page; your choice is kept across rescans.
+
+Playtime is tracked by checking running processes every few seconds (via PowerShell's `Get-Process`). A game counts as running while the exe Vanity started is alive, or while any process runs from inside its install folder. That covers Steam and Epic games, which Vanity doesn't start itself, and launcher stubs that start the real game and exit. Time counts from when the game actually appears, so a Steam update before launch isn't counted, and it is saved while you play, so a crash loses at most a few seconds. "Last played" is set when you press Play. Each session is also stored in the `play_sessions` table.
+
+Tracking stops when Vanity is closed; time up to that moment is kept.
+
 ## Your data
 
 Everything lives in `%APPDATA%\Vanity`:

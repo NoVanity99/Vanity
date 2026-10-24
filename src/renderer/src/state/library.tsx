@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Game, GameCandidate, GamePatch, ScanProgress, ScanSummary } from '@shared/types'
+import type { Game, GameCandidate, GamePatch, ScanProgress, ScanSummary, SessionState } from '@shared/types'
 import { useToast } from './toasts'
 
 interface LibraryState {
@@ -10,6 +10,10 @@ interface LibraryState {
   removeGame(id: number): Promise<void>
   addManually(): Promise<void>
   openFolder(id: number): Promise<void>
+  /** Launch state per game ID; absent means not running. */
+  sessions: Record<number, Exclude<SessionState, 'stopped'>>
+  launch(id: number): Promise<void>
+  pickExecutable(id: number): Promise<void>
   scan: {
     running: boolean
     progress: ScanProgress[]
@@ -40,6 +44,26 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
   const [last, setLast] = useState<ScanSummary | null>(null)
   const [candidates, setCandidates] = useState<GameCandidate[]>([])
   const autoScanned = useRef(false)
+  const [sessions, setSessions] = useState<LibraryState['sessions']>({})
+
+  const reloadGame = useCallback(async (id: number) => {
+    const game = await window.vanity.games.get(id).catch(() => null)
+    if (game) setGames((gs) => gs.map((g) => (g.id === id ? game : g)))
+  }, [])
+
+  useEffect(() => {
+    window.vanity.sessions.states().then(setSessions, () => {})
+    return window.vanity.sessions.onChange(({ gameId, state }) => {
+      setSessions((prev) => {
+        const next = { ...prev }
+        if (state === 'stopped') delete next[gameId]
+        else next[gameId] = state
+        return next
+      })
+      // Last played and playtime change with each session event.
+      reloadGame(gameId)
+    })
+  }, [reloadGame])
 
   const refresh = useCallback(async () => {
     try {
@@ -128,6 +152,45 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     [toast]
   )
 
+  // Playtime is saved while a game runs; refresh it so the numbers tick up.
+  const runningIds = Object.entries(sessions)
+    .filter(([, state]) => state === 'running')
+    .map(([id]) => Number(id))
+    .join(',')
+  useEffect(() => {
+    if (!runningIds) return
+    const timer = setInterval(() => runningIds.split(',').forEach((id) => reloadGame(Number(id))), 15_000)
+    return () => clearInterval(timer)
+  }, [runningIds, reloadGame])
+
+  const launch = useCallback(
+    async (id: number) => {
+      setSessions((prev) => ({ ...prev, [id]: prev[id] ?? 'launching' }))
+      const error = await window.vanity.games.launch(id).catch(message)
+      if (error) {
+        toast(error, 'error')
+        setSessions((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+      }
+    },
+    [toast]
+  )
+
+  const pickExecutable = useCallback(
+    async (id: number) => {
+      try {
+        const updated = await window.vanity.games.pickExecutable(id)
+        if (updated) setGames((gs) => gs.map((g) => (g.id === id ? updated : g)))
+      } catch (err) {
+        toast(`Could not change the program: ${message(err)}`, 'error')
+      }
+    },
+    [toast]
+  )
+
   const value = useMemo<LibraryState>(
     () => ({
       games,
@@ -137,11 +200,14 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       removeGame,
       addManually,
       openFolder,
+      sessions,
+      launch,
+      pickExecutable,
       scan: { running, progress, last, start },
       candidates,
       clearCandidates: () => setCandidates([])
     }),
-    [games, loading, refresh, updateGame, removeGame, addManually, openFolder, running, progress, last, start, candidates]
+    [games, loading, refresh, updateGame, removeGame, addManually, openFolder, sessions, launch, pickExecutable, running, progress, last, start, candidates]
   )
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>

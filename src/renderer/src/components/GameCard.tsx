@@ -7,11 +7,12 @@ import { SourceBadge } from './SourceBadge'
 
 interface Props {
   game: Game
+  playing?: boolean
   onOpen: (game: Game) => void
   onMenu: (e: React.MouseEvent, game: Game) => void
 }
 
-export const GameCard = memo(function GameCard({ game, onOpen, onMenu }: Props): React.JSX.Element {
+export const GameCard = memo(function GameCard({ game, playing, onOpen, onMenu }: Props): React.JSX.Element {
   return (
     <button
       className="group text-left outline-none"
@@ -32,7 +33,12 @@ export const GameCard = memo(function GameCard({ game, onOpen, onMenu }: Props):
           <SourceBadge source={game.source} className="bg-black/55 opacity-0 backdrop-blur transition group-hover:opacity-100" />
           {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
         </div>
-        {game.missing && (
+        {playing && (
+          <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            <span className="size-1.5 animate-pulse rounded-full bg-white" /> Playing
+          </span>
+        )}
+        {game.missing && !playing && (
           <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[11px] font-medium text-accent backdrop-blur">
             Not found
           </span>

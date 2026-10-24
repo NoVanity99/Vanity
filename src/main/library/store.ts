@@ -92,7 +92,7 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       `UPDATE games SET
          name = CASE WHEN name_locked = 1 THEN name ELSE @name END,
          install_path = @installPath,
-         executable_path = @executablePath,
+         executable_path = CASE WHEN executable_locked = 1 THEN executable_path ELSE @executablePath END,
          missing = 0,
          last_seen_at = @now
        WHERE id = @id`
@@ -167,6 +167,10 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       if (typeof patch.favorite === 'boolean') {
         sets.push('favorite = @favorite')
         params.favorite = patch.favorite ? 1 : 0
+      }
+      if (typeof patch.executablePath === 'string' && patch.executablePath.trim()) {
+        sets.push('executable_path = @executablePath', 'executable_locked = 1')
+        params.executablePath = patch.executablePath.trim()
       }
       if (typeof patch.hidden === 'boolean') {
         sets.push('hidden = @hidden')

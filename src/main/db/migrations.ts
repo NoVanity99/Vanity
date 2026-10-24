@@ -33,5 +33,18 @@ export const migrations: string[] = [
   );
   CREATE INDEX games_name ON games (name COLLATE NOCASE);
   CREATE INDEX games_last_played ON games (last_played_at);
+  `,
+  // 2: play sessions
+  `
+  CREATE TABLE play_sessions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id           INTEGER NOT NULL REFERENCES games (id) ON DELETE CASCADE,
+    started_at        INTEGER NOT NULL,
+    ended_at          INTEGER,
+    duration_seconds  INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX play_sessions_game ON play_sessions (game_id, started_at);
+  -- 1 once the user picks the exe, so rescans don't overwrite it
+  ALTER TABLE games ADD COLUMN executable_locked INTEGER NOT NULL DEFAULT 0;
   `
 ]

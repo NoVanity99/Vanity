@@ -62,7 +62,7 @@ function Select<T extends string>({
 }
 
 export function LibraryPage({ view }: { view: View }): React.JSX.Element {
-  const { games, loading, scan, addManually } = useLibrary()
+  const { games, loading, scan, addManually, sessions } = useLibrary()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -206,7 +206,7 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
         {loading ? null : shown.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-x-6 gap-y-8">
             {shown.map((g) => (
-              <GameCard key={g.id} game={g} onOpen={openGame} onMenu={openMenu} />
+              <GameCard key={g.id} game={g} playing={sessions[g.id] === 'running'} onOpen={openGame} onMenu={openMenu} />
             ))}
           </div>
         ) : filtered ? (

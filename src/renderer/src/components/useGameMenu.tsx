@@ -13,7 +13,7 @@ export function useGameMenu(): {
   openMenu: (e: React.MouseEvent, game: Game) => void
   menu: React.JSX.Element | null
 } {
-  const { updateGame, removeGame, openFolder } = useLibrary()
+  const { updateGame, removeGame, openFolder, launch, sessions } = useLibrary()
   const [state, setState] = useState<{ x: number; y: number; game: Game } | null>(null)
   const [editing, setEditing] = useState<Game | null>(null)
 
@@ -29,7 +29,9 @@ export function useGameMenu(): {
   if (state) {
     const g = state.game
     const items: MenuItem[] = [
-      { label: 'Play', icon: Play, onSelect: () => {}, disabled: true, hint: 'Launching arrives in stage 4' },
+      sessions[g.id]
+        ? { label: sessions[g.id] === 'running' ? 'Playing' : 'Launching…', icon: Play, onSelect: () => {}, disabled: true }
+        : { label: 'Play', icon: Play, onSelect: () => launch(g.id) },
       {
         label: g.favorite ? 'Remove from favorites' : 'Add to favorites',
         icon: g.favorite ? StarOff : Star,

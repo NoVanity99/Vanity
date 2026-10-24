@@ -32,7 +32,8 @@ function NavItem({ to, icon: Icon, label, count }: { to: string; icon: LucideIco
 }
 
 export function Sidebar(): React.JSX.Element {
-  const { games, scan, addManually } = useLibrary()
+  const { games, scan, addManually, sessions } = useLibrary()
+  const playing = games.filter((g) => sessions[g.id])
   const visible = games.filter((g) => !g.hidden)
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
 
@@ -52,6 +53,22 @@ export function Sidebar(): React.JSX.Element {
       </nav>
 
       <div className="mt-auto space-y-1 px-3 pb-4">
+        {playing.map((g) => (
+          <NavLink
+            key={g.id}
+            to={`/game/${g.id}`}
+            className="mb-2 flex items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2.5 text-xs ring-1 ring-emerald-500/20 transition hover:bg-emerald-500/15"
+          >
+            <span className="relative flex size-2.5 shrink-0">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Launching'}</span>
+              <span className="block truncate text-sm font-medium text-text">{g.name}</span>
+            </span>
+          </NavLink>
+        ))}
         {scan.running && (
           <NavLink to="/settings" className="mb-2 block rounded-lg bg-white/5 px-3 py-2.5 text-xs text-muted">
             <div className="mb-2 flex items-center gap-2">

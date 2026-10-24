@@ -78,3 +78,14 @@ describe('sqlite store', () => {
     expect(s.list().map((g) => g.name)).toEqual(['Alan Wake 2', 'Baldur’s Gate 3', 'celeste'])
   })
 })
+
+describe('executable override', () => {
+  it('keeps an exe the user picked across rescans', () => {
+    const s = store()
+    const ubi: DetectedGame = { source: 'ubisoft', externalId: '5059', name: 'AC', installPath: 'C:\\AC', executablePath: 'C:\\AC\\wrong.exe' }
+    const [g] = s.upsert([ubi]).games
+    s.update(g.id, { executablePath: 'C:\\AC\\ACValhalla.exe' })
+    s.upsert([ubi])
+    expect(s.get(g.id)?.executablePath).toBe('C:\\AC\\ACValhalla.exe')
+  })
+})

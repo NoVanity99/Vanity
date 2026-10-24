@@ -3,9 +3,14 @@ import { app, BrowserWindow, dialog, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
+import { IPC } from '@shared/ipc'
+import { listProcessPaths } from './launcher/processes'
+import { SessionTracker } from './launcher/tracker'
+import { createPlaytimeStore } from './library/playtime'
 import { createSqliteStore } from './library/store'
 
 let db: Db | null = null
+let tracker: SessionTracker | null = null
 
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
 if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USER_DATA)
@@ -48,7 +53,14 @@ app.whenReady().then(() => {
 
   const opened = openDatabase(join(app.getPath('userData'), 'vanity.db'))
   db = opened.db
-  registerIpc(createSqliteStore(db))
+  tracker = new SessionTracker({
+    store: createPlaytimeStore(db),
+    listProcesses: listProcessPaths,
+    onChange: (gameId, state) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.sessionsChanged, { gameId, state })
+    }
+  })
+  registerIpc(createSqliteStore(db), tracker)
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
 
@@ -62,6 +74,8 @@ process.on('uncaughtException', (err) => console.error('[main] uncaught exceptio
 process.on('unhandledRejection', (err) => console.error('[main] unhandled rejection:', err))
 
 app.on('will-quit', () => {
+  // Record playtime up to now for games still running; tracking stops with the app.
+  tracker?.stopAll()
   db?.close()
   db = null
 })

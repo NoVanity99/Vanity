@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import Database from 'better-sqlite3'
 import { openDatabase } from '../database'
 import { migrations } from '../migrations'
 
@@ -21,6 +22,22 @@ describe('openDatabase', () => {
     const second = openDatabase(file)
     expect(second.db.prepare('SELECT name FROM games').pluck().get()).toBe('X')
     second.db.close()
+  })
+
+  it('upgrades a database from an earlier version and keeps a backup', () => {
+    const file = tempFile()
+    const old = new Database(file)
+    old.exec(migrations[0])
+    old.pragma('user_version = 1')
+    old.prepare("INSERT INTO games (source, external_id, name, added_at, last_seen_at) VALUES ('steam', '1', 'Old', 0, 0)").run()
+    old.close()
+
+    const { db, warning } = openDatabase(file)
+    expect(warning).toBeUndefined()
+    expect(db.pragma('user_version', { simple: true })).toBe(migrations.length)
+    expect(db.prepare('SELECT name, executable_locked FROM games').get()).toEqual({ name: 'Old', executable_locked: 0 })
+    expect(existsSync(`${file}.v1.bak`)).toBe(true)
+    db.close()
   })
 
   it('moves a corrupt file aside and starts fresh instead of crashing', () => {

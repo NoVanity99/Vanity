@@ -1,7 +1,8 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, MoreHorizontal, Play, Star, Timer } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, MoreHorizontal, Star, Timer } from 'lucide-react'
 import { SOURCE_LABELS } from '@shared/types'
 import { Button } from '@/components/Dialog'
+import { PlayButton } from '@/components/PlayButton'
 import { SourceBadge } from '@/components/SourceBadge'
 import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
@@ -26,7 +27,7 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { games, loading, updateGame, openFolder } = useLibrary()
+  const { games, loading, updateGame, openFolder, pickExecutable } = useLibrary()
   const { openMenu, menu } = useGameMenu()
   const game = games.find((g) => g.id === Number(id))
 
@@ -87,13 +88,7 @@ export function GameDetailPage(): React.JSX.Element {
 
       <div className="space-y-10 px-10 pb-16 pt-2">
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            disabled
-            title="Launching arrives in stage 4"
-            className="flex h-14 items-center gap-3 rounded-xl bg-accent px-10 text-lg font-bold text-white shadow-xl shadow-accent/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Play className="size-5 fill-current" /> Play
-          </button>
+          <PlayButton game={game} />
           <button
             onClick={() => updateGame(game.id, { favorite: !game.favorite })}
             title={game.favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -150,10 +145,20 @@ export function GameDetailPage(): React.JSX.Element {
                 <dt className="text-muted">Install folder</dt>
                 <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
               </div>
-              {game.executablePath && (
+              {game.source === 'steam' || game.source === 'epic' ? (
                 <div>
-                  <dt className="text-muted">Executable</dt>
-                  <dd className="break-all select-text">{game.executablePath}</dd>
+                  <dt className="text-muted">Launches through</dt>
+                  <dd>{game.source === 'steam' ? 'Steam' : 'Epic Games Launcher'}</dd>
+                </div>
+              ) : (
+                <div>
+                  <dt className="flex items-center justify-between text-muted">
+                    Executable
+                    <button className="text-xs text-accent hover:underline" onClick={() => pickExecutable(game.id)}>
+                      Change
+                    </button>
+                  </dt>
+                  <dd className="break-all select-text">{game.executablePath ?? 'Not set'}</dd>
                 </div>
               )}
             </dl>

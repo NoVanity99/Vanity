@@ -90,4 +90,14 @@ export interface GamePatch {
   name?: string
   favorite?: boolean
   hidden?: boolean
+  /** Overrides the scanner's choice of exe; kept across rescans. */
+  executablePath?: string
+}
+
+/** Whether a launched game is still starting, running, or has stopped. */
+export type SessionState = 'launching' | 'running' | 'stopped'
+
+export interface SessionChange {
+  gameId: number
+  state: SessionState
 }
