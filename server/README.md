@@ -63,11 +63,13 @@ vercel env add JWT_SECRET           # paste your secret (Production)
 vercel --prod                       # prints https://<your-project>.vercel.app
 ```
 
+**Or from the repo root, as a Vercel project with services.** The root [`vercel.json`](../vercel.json) defines a `server` service (this folder, Hono). It's public under `/api/*`, so the URL to use in Vanity is `https://<your-project>.vercel.app/api`. Import the repo on Vercel, add `DATABASE_URL` and `JWT_SECRET` as project environment variables, and deploy. `vercel dev` at the repo root runs it locally. The entry point is [`src/index.ts`](src/index.ts). Every route works with or without the `/api` prefix.
+
 Any Node 20+ host works too (Render, Fly.io, Railway, a VPS): run `npm start` with the two environment variables set.
 
 ## 4. Point Vanity at it
 
-In Vanity, open **Account** (below Settings) → **Server**, and enter the URL: `http://localhost:8787` for local, or your `https://….vercel.app` URL. To build it in, add `MAIN_VITE_VANITY_API_URL=<url>` to the app's `.env.local`.
+In Vanity, open **Account** (below Settings) → **Server**, and enter the URL: `http://localhost:8787` for local, or your `https://….vercel.app` URL (add `/api` if you deployed from the repo root with services). To build it in, add `MAIN_VITE_VANITY_API_URL=<url>` to the app's `.env.local`.
 
 Everyone who wants to be friends must use the same server URL.
 

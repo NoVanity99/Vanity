@@ -49,6 +49,17 @@ beforeEach(async () => {
   app = createApp({ sql: fresh.sql, jwtSecret: SECRET, authRateLimit: 1000 })
 })
 
+describe('/api prefix', () => {
+  it('serves every route under /api too, with the same auth and errors', async () => {
+    const r = await call('POST', '/api/auth/register', undefined, { username: 'prefixed', password: 'hunter2hunter2' })
+    expect(r.status).toBe(201)
+    expect((await call('GET', '/api/me', r.json.token)).json.user.username).toBe('prefixed')
+    expect((await call('GET', '/me', r.json.token)).json.user.username).toBe('prefixed')
+    expect((await call('GET', '/api/me')).status).toBe(401)
+    expect((await call('GET', '/api')).json).toMatchObject({ name: 'vanity-api', ok: true })
+  })
+})
+
 describe('accounts', () => {
   it('registers, logs in and identifies the user', async () => {
     const { token } = await register('Jordan_99')

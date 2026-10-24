@@ -300,5 +300,10 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
     return c.json({ error: 'Something went wrong on the server.' }, 500)
   })
 
-  return app
+  // Serve every route at /… and at /api/…, so the server works on its own domain
+  // or behind a site that forwards /api/* to it (e.g. Vercel services).
+  const root = new Hono<Env>()
+  root.route('/api', app)
+  root.route('/', app)
+  return root
 }
