@@ -188,7 +188,7 @@ export function SettingsPage(): React.JSX.Element {
 
         <Section
           title="Metadata & artwork"
-          description="Free API credentials used to download covers, banners, descriptions and genres (stage 5). Stored encrypted on this PC."
+          description="Free API credentials used to download covers, banners, descriptions and genres (stage 5). Stored encrypted on this PC. Keys built in from .env.local are filled in automatically."
         >
           <div className="space-y-5">
             <SecretField

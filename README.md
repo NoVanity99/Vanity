@@ -39,6 +39,18 @@ src/
 resources/           App icon and build resources
 ```
 
+## Built-in API keys (optional)
+
+To skip entering API keys in Settings, copy `.env.example` to `.env.local` in the project folder and fill in your keys:
+
+```
+MAIN_VITE_STEAMGRIDDB_API_KEY=...
+MAIN_VITE_IGDB_CLIENT_ID=...
+MAIN_VITE_IGDB_CLIENT_SECRET=...
+```
+
+`.env.local` is ignored by git, so the keys never reach GitHub. They are built into the main process when you run `npm run dev` or `npm run build` (restart `npm run dev` after editing the file), and are used whenever the matching Settings field is empty. A key typed into Settings takes priority. Since they end up inside the built app, don't share builds or installers made with your keys.
+
 ## Game sources
 
 | Source | How games are found | ID |

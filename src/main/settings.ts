@@ -20,10 +20,13 @@ const ENCRYPTED_PREFIX = 'enc:'
 
 function encryptSecrets(settings: Settings): Record<string, unknown> {
   const out: Record<string, unknown> = { ...settings }
-  if (!safeStorage.isEncryptionAvailable()) return out
   for (const field of SECRET_FIELDS) {
     const value = settings[field]
-    if (value) out[field] = ENCRYPTED_PREFIX + safeStorage.encryptString(value).toString('base64')
+    // Built-in values stay in the build only, so editing .env.local and rebuilding takes effect.
+    if (!value || value === BUILT_IN[field]) out[field] = ''
+    else if (safeStorage.isEncryptionAvailable()) {
+      out[field] = ENCRYPTED_PREFIX + safeStorage.encryptString(value).toString('base64')
+    }
   }
   return out
 }
@@ -48,13 +51,22 @@ function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
 
+/** Credentials built in at build time from .env.local, used when the Settings field is empty. */
+const BUILT_IN: Pick<Settings, (typeof SECRET_FIELDS)[number]> = {
+  steamGridDbApiKey: import.meta.env.MAIN_VITE_STEAMGRIDDB_API_KEY?.trim() ?? '',
+  igdbClientId: import.meta.env.MAIN_VITE_IGDB_CLIENT_ID?.trim() ?? '',
+  igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() ?? ''
+}
+
 /** Merges stored settings over defaults, so new fields get sensible values. */
 function withDefaults(stored: Partial<Settings>): Settings {
-  return {
+  const merged: Settings = {
     ...DEFAULTS,
     ...stored,
     enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources }
   }
+  for (const field of SECRET_FIELDS) merged[field] ||= BUILT_IN[field]
+  return merged
 }
 
 export function getSettings(): Settings {
