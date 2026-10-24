@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, dialog, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, net, protocol, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -13,6 +13,8 @@ import { MediaCache } from './metadata/mediaCache'
 import { createMetadataRepo } from './metadata/repo'
 import { MetadataService } from './metadata/service'
 import { getSettings } from './settings'
+import { loadWindowState, trackWindowState } from './windowState'
+import icon from '../../resources/icon.png?asset'
 
 let db: Db | null = null
 let tracker: SessionTracker | null = null
@@ -30,14 +32,28 @@ function broadcast(channel: string, payload: unknown): void {
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
 if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USER_DATA)
 
+// One instance only: launching Vanity again brings the open window to the front.
+if (!app.requestSingleInstanceLock()) app.quit()
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+})
+
+// Dark native controls (scrollbars, dropdowns, date pickers, dialogs where supported).
+nativeTheme.themeSource = 'dark'
+
 function createWindow(): void {
+  const saved = loadWindowState()
   const win = new BrowserWindow({
-    width: 1400,
-    height: 880,
+    ...saved.bounds,
     minWidth: 1000,
     minHeight: 640,
     show: false,
     backgroundColor: '#0b0d12',
+    icon,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#0b0d12', symbolColor: '#c9ced8', height: 36 },
     webPreferences: {
@@ -47,7 +63,11 @@ function createWindow(): void {
     }
   })
 
-  win.on('ready-to-show', () => win.show())
+  trackWindowState(win)
+  win.on('ready-to-show', () => {
+    if (saved.maximized) win.maximize()
+    win.show()
+  })
 
   // Open external links in the default browser rather than inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {

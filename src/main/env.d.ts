@@ -10,3 +10,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// electron-vite: `import x from 'file?asset'` gives the file's path at runtime.
+declare module '*?asset' {
+  const path: string
+  export default path
+}

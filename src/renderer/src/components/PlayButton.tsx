@@ -13,10 +13,10 @@ export function PlayButton({ game }: { game: Game }): React.JSX.Element {
       onClick={() => launch(game.id)}
       disabled={state !== undefined}
       className={cn(
-        'relative flex h-14 min-w-44 items-center justify-center gap-3 overflow-hidden rounded-xl px-10 text-lg font-bold text-white shadow-xl transition active:scale-[0.98]',
+        'group/play relative flex h-14 min-w-44 items-center justify-center gap-3 overflow-hidden rounded-xl px-10 text-lg font-bold text-white shadow-xl transition active:scale-[0.98]',
         state === 'running'
           ? 'cursor-default bg-emerald-600 shadow-emerald-600/25'
-          : 'bg-accent shadow-accent/25 hover:brightness-110 disabled:cursor-wait'
+          : 'bg-accent shadow-accent/25 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-accent/40 hover:brightness-110 disabled:cursor-wait'
       )}
     >
       {state === 'launching' ? (
@@ -34,6 +34,8 @@ export function PlayButton({ game }: { game: Game }): React.JSX.Element {
         </>
       ) : (
         <>
+          {/* Sheen that sweeps across on hover. */}
+          <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition duration-700 ease-out group-hover/play:translate-x-full" />
           <Play className="size-5 fill-current" /> Play
         </>
       )}

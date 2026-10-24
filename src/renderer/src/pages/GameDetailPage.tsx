@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Wand2 } from 'lucide-react'
 import { SOURCE_LABELS } from '@shared/types'
@@ -35,6 +35,23 @@ export function GameDetailPage(): React.JSX.Element {
   const [dialog, setDialog] = useState<'match' | 'artwork' | null>(null)
   const game = games.find((g) => g.id === Number(id))
 
+  // Parallax: the banner drifts slower than the page and the title fades as you scroll.
+  // Written straight to the elements' style so scrolling doesn't re-render React.
+  const heroLayer = useRef<HTMLDivElement>(null)
+  const heroText = useRef<HTMLDivElement>(null)
+  const frame = useRef(0)
+  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const y = e.currentTarget.scrollTop
+    cancelAnimationFrame(frame.current)
+    frame.current = requestAnimationFrame(() => {
+      if (heroLayer.current) heroLayer.current.style.transform = `translate3d(0, ${y * 0.4}px, 0)`
+      if (heroText.current) {
+        heroText.current.style.transform = `translate3d(0, ${y * 0.15}px, 0)`
+        heroText.current.style.opacity = String(Math.max(0, 1 - y / 380))
+      }
+    })
+  }, [])
+
   if (!game) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-muted">
@@ -54,23 +71,25 @@ export function GameDetailPage(): React.JSX.Element {
   const folder = game.installPath ?? game.executablePath
 
   return (
-    <div className="h-full overflow-y-auto">
-      <section className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden">
-        {hero ? (
-          <img src={hero} alt="" className="absolute inset-0 size-full animate-[fade-in_400ms_ease-out] object-cover" draggable={false} />
-        ) : cover ? (
-          // No banner: a blurred, enlarged cover still gives the page the game's colours.
-          <img src={cover} alt="" className="absolute inset-0 size-full scale-125 object-cover opacity-60 blur-3xl" draggable={false} />
-        ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `radial-gradient(90% 120% at 75% 10%, hsl(${hue} 60% 30%) 0%, transparent 60%),
-                           radial-gradient(60% 90% at 10% 100%, hsl(${(hue + 50) % 360} 55% 22%) 0%, transparent 70%),
-                           linear-gradient(180deg, hsl(${hue} 35% 14%), hsl(${hue} 30% 8%))`
-            }}
-          />
-        )}
+    <div className="h-full overflow-y-auto" onScroll={onScroll}>
+      <section key={game.id} className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden">
+        <div ref={heroLayer} className="absolute inset-0 will-change-transform">
+          {hero ? (
+            <img src={hero} alt="" className="animate-hero-in absolute inset-0 size-full object-cover" draggable={false} />
+          ) : cover ? (
+            // No banner: a blurred, enlarged cover still gives the page the game's colours.
+            <img src={cover} alt="" className="absolute inset-0 size-full scale-125 animate-[fade-in_800ms_ease-out] object-cover opacity-60 blur-3xl" draggable={false} />
+          ) : (
+            <div
+              className="absolute inset-0 animate-[fade-in_600ms_ease-out]"
+              style={{
+                background: `radial-gradient(90% 120% at 75% 10%, hsl(${hue} 60% 30%) 0%, transparent 60%),
+                             radial-gradient(60% 90% at 10% 100%, hsl(${(hue + 50) % 360} 55% 22%) 0%, transparent 70%),
+                             linear-gradient(180deg, hsl(${hue} 35% 14%), hsl(${hue} 30% 8%))`
+              }}
+            />
+          )}
+        </div>
         {/* Fade into the page and darken behind the title for legibility. */}
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/10 to-transparent" />
@@ -82,13 +101,24 @@ export function GameDetailPage(): React.JSX.Element {
           <ArrowLeft className="size-4" /> Back
         </button>
 
-        <div className="absolute inset-x-10 bottom-10">
+        <div ref={heroText} className="absolute inset-x-10 bottom-10 will-change-transform">
           {logo ? (
-            <img src={logo} alt={game.name} className="max-h-36 max-w-md object-contain drop-shadow-2xl" draggable={false} />
+            <img
+              src={logo}
+              alt={game.name}
+              className="animate-rise-in max-h-36 max-w-md object-contain object-left drop-shadow-2xl"
+              style={{ '--delay': '150ms' } as React.CSSProperties}
+              draggable={false}
+            />
           ) : (
-            <h1 className="max-w-3xl text-5xl font-black leading-[1.05] tracking-tight drop-shadow-2xl">{game.name}</h1>
+            <h1
+              className="animate-rise-in max-w-3xl text-5xl font-black leading-[1.05] tracking-tight drop-shadow-2xl"
+              style={{ '--delay': '150ms' } as React.CSSProperties}
+            >
+              {game.name}
+            </h1>
           )}
-          <div className="mt-4 flex items-center gap-3 text-sm text-muted">
+          <div className="animate-rise-in mt-4 flex items-center gap-3 text-sm text-muted" style={{ '--delay': '260ms' } as React.CSSProperties}>
             {icon && <img src={icon} alt="" className="size-6 rounded" draggable={false} />}
             <SourceBadge source={game.source} />
             {game.developer && <span>{game.developer}</span>}
@@ -97,8 +127,8 @@ export function GameDetailPage(): React.JSX.Element {
         </div>
       </section>
 
-      <div className="space-y-10 px-10 pb-16 pt-2">
-        <div className="flex flex-wrap items-center gap-3">
+      <div key={`body-${game.id}`} className="relative space-y-10 bg-bg px-10 pb-16 pt-2">
+        <div className="animate-rise-in flex flex-wrap items-center gap-3" style={{ '--delay': '360ms' } as React.CSSProperties}>
           <PlayButton game={game} />
           <button
             onClick={() => updateGame(game.id, { favorite: !game.favorite })}
@@ -149,7 +179,7 @@ export function GameDetailPage(): React.JSX.Element {
           </div>
         )}
 
-        <div className="grid gap-10 lg:grid-cols-[1fr_360px]">
+        <div className="animate-rise-in grid gap-10 lg:grid-cols-[1fr_360px]" style={{ '--delay': '460ms' } as React.CSSProperties}>
           <section>
             <h2 className="mb-3 text-lg font-semibold">About</h2>
             {game.genres.length > 0 && (

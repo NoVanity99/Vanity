@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Clock, FolderSearch, Plus, Search, Star, X } from 'lucide-react'
+import { ChevronDown, Clock, FolderSearch, Image as ImageIcon, Plus, Search, Star, X } from 'lucide-react'
 import { SOURCE_LABELS, type Game, type GameSource } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
+import { RecentShelf } from '@/components/RecentShelf'
 import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
 import { searchKey } from '@/lib/format'
@@ -18,9 +19,13 @@ interface Prefs {
   source: GameSource | 'all'
   genre: string
   showHidden: boolean
+  /** Minimum card width in px (the size slider). */
+  cardWidth: number
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', showHidden: false }
+const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', showHidden: false, cardWidth: 168 }
+const CARD_MIN = 128
+const CARD_MAX = 260
 
 const TITLES: Record<View, string> = { all: 'Library', recent: 'Recently Played', favorites: 'Favorites' }
 
@@ -62,7 +67,7 @@ function Select<T extends string>({
 }
 
 export function LibraryPage({ view }: { view: View }): React.JSX.Element {
-  const { games, loading, scan, addManually, sessions } = useLibrary()
+  const { games, loading, scan, addManually, sessions, launch } = useLibrary()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -111,12 +116,27 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   }, [base, query, prefs.showHidden, prefs.sort, source, genre, view])
 
   const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all'
+  const cardWidth = Math.min(CARD_MAX, Math.max(CARD_MIN, prefs.cardWidth || DEFAULT_PREFS.cardWidth))
+  const gridStyle = { gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))` }
   const clearFilters = (): void => {
     setQuery('')
     patch({ source: 'all', genre: 'all' })
   }
 
   const openGame = useCallback((g: Game): void => void navigate(`/game/${g.id}`), [navigate])
+  const playGame = useCallback((g: Game): void => void launch(g.id), [launch])
+
+  // "Jump back in": the three most recent, on the main Library view when nothing is filtered.
+  const recent = useMemo(
+    () =>
+      view === 'all' && !filtered
+        ? games
+            .filter((g) => g.lastPlayedAt !== null && !g.hidden)
+            .sort(SORTERS.recent)
+            .slice(0, 3)
+        : [],
+    [games, view, filtered]
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -199,16 +219,44 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
               Clear filters
             </button>
           )}
+
+          <label className="ml-auto flex items-center gap-2 text-muted" title="Card size">
+            <ImageIcon className="size-3.5" />
+            <input
+              type="range"
+              min={CARD_MIN}
+              max={CARD_MAX}
+              step={4}
+              value={prefs.cardWidth}
+              onChange={(e) => patch({ cardWidth: Number(e.target.value) })}
+              className="h-1 w-28 cursor-pointer rounded-full accent-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+              aria-label="Card size"
+            />
+            <ImageIcon className="size-5" />
+          </label>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-10 pb-16 pt-8">
-        {loading ? null : shown.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(168px,1fr))] gap-x-6 gap-y-8">
-            {shown.map((g) => (
-              <GameCard key={g.id} game={g} playing={sessions[g.id] === 'running'} onOpen={openGame} onMenu={openMenu} />
+        {loading ? (
+          <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i}>
+                <div className="shimmer aspect-[2/3] rounded-xl bg-surface-2" />
+                <div className="shimmer mt-3 h-3.5 w-2/3 rounded bg-surface-2" />
+              </div>
             ))}
           </div>
+        ) : shown.length > 0 ? (
+          <>
+            <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} />
+            {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
+            <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+              {shown.map((g, i) => (
+                <GameCard key={g.id} game={g} index={i} session={sessions[g.id]} onOpen={openGame} onPlay={playGame} onMenu={openMenu} />
+              ))}
+            </div>
+          </>
         ) : filtered ? (
           <EmptyState icon={Search} title="No games match" text="Try a different search or filter.">
             <Button onClick={clearFilters}>Clear filters</Button>

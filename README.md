@@ -39,6 +39,13 @@ src/
 resources/           App icon and build resources
 ```
 
+## Using the app
+
+- **Library:** search (Ctrl+F), sort, filter by source or genre, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
+- **Game page:** banner, logo, Play, playtime, details, install folder, Fix match and Change artwork.
+- **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
+- Vanity remembers its window size and position, and opening it again brings the existing window to the front. Animations follow Windows' "Animation effects" setting (reduced motion).
+
 ## Built-in API keys (optional)
 
 To skip entering API keys in Settings, copy `.env.example` to `.env.local` in the project folder and fill in your keys:
