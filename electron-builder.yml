@@ -1,0 +1,15 @@
+appId: com.vanity.launcher
+productName: Vanity
+directories:
+  buildResources: resources
+files:
+  - "out/**/*"
+  - "package.json"
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
