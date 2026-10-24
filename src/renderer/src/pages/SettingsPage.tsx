@@ -7,6 +7,12 @@ import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 
+/**
+ * The API key fields are hidden because the keys are built in from .env.local.
+ * Set this to true to show the "Metadata & artwork" section again.
+ */
+const SHOW_API_KEYS = false
+
 function Section({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
   return (
     <section className="rounded-2xl border border-border bg-surface p-6">
@@ -147,6 +153,12 @@ export function SettingsPage(): React.JSX.Element {
               <RefreshCw className={cn('size-4', scan.running && 'animate-spin')} />
               {scan.running ? 'Scanning…' : 'Rescan now'}
             </Button>
+            {!SHOW_API_KEYS && (
+              <Button onClick={() => window.vanity.metadata.refreshAll()} disabled={metadata.running}>
+                <RefreshCw className={cn('size-4', metadata.running && 'animate-spin')} />
+                {metadata.running ? `Fetching ${Math.min(metadata.done, metadata.total)}/${metadata.total}…` : 'Refresh all metadata'}
+              </Button>
+            )}
             {scan.last && !scan.running && (
               <span className="text-sm text-muted">
                 Last scan: {scan.last.added} new, {scan.last.updated} updated
@@ -212,56 +224,58 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </Section>
 
-        <Section
-          title="Metadata & artwork"
-          description="Free API credentials for covers, banners, logos, descriptions and genres. Steam games also get artwork and details from Steam without any key. Stored encrypted on this PC; keys built in from .env.local are filled in automatically."
-        >
-          <div className="space-y-5">
-            <SecretField
-              label="SteamGridDB API key"
-              value={settings.steamGridDbApiKey}
-              onSave={(v) => save({ steamGridDbApiKey: v }, 'SteamGridDB key saved')}
-              help={
-                <>
-                  Get one at{' '}
-                  <a className="text-accent hover:underline" href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noreferrer">
-                    steamgriddb.com → Preferences → API
-                  </a>
-                </>
-              }
-            />
-            <SecretField
-              label="IGDB client ID"
-              value={settings.igdbClientId}
-              onSave={(v) => save({ igdbClientId: v }, 'IGDB client ID saved')}
-              help={
-                <>
-                  Register an application at{' '}
-                  <a className="text-accent hover:underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noreferrer">
-                    dev.twitch.tv/console/apps
-                  </a>{' '}
-                  (category "Application Integration", redirect URL http://localhost).
-                </>
-              }
-            />
-            <SecretField
-              label="IGDB client secret"
-              value={settings.igdbClientSecret}
-              onSave={(v) => save({ igdbClientSecret: v }, 'IGDB client secret saved')}
-            />
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border pt-5">
-              <Button onClick={checkKeys} disabled={checking}>
-                <KeyRound className="size-4" /> {checking ? 'Checking…' : 'Check keys'}
-              </Button>
-              <Button onClick={() => window.vanity.metadata.refreshAll()} disabled={metadata.running}>
-                <RefreshCw className={cn('size-4', metadata.running && 'animate-spin')} />
-                {metadata.running ? `Fetching ${Math.min(metadata.done, metadata.total)}/${metadata.total}…` : 'Refresh all metadata'}
-              </Button>
-              <KeyStatus label="SteamGridDB" result={keyCheck?.steamGridDb} />
-              <KeyStatus label="IGDB" result={keyCheck?.igdb} />
+        {SHOW_API_KEYS && (
+          <Section
+            title="Metadata & artwork"
+            description="Free API credentials for covers, banners, logos, descriptions and genres. Steam games also get artwork and details from Steam without any key. Stored encrypted on this PC; keys built in from .env.local are filled in automatically."
+          >
+            <div className="space-y-5">
+              <SecretField
+                label="SteamGridDB API key"
+                value={settings.steamGridDbApiKey}
+                onSave={(v) => save({ steamGridDbApiKey: v }, 'SteamGridDB key saved')}
+                help={
+                  <>
+                    Get one at{' '}
+                    <a className="text-accent hover:underline" href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noreferrer">
+                      steamgriddb.com → Preferences → API
+                    </a>
+                  </>
+                }
+              />
+              <SecretField
+                label="IGDB client ID"
+                value={settings.igdbClientId}
+                onSave={(v) => save({ igdbClientId: v }, 'IGDB client ID saved')}
+                help={
+                  <>
+                    Register an application at{' '}
+                    <a className="text-accent hover:underline" href="https://dev.twitch.tv/console/apps" target="_blank" rel="noreferrer">
+                      dev.twitch.tv/console/apps
+                    </a>{' '}
+                    (category "Application Integration", redirect URL http://localhost).
+                  </>
+                }
+              />
+              <SecretField
+                label="IGDB client secret"
+                value={settings.igdbClientSecret}
+                onSave={(v) => save({ igdbClientSecret: v }, 'IGDB client secret saved')}
+              />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border pt-5">
+                <Button onClick={checkKeys} disabled={checking}>
+                  <KeyRound className="size-4" /> {checking ? 'Checking…' : 'Check keys'}
+                </Button>
+                <Button onClick={() => window.vanity.metadata.refreshAll()} disabled={metadata.running}>
+                  <RefreshCw className={cn('size-4', metadata.running && 'animate-spin')} />
+                  {metadata.running ? `Fetching ${Math.min(metadata.done, metadata.total)}/${metadata.total}…` : 'Refresh all metadata'}
+                </Button>
+                <KeyStatus label="SteamGridDB" result={keyCheck?.steamGridDb} />
+                <KeyStatus label="IGDB" result={keyCheck?.igdb} />
+              </div>
             </div>
-          </div>
-        </Section>
+          </Section>
+        )}
       </div>
     </div>
   )
