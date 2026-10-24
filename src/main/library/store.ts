@@ -1,5 +1,5 @@
 import { isAbsolute, join, relative } from 'node:path'
-import type { ArtworkKind, DetectedGame, Game, GamePatch, GameSource, MetadataStatus } from '@shared/types'
+import { PLAY_STATUSES, type ArtworkKind, type DetectedGame, type Game, type GamePatch, type GameSource, type MetadataStatus, type PlayStatus } from '@shared/types'
 import type { Db } from '../db/database'
 
 export interface LibraryStore {
@@ -47,6 +47,9 @@ interface GameRow {
   match_locked: number
   details_locked: number
   artwork_locked: string
+  play_status: string | null
+  user_rating: number | null
+  notes: string | null
 }
 
 function parseGenres(json: string): string[] {
@@ -89,7 +92,10 @@ function toGame(r: GameRow): Game {
       matchLocked: r.match_locked === 1,
       detailsLocked: r.details_locked === 1,
       lockedArtwork: r.artwork_locked.split(',').filter(Boolean) as ArtworkKind[]
-    }
+    },
+    playStatus: PLAY_STATUSES.includes(r.play_status as PlayStatus) ? (r.play_status as PlayStatus) : null,
+    userRating: r.user_rating && r.user_rating >= 1 && r.user_rating <= 5 ? r.user_rating : null,
+    notes: r.notes
   }
 }
 
@@ -215,6 +221,19 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       if (typeof patch.hidden === 'boolean') {
         sets.push('hidden = @hidden')
         params.hidden = patch.hidden ? 1 : 0
+      }
+      if (patch.playStatus !== undefined) {
+        sets.push('play_status = @playStatus')
+        params.playStatus = patch.playStatus && PLAY_STATUSES.includes(patch.playStatus) ? patch.playStatus : null
+      }
+      if (patch.userRating !== undefined) {
+        const r = Math.round(Number(patch.userRating))
+        sets.push('user_rating = @userRating')
+        params.userRating = r >= 1 && r <= 5 ? r : null
+      }
+      if (patch.notes !== undefined) {
+        sets.push('notes = @notes')
+        params.notes = typeof patch.notes === 'string' && patch.notes.trim() ? patch.notes.slice(0, 20_000) : null
       }
       if (sets.length) db.prepare(`UPDATE games SET ${sets.join(', ')} WHERE id = @id`).run(params)
       return get(id)

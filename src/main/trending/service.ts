@@ -23,7 +23,27 @@ export interface TrendingDeps {
   isProtocolRegistered(protocol: string): boolean
   openExternal(url: string): Promise<void>
   onUpdate(state: TrendingState): void
+  /** Shows a desktop notification (release reminders). */
+  notify?(title: string, body: string): void
   now?: () => number
+}
+
+/** An upcoming game the user follows. */
+interface Followed {
+  id: number
+  title: string
+  releaseDate: string
+  notified: boolean
+}
+
+const FOLLOW_KEY = 'trending:followed'
+/** Released and announced games drop off the follow list after this long. */
+const FOLLOW_KEEP_DAYS = 30
+
+/** Today's date (local time) as YYYY-MM-DD, to compare with release dates. */
+export function localDate(ms: number): string {
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 interface Cached {
@@ -44,6 +64,68 @@ export class TrendingService {
   constructor(private deps: TrendingDeps) {
     this.now = deps.now ?? Date.now
     this.cache = this.readCache()
+  }
+
+  // ---- following upcoming games ------------------------------------------------
+
+  private readFollowed(): Followed[] {
+    try {
+      const row = this.deps.db.prepare('SELECT value FROM kv WHERE key = ?').pluck().get(FOLLOW_KEY) as string | undefined
+      const list = row ? (JSON.parse(row) as Followed[]) : []
+      return Array.isArray(list) ? list.filter((f) => typeof f.id === 'number' && typeof f.releaseDate === 'string') : []
+    } catch {
+      return []
+    }
+  }
+
+  private writeFollowed(list: Followed[]): void {
+    this.deps.db
+      .prepare('INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+      .run(FOLLOW_KEY, JSON.stringify(list), this.now())
+  }
+
+  /** Follows or unfollows an upcoming game from the cached list. */
+  follow(id: number, on: boolean): TrendingState {
+    const list = this.readFollowed().filter((f) => f.id !== id)
+    if (on) {
+      const game = this.cache?.upcoming?.find((g) => g.id === id)
+      if (!game) throw new Error('That game is no longer in the upcoming list.')
+      list.push({ id, title: game.title, releaseDate: game.releaseDate, notified: false })
+    }
+    this.writeFollowed(list)
+    const state = this.state()
+    this.deps.onUpdate(state)
+    return state
+  }
+
+  /**
+   * Picks up changed release dates from the latest list, reminds the user about
+   * followed games that are out, and forgets ones released a while ago.
+   */
+  checkReleases(): void {
+    const today = localDate(this.now())
+    const forget = localDate(this.now() - FOLLOW_KEEP_DAYS * 86_400_000)
+    const upcoming = new Map((this.cache?.upcoming ?? []).map((g) => [g.id, g]))
+    let changed = false
+    const list: Followed[] = []
+    for (const f of this.readFollowed()) {
+      const fresh = upcoming.get(f.id)
+      if (fresh && fresh.releaseDate !== f.releaseDate && !f.notified) {
+        f.releaseDate = fresh.releaseDate
+        changed = true
+      }
+      if (!f.notified && f.releaseDate <= today) {
+        this.deps.notify?.(`${f.title} is out now`, 'A game you follow just came out. Find it in Trending to open it in a store.')
+        f.notified = true
+        changed = true
+      }
+      if (f.notified && f.releaseDate < forget) {
+        changed = true
+        continue
+      }
+      list.push(f)
+    }
+    if (changed) this.writeFollowed(list)
   }
 
   private readCache(): Cached | null {
@@ -70,7 +152,8 @@ export class TrendingService {
       updatedAt: this.cache?.updatedAt ?? null,
       refreshing: this.inFlight !== null,
       error: this.error,
-      needsKeys: this.needsKeys
+      needsKeys: this.needsKeys,
+      followed: this.readFollowed().map((f) => f.id)
     }
   }
 
@@ -106,6 +189,7 @@ export class TrendingService {
       this.writeCache(this.cache)
       this.error = null
       this.needsKeys = false
+      this.checkReleases()
     } catch (err) {
       this.error = describe(err)
       this.needsKeys = err instanceof MissingKeysError
@@ -119,7 +203,12 @@ export class TrendingService {
   /** Refresh every REFRESH_MS while the app runs, so the tab is ready when opened. */
   start(): void {
     if (this.timer) return
-    this.timer = setInterval(() => void this.refresh(), REFRESH_MS)
+    this.timer = setInterval(() => {
+      void this.refresh()
+      // Also catches release days while the list can't refresh (offline).
+      this.checkReleases()
+    }, REFRESH_MS)
+    this.checkReleases()
     if (this.isStale()) void this.refresh()
   }
 

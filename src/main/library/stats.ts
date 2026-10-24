@@ -1,4 +1,5 @@
 import type { Db } from '../db/database'
+import type { GamePlayStats, GameSession } from '@shared/types'
 
 export interface PlayStats {
   totalSeconds: number
@@ -35,5 +36,43 @@ export function playStats(db: Db, now = Date.now(), days = 60): PlayStats {
     longest: longest && longest.seconds > 0 ? longest : null,
     top,
     recent
+  }
+}
+
+/** Playtime facts for one game: sessions, averages, rank in the library and its session history. */
+export function gamePlayStats(db: Db, gameId: number): GamePlayStats {
+  const agg = db
+    .prepare(
+      `SELECT COUNT(*) AS sessions, COALESCE(SUM(duration_seconds), 0) AS total, MIN(started_at) AS first
+       FROM play_sessions WHERE game_id = ? AND duration_seconds > 0`
+    )
+    .get(gameId) as { sessions: number; total: number; first: number | null }
+  const longest = db
+    .prepare('SELECT duration_seconds AS seconds, started_at AS startedAt FROM play_sessions WHERE game_id = ? AND duration_seconds > 0 ORDER BY duration_seconds DESC LIMIT 1')
+    .get(gameId) as { seconds: number; startedAt: number } | undefined
+  const game = db.prepare('SELECT playtime_seconds AS seconds, last_played_at AS last FROM games WHERE id = ?').get(gameId) as
+    | { seconds: number; last: number | null }
+    | undefined
+  const seconds = game?.seconds ?? 0
+  const library = db
+    .prepare('SELECT COALESCE(SUM(playtime_seconds), 0) AS total, SUM(playtime_seconds > 0) AS played FROM games')
+    .get() as { total: number; played: number | null }
+  const ahead = db.prepare('SELECT COUNT(*) FROM games WHERE playtime_seconds > ?').pluck().get(seconds) as number
+  const history = db
+    .prepare(
+      `SELECT started_at AS startedAt, ended_at AS endedAt, duration_seconds AS seconds
+       FROM play_sessions WHERE game_id = ? AND duration_seconds > 0 ORDER BY started_at DESC LIMIT 500`
+    )
+    .all(gameId) as GameSession[]
+  return {
+    sessions: agg.sessions,
+    averageSeconds: agg.sessions ? Math.round(agg.total / agg.sessions) : 0,
+    longest: longest ?? null,
+    // Playtime imported before sessions were recorded has no first session; fall back to the last launch.
+    firstPlayedAt: agg.first ?? (seconds > 0 ? (game?.last ?? null) : null),
+    rank: seconds > 0 ? ahead + 1 : null,
+    playedGames: library.played ?? 0,
+    share: library.total > 0 ? seconds / library.total : 0,
+    history
   }
 }

@@ -42,6 +42,24 @@ export interface Game {
   logoPath: string | null
   iconPath: string | null
   metadata: GameMetadataInfo
+  // The user's own journal for the game.
+  playStatus: PlayStatus | null
+  /** 1–5 stars. */
+  userRating: number | null
+  notes: string | null
+}
+
+/** Where the user is with a game (their backlog tracker). */
+export type PlayStatus = 'backlog' | 'playing' | 'beaten' | 'completed' | 'dropped'
+
+export const PLAY_STATUSES: PlayStatus[] = ['backlog', 'playing', 'beaten', 'completed', 'dropped']
+
+export const PLAY_STATUS_LABELS: Record<PlayStatus, string> = {
+  backlog: 'Backlog',
+  playing: 'Playing',
+  beaten: 'Beaten',
+  completed: '100% completed',
+  dropped: 'Dropped'
 }
 
 export type MetadataStatus =
@@ -180,6 +198,10 @@ export interface GamePatch {
   genres?: string[]
   releaseDate?: string | null
   developer?: string | null
+  // Journal fields (never lock anything).
+  playStatus?: PlayStatus | null
+  userRating?: number | null
+  notes?: string | null
 }
 
 /** Whether a launched game is still starting, running, or has stopped. */
@@ -243,6 +265,9 @@ export interface UpcomingGame {
   /** IGDB "hypes": people following it before release. Higher = more anticipated. */
   hype: number
   stores: StoreLink[]
+  /** 1 = most hyped. */
+  hypeRank: number
+  genres: string[]
 }
 
 export interface TrendingState {
@@ -255,6 +280,8 @@ export interface TrendingState {
   error: string | null
   /** The error is about missing credentials (the user needs to add keys). */
   needsKeys: boolean
+  /** Upcoming games the user follows for a release reminder. */
+  followed: number[]
 }
 
 // ---- Launcher status -------------------------------------------------------
@@ -341,4 +368,70 @@ export interface GameFriend {
   username: string
   playtimeSeconds: number
   lastPlayedAt: number | null
+}
+
+// ---- Game page: your stats and extra details ---------------------------------
+
+export interface GameSession {
+  startedAt: number
+  endedAt: number | null
+  seconds: number
+}
+
+/** Playtime facts for one game, from recorded sessions. */
+export interface GamePlayStats {
+  sessions: number
+  averageSeconds: number
+  longest: { seconds: number; startedAt: number } | null
+  firstPlayedAt: number | null
+  /** Position by playtime among played games (1 = most played); null if never played. */
+  rank: number | null
+  playedGames: number
+  /** This game's share of all playtime in the library, 0–1. */
+  share: number
+  /** Newest first, at most 500. */
+  history: GameSession[]
+}
+
+export interface Rating {
+  /** 0–100. */
+  score: number
+  count: number
+}
+
+export interface GameDetails {
+  ratings: {
+    critics: Rating | null
+    players: Rating | null
+    metacritic: { score: number; url: string | null } | null
+    /** Steam user reviews: "Very Positive" and the counts behind it. */
+    steam: { label: string; positive: number; total: number } | null
+  }
+  /** How long it takes to finish, in seconds (IGDB community times). */
+  timeToBeat: { main: number | null; extra: number | null; completionist: number | null; count: number } | null
+  storyline: string | null
+  developers: string[]
+  publishers: string[]
+  franchise: string | null
+  modes: string[]
+  perspectives: string[]
+  themes: string[]
+  platforms: string[]
+  /** Steam store features ("Controller support", "Steam Cloud"…). */
+  features: string[]
+  languages: string[]
+  achievements: number | null
+  dlcCount: number | null
+  /** "Free", "$19.99", or null. */
+  price: string | null
+  requirements: { minimum: string | null; recommended: string | null } | null
+  website: string | null
+  screenshots: { thumb: string; full: string }[]
+  /** YouTube trailers. */
+  videos: { id: string; name: string }[]
+  similar: { igdbId: number; name: string; coverUrl: string | null; libraryId: number | null }[]
+  news: { title: string; url: string; date: number; source: string; excerpt: string }[]
+  /** Which services answered. */
+  sources: { igdb: boolean; steam: boolean }
+  fetchedAt: number
 }

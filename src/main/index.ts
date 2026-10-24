@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, dialog, nativeTheme, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, net, Notification, protocol, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -16,6 +16,7 @@ import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
+import { DetailsService } from './details/service'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
@@ -123,7 +124,8 @@ function createWindow(): void {
 
   // Open external links in the default browser rather than inside the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    // Only web links (news, trailers, store pages); never file: or other schemes.
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
@@ -184,7 +186,10 @@ app.whenReady().then(() => {
     // A launcher counts as installed when Windows has a handler for its URI protocol.
     isProtocolRegistered: (protocol) => app.getApplicationNameForProtocol(`${protocol}://`) !== '',
     openExternal: (url) => shell.openExternal(url),
-    onUpdate: (state) => broadcast(IPC.trendingUpdated, state)
+    onUpdate: (state) => broadcast(IPC.trendingUpdated, state),
+    notify: (title, body) => {
+      if (Notification.isSupported()) new Notification({ title, body, icon }).show()
+    }
   })
 
   status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
@@ -204,6 +209,7 @@ app.whenReady().then(() => {
   })
 
   const live = new LiveService({ db, store, fetchFn, getSettings })
+  const details = new DetailsService({ db, store, fetchFn, getSettings, steamAppIdFor: (g) => live.steamAppIdFor(g) })
 
   account = new AccountService({
     store,
@@ -216,7 +222,7 @@ app.whenReady().then(() => {
   })
   account.start()
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.

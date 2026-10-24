@@ -1,7 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Calendar, Clock, Eye, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Users, Wand2, Wrench } from 'lucide-react'
-import type { GameFriend, GameLive } from '@shared/types'
+import { AlertTriangle, ArrowLeft, BookOpen, Clock, Eye, FolderOpen, HardDrive, Image, Info, MoreHorizontal, PlayCircle, RefreshCw, Star, Timer, Trophy, Users, Wand2, Wrench } from 'lucide-react'
+import { PLAY_STATUS_LABELS, type GameDetails, type GameFriend, type GameLive, type GamePlayStats } from '@shared/types'
+import { DetailsCard, Requirements } from '@/components/game/DetailsCard'
+import { JournalCard } from '@/components/game/JournalCard'
+import { STATUS_STYLES } from '@/lib/status'
+import { MediaSection } from '@/components/game/MediaSection'
+import { Milestones } from '@/components/game/Milestones'
+import { NewsSection } from '@/components/game/NewsSection'
+import { Section } from '@/components/game/parts'
+import { RatingsCard } from '@/components/game/RatingsCard'
+import { SessionHistory } from '@/components/game/SessionHistory'
+import { SimilarGames } from '@/components/game/SimilarGames'
+import { TimeToBeat } from '@/components/game/TimeToBeat'
+import { YourStats } from '@/components/game/YourStats'
+import { milestones } from '@/lib/playtime'
 import { Avatar } from '@/components/Avatar'
 import { useAccount } from '@/state/account'
 import { SOURCE_LABELS } from '@shared/types'
@@ -12,7 +25,7 @@ import { PlayButton } from '@/components/PlayButton'
 import { SourceBadge } from '@/components/SourceBadge'
 import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
-import { formatCompact, formatPlaytime, formatRelativeDate } from '@/lib/format'
+import { formatBytes, formatCompact, formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { useToast } from '@/state/toasts'
 import { useCoverTint } from '@/hooks/useCoverTint'
 import { mediaUrl, nameHue } from '@/lib/media'
@@ -51,6 +64,24 @@ function LiveStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
   )
 }
 
+const STORY_CLAMP = 280
+
+function Storyline({ text }: { text: string }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const long = text.length > STORY_CLAMP
+  return (
+    <div className="mt-6 border-t border-white/5 pt-5">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Story</h3>
+      <p className="max-w-3xl select-text whitespace-pre-line leading-relaxed text-text/70">{open || !long ? text : `${text.slice(0, STORY_CLAMP).trimEnd()}…`}</p>
+      {long && (
+        <button className="mt-2 text-sm font-medium text-accent hover:underline" onClick={() => setOpen((v) => !v)}>
+          {open ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -82,6 +113,62 @@ export function GameDetailPage(): React.JSX.Element {
       cancelled = true
     }
   }, [id])
+
+  // Your stats: reloaded when playtime changes (a session ended).
+  const [playStats, setPlayStats] = useState<GamePlayStats | null>(null)
+  const playtime = game?.playtimeSeconds ?? 0
+  useEffect(() => {
+    let cancelled = false
+    window.vanity.games.playStats(Number(id)).then((s) => !cancelled && setPlayStats(s), () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [id, playtime])
+  useEffect(() => setPlayStats(null), [id])
+
+  // Ratings, credits, media and news (cached in the main process).
+  const [details, setDetails] = useState<GameDetails | null>(null)
+  const [detailsLoading, setDetailsLoading] = useState(true)
+  const igdbId = game?.metadata.igdbId ?? null
+  const loadDetails = useCallback(
+    (refresh = false) => {
+      let cancelled = false
+      setDetailsLoading(true)
+      window.vanity.games
+        .details(Number(id), refresh)
+        .then((d) => !cancelled && setDetails(d), () => {})
+        .finally(() => !cancelled && setDetailsLoading(false))
+      return () => {
+        cancelled = true
+      }
+    },
+    [id]
+  )
+  useEffect(() => {
+    setDetails(null)
+  }, [id])
+  // Refetch once the game gets matched (its IGDB ID unlocks most details).
+  useEffect(() => loadDetails(), [loadDetails, igdbId])
+
+  const [diskSize, setDiskSize] = useState<number | null | undefined>(undefined)
+  const installPath = game?.installPath ?? null
+  useEffect(() => {
+    setDiskSize(undefined)
+    if (!installPath) return setDiskSize(null)
+    let cancelled = false
+    window.vanity.games.diskSize(Number(id)).then((n) => !cancelled && setDiskSize(n), () => !cancelled && setDiskSize(null))
+    return () => {
+      cancelled = true
+    }
+  }, [id, installPath])
+
+  const badges = useMemo(
+    () =>
+      game && playStats
+        ? milestones({ playtimeSeconds: game.playtimeSeconds, playStatus: game.playStatus, firstPlayedAt: playStats.firstPlayedAt, sessions: playStats.history })
+        : [],
+    [game, playStats]
+  )
 
   const openWorkshop = async (): Promise<void> => {
     const res = await window.vanity.live.openWorkshop(Number(id))
@@ -183,6 +270,16 @@ export function GameDetailPage(): React.JSX.Element {
             <SourceBadge source={game.source} />
             {game.developer && <span>{game.developer}</span>}
             {game.releaseDate && <span>{game.releaseDate.slice(0, 4)}</span>}
+            {game.playStatus && (
+              <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1', STATUS_STYLES[game.playStatus])}>{PLAY_STATUS_LABELS[game.playStatus]}</span>
+            )}
+            {game.userRating && (
+              <span className="flex items-center gap-0.5" aria-label={`Your rating: ${game.userRating} of 5`}>
+                {Array.from({ length: game.userRating }, (_, i) => (
+                  <Star key={i} className="size-3.5 fill-amber-400 text-amber-400" />
+                ))}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -233,7 +330,8 @@ export function GameDetailPage(): React.JSX.Element {
             ) : null}
             <Stat icon={Timer} label="Playtime" value={formatPlaytime(game.playtimeSeconds)} />
             <Stat icon={Clock} label="Last played" value={formatRelativeDate(game.lastPlayedAt)} />
-            <Stat icon={Calendar} label="Added" value={formatRelativeDate(game.addedAt)} />
+            {playStats && playStats.sessions > 0 && <Stat icon={PlayCircle} label="Sessions" value={String(playStats.sessions)} />}
+            {playStats?.rank && <Stat icon={Trophy} label="Library rank" value={`#${playStats.rank} of ${playStats.playedGames}`} />}
           </div>
         </div>
 
@@ -261,29 +359,37 @@ export function GameDetailPage(): React.JSX.Element {
           </div>
         )}
 
-        <div className="animate-rise-in grid gap-10 lg:grid-cols-[1fr_360px]" style={{ '--delay': '460ms' } as React.CSSProperties}>
-          <section>
-            <h2 className="mb-3 text-lg font-semibold">About</h2>
-            {game.genres.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-2">
-                {game.genres.map((g) => (
-                  <span key={g} className="rounded-full bg-white/5 px-3 py-1 text-xs text-text/80 ring-1 ring-white/10">
-                    {g}
-                  </span>
-                ))}
-              </div>
-            )}
-            {game.description ? (
-              <p className="max-w-3xl whitespace-pre-line leading-relaxed text-text/80">{game.description}</p>
-            ) : (
-              <p className="text-sm text-muted">{fetching ? 'Fetching details…' : 'No description available.'}</p>
-            )}
-          
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 space-y-6">
+            <Section icon={BookOpen} title="About" delay={460}>
+              {game.genres.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {game.genres.map((g) => (
+                    <span key={g} className="rounded-full bg-white/5 px-3 py-1 text-xs text-text/80 ring-1 ring-white/10">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {game.description ? (
+                <p className="max-w-3xl select-text whitespace-pre-line leading-relaxed text-text/80">{game.description}</p>
+              ) : (
+                <p className="text-sm text-muted">{fetching ? 'Fetching details…' : 'No description available.'}</p>
+              )}
+              {details?.storyline && details.storyline !== game.description && <Storyline text={details.storyline} />}
+            </Section>
+
+            <YourStats game={game} stats={playStats} delay={520} />
+            {badges.length > 0 && <Milestones list={badges} delay={560} />}
+            {details?.timeToBeat && <TimeToBeat ttb={details.timeToBeat} playtime={game.playtimeSeconds} delay={600} />}
+            {details && <MediaSection shots={details.screenshots} videos={details.videos} delay={620} />}
+            {details && <NewsSection news={details.news} delay={640} />}
+            {playStats && <SessionHistory history={playStats.history} delay={660} />}
+
             {account?.signedIn && (
-              <div className="mt-10">
-                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">Friends who played</h2>
+              <Section icon={Users} title="Friends who played" delay={680}>
                 {friendsPlayed === null ? (
-                  <div className="shimmer h-14 rounded-xl bg-surface" />
+                  <div className="shimmer h-14 rounded-xl bg-white/[0.03]" />
                 ) : friendsPlayed.length === 0 ? (
                   <p className="text-sm text-muted">None of your friends have played this yet.</p>
                 ) : (
@@ -292,7 +398,7 @@ export function GameDetailPage(): React.JSX.Element {
                       <li
                         key={f.id}
                         style={{ '--i': i } as React.CSSProperties}
-                        className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface py-2 pl-2 pr-4"
+                        className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4"
                       >
                         <Avatar name={f.username} size="sm" />
                         <span>
@@ -306,50 +412,84 @@ export function GameDetailPage(): React.JSX.Element {
                     ))}
                   </ul>
                 )}
-              </div>
+              </Section>
             )}
-          </section>
 
-          <section className="space-y-4 rounded-2xl border border-border bg-surface p-5">
-            <h2 className="font-semibold">Installation</h2>
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-muted">Source</dt>
-                <dd>{SOURCE_LABELS[game.source]}</dd>
-              </div>
-              <div>
-                <dt className="text-muted">Install folder</dt>
-                <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
-              </div>
-              {game.source === 'steam' || game.source === 'epic' ? (
+            {details && <SimilarGames games={details.similar} delay={700} />}
+          </div>
+
+          <aside className="space-y-6">
+            <JournalCard game={game} onChange={(patch) => void updateGame(game.id, patch)} delay={480} />
+            {details && <RatingsCard ratings={details.ratings} delay={540} />}
+            <DetailsCard game={game} details={details} delay={580} />
+
+            <Section icon={HardDrive} title="Installation" delay={620}>
+              <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-muted">Launches through</dt>
-                  <dd>{game.source === 'steam' ? 'Steam' : 'Epic Games Launcher'}</dd>
+                  <dt className="text-muted">Source</dt>
+                  <dd>{SOURCE_LABELS[game.source]}</dd>
                 </div>
-              ) : (
                 <div>
-                  <dt className="flex items-center justify-between text-muted">
-                    Executable
-                    <button className="text-xs text-accent hover:underline" onClick={() => pickExecutable(game.id)}>
-                      Change
-                    </button>
-                  </dt>
-                  <dd className="break-all select-text">{game.executablePath ?? 'Not set'}</dd>
+                  <dt className="text-muted">Install folder</dt>
+                  <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
                 </div>
-              )}
-            </dl>
-            <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
-              <FolderOpen className="size-4" /> Open install folder
-            </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => setDialog('artwork')}>
-                <Image className="size-4" /> Artwork
-              </Button>
-              <Button onClick={() => setDialog('match')}>
-                <Wand2 className="size-4" /> Fix match
-              </Button>
-            </div>
-          </section>
+                {game.installPath && (
+                  <div>
+                    <dt className="text-muted">Size on disk</dt>
+                    <dd>{diskSize === undefined ? <span className="shimmer inline-block h-4 w-20 rounded bg-white/5" /> : diskSize === null ? 'Unknown' : formatBytes(diskSize)}</dd>
+                  </div>
+                )}
+                {game.source === 'steam' || game.source === 'epic' ? (
+                  <div>
+                    <dt className="text-muted">Launches through</dt>
+                    <dd>{game.source === 'steam' ? 'Steam' : 'Epic Games Launcher'}</dd>
+                  </div>
+                ) : (
+                  <div>
+                    <dt className="flex items-center justify-between text-muted">
+                      Executable
+                      <button className="text-xs text-accent hover:underline" onClick={() => pickExecutable(game.id)}>
+                        Change
+                      </button>
+                    </dt>
+                    <dd className="break-all select-text">{game.executablePath ?? 'Not set'}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-muted">Added to Vanity</dt>
+                  <dd>{formatRelativeDate(game.addedAt)}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 space-y-2">
+                <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
+                  <FolderOpen className="size-4" /> Open install folder
+                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => setDialog('artwork')}>
+                    <Image className="size-4" /> Artwork
+                  </Button>
+                  <Button onClick={() => setDialog('match')}>
+                    <Wand2 className="size-4" /> Fix match
+                  </Button>
+                </div>
+              </div>
+            </Section>
+
+            {details?.requirements && <Requirements req={details.requirements} delay={660} />}
+
+            <p className="flex items-center justify-between gap-3 px-1 text-xs text-muted">
+              <span>
+                {details
+                  ? `Details from ${[details.sources.igdb && 'IGDB', details.sources.steam && 'Steam'].filter(Boolean).join(' and ') || 'nowhere yet'} · ${formatRelativeDate(details.fetchedAt).toLowerCase()}`
+                  : detailsLoading
+                    ? 'Loading details…'
+                    : 'No online details'}
+              </span>
+              <button className="flex items-center gap-1 hover:text-text disabled:opacity-50" disabled={detailsLoading} onClick={() => loadDetails(true)}>
+                <RefreshCw className={cn('size-3.5', detailsLoading && 'animate-spin')} /> Refresh
+              </button>
+            </p>
+          </aside>
         </div>
       </div>
       {menu}

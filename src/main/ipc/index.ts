@@ -7,6 +7,9 @@ import type { TrendingService } from '../trending/service'
 import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
+import type { DetailsService } from '../details/service'
+import { gamePlayStats } from '../library/stats'
+import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
 import { gameKey } from '../account/gameKey'
 import type { MediaCache } from '../metadata/mediaCache'
@@ -45,13 +48,15 @@ export interface IpcDeps {
   status: StatusService
   music: MusicLibrary
   live: LiveService
+  details: DetailsService
+  db: Db
   stats: () => unknown
   account: AccountService
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, db, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -99,6 +104,10 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     if (result.canceled || !exe) return null
     return store.update(id, { executablePath: exe })
   })
+
+  ipcMain.handle(IPC.gamesPlayStats, (_e, id: number) => gamePlayStats(db, Number(id)))
+  ipcMain.handle(IPC.gamesDetails, (_e, id: number, refresh: boolean) => details.forGame(Number(id), refresh === true).catch(() => null))
+  ipcMain.handle(IPC.gamesDiskSize, (_e, id: number) => details.diskSize(Number(id)).catch(() => null))
 
   ipcMain.handle(IPC.sessionsStates, () => tracker.states())
 
@@ -283,6 +292,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     await trending.refresh()
     return trending.state()
   })
+  ipcMain.handle(IPC.trendingFollow, (_e, gameId: number, on: boolean) => trending.follow(Number(gameId), on === true))
   ipcMain.handle(IPC.trendingInstalled, () => trending.installed())
   ipcMain.handle(IPC.trendingOpen, (_e, gameId: number, launcher: StoreLauncher) =>
     wrap(() => trending.open(Number(gameId), launcher))

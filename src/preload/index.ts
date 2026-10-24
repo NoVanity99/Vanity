@@ -12,7 +12,10 @@ const api: VanityApi = {
     launch: (id) => ipcRenderer.invoke(IPC.gamesLaunch, id),
     pickExecutable: (id) => ipcRenderer.invoke(IPC.gamesPickExecutable, id),
     confirmCandidates: (accepted, rejected) => ipcRenderer.invoke(IPC.gamesConfirmCandidates, accepted, rejected),
-    addManually: () => ipcRenderer.invoke(IPC.gamesAddManually)
+    addManually: () => ipcRenderer.invoke(IPC.gamesAddManually),
+    playStats: (id) => ipcRenderer.invoke(IPC.gamesPlayStats, id),
+    details: (id, refresh) => ipcRenderer.invoke(IPC.gamesDetails, id, refresh === true),
+    diskSize: (id) => ipcRenderer.invoke(IPC.gamesDiskSize, id)
   },
   sessions: {
     states: () => ipcRenderer.invoke(IPC.sessionsStates),
@@ -53,7 +56,8 @@ const api: VanityApi = {
       return () => ipcRenderer.removeListener(IPC.trendingUpdated, listener)
     },
     installed: () => ipcRenderer.invoke(IPC.trendingInstalled),
-    open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher)
+    open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher),
+    follow: (gameId, on) => ipcRenderer.invoke(IPC.trendingFollow, gameId, on)
   },
   stats: {
     get: () => ipcRenderer.invoke(IPC.statsGet)

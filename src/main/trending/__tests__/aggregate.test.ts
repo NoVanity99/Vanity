@@ -92,12 +92,14 @@ describe('rankTrending', () => {
 describe('toUpcoming', () => {
   it('keeps games with a store and art, most anticipated first', () => {
     const upcoming = toUpcoming([
-      { ...game(1, 'Small'), steamAppId: '1', releaseDate: '2027-01-01', hype: 10, bannerImageId: 'a' },
-      { ...game(2, 'Huge'), steamAppId: '2', releaseDate: '2027-06-01', hype: 900, bannerImageId: null },
-      { ...game(3, 'No Store'), releaseDate: '2027-02-01', hype: 999, bannerImageId: 'c' }
+      { ...game(1, 'Small'), steamAppId: '1', releaseDate: '2027-01-01', hype: 10, bannerImageId: 'a', genres: ['RPG'] },
+      { ...game(2, 'Huge'), steamAppId: '2', releaseDate: '2027-06-01', hype: 900, bannerImageId: null, genres: [] },
+      { ...game(3, 'No Store'), releaseDate: '2027-02-01', hype: 999, bannerImageId: 'c', genres: [] }
     ])
     expect(upcoming.map((g) => g.title)).toEqual(['Huge', 'Small'])
     expect(upcoming[0]).toMatchObject({ bannerUrl: null, coverUrl: expect.stringContaining('co2'), stores: [expect.objectContaining({ launcher: 'steam' })] })
     expect(upcoming[1].bannerUrl).toBe('https://images.igdb.com/igdb/image/upload/t_1080p/a.jpg')
+    expect(upcoming.map((g) => g.hypeRank)).toEqual([1, 2])
+    expect(upcoming[1].genres).toEqual(['RPG'])
   })
 })

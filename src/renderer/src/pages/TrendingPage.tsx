@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, KeyRound, RefreshCw, WifiOff } from 'lucide-react'
+import { AlertTriangle, BellRing, CalendarDays, KeyRound, RefreshCw, TrendingUp, WifiOff } from 'lucide-react'
 import type { StoreLauncher, TrendingGame, TrendingState, UpcomingGame } from '@shared/types'
-import { ComingSoonBanner } from '@/components/ComingSoonBanner'
+import { MostHypedBanner } from '@/components/MostHypedBanner'
+import { ReleaseCalendar } from '@/components/ReleaseCalendar'
 import { Button } from '@/components/Dialog'
 import { KeysDialog } from '@/components/KeysDialog'
 import { LauncherPicker } from '@/components/LauncherPicker'
@@ -21,6 +22,7 @@ export function TrendingPage(): React.JSX.Element {
   const [installed, setInstalled] = useState<Partial<Record<StoreLauncher, boolean>>>({})
   const [picking, setPicking] = useState<Openable | null>(null)
   const [enteringKeys, setEnteringKeys] = useState(false)
+  const [tab, setTab] = useState<'top' | 'calendar' | 'following'>('top')
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -58,7 +60,23 @@ export function TrendingPage(): React.JSX.Element {
     [open]
   )
 
+  const follow = useCallback(
+    async (game: UpcomingGame, on: boolean) => {
+      // Show it straight away; the main process confirms with the saved list.
+      setState((s) => (s ? { ...s, followed: on ? [...s.followed, game.id] : s.followed.filter((id) => id !== game.id) } : s))
+      try {
+        setState(await window.vanity.trending.follow(game.id, on))
+        if (on) toast(`Following ${game.title}. You'll get a reminder when it comes out.`)
+      } catch {
+        toast(`Couldn't follow ${game.title}.`, 'error')
+        window.vanity.trending.get().then(setState, () => {})
+      }
+    },
+    [toast]
+  )
+
   const games = state?.games ?? []
+  const followed = state?.followed ?? []
   const refreshing = state?.refreshing ?? true
 
   return (
@@ -98,13 +116,35 @@ export function TrendingPage(): React.JSX.Element {
 
         {games.length > 0 ? (
           <>
-            <ComingSoonBanner games={state?.upcoming ?? []} onSelect={select as (g: UpcomingGame) => void} />
-            {(state?.upcoming.length ?? 0) > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">Top right now</h2>}
-            <div className="grid gap-x-6 gap-y-9" style={GRID}>
-              {games.map((g, i) => (
-                <TrendingCard key={g.id} game={g} index={i} onSelect={select} />
+            <MostHypedBanner games={state?.upcoming ?? []} followed={followed} onSelect={select as (g: UpcomingGame) => void} onFollow={follow} />
+            <div className="mb-6 flex gap-1 rounded-xl border border-border bg-surface p-1 text-sm font-medium" role="tablist" style={{ width: 'fit-content' }}>
+              {(
+                [
+                  ['top', 'Top right now', TrendingUp],
+                  ['calendar', 'Release calendar', CalendarDays],
+                  ['following', `Following${followed.length ? ` (${followed.length})` : ''}`, BellRing]
+                ] as const
+              ).map(([id, label, Icon]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => setTab(id)}
+                  className={cn('flex items-center gap-2 rounded-lg px-3.5 py-2 transition', tab === id ? 'bg-accent text-white shadow' : 'text-muted hover:bg-white/5 hover:text-text')}
+                >
+                  <Icon className="size-4" /> {label}
+                </button>
               ))}
             </div>
+            {tab === 'top' ? (
+              <div className="grid gap-x-6 gap-y-9" style={GRID}>
+                {games.map((g, i) => (
+                  <TrendingCard key={g.id} game={g} index={i} onSelect={select} />
+                ))}
+              </div>
+            ) : (
+              <ReleaseCalendar games={state?.upcoming ?? []} followed={followed} onSelect={select as (g: UpcomingGame) => void} onFollow={follow} onlyFollowed={tab === 'following'} />
+            )}
           </>
         ) : state?.error && !refreshing ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">

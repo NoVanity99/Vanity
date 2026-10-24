@@ -50,11 +50,21 @@ resources/           App icon and build resources
   - **Cover tint:** the page takes on the colour of the game's cover.
   - **Live stats:** players on Steam, or viewers on Twitch.
   - **Workshop:** a button for Steam games that have one.
+  - **Your stats:** sessions, average and longest session, first played, last 7 and 30 days, days played, streaks, rank in your library and share of your playtime, a 30-day chart, and when you play (time of day and weekday).
+  - **Milestones:** small awards from your own play (10 h, a 4-hour marathon, a 3-day streak, night owl…).
+  - **Session history:** every recorded session with start and end times.
+  - **Time to beat:** IGDB's community times for main story, extras and completionist, with your playtime against them.
+  - **Ratings:** Metacritic, critics and players (IGDB), and Steam user reviews.
+  - **Details:** publisher, series, price, achievements, DLC, modes, perspective, themes, platforms, languages, Steam features and system requirements.
+  - **Media and news:** screenshots (click for a full-screen viewer), trailers (open on YouTube) and the latest Steam news.
+  - **If you like this:** similar games, with the ones you own linked.
+  - **Size on disk** of the install folder.
+  - **Your journal:** a status (Backlog, Playing, Beaten, 100% completed, Dropped), a 1–5 star rating and private notes. Status shows on library cards, and the Library can filter by status and sort by your rating.
   - **Friends who played:** shown when you're signed in.
+  - Online details come from IGDB (needs the keys) and Steam (no key), are cached for 12 hours, and **Refresh** at the bottom of the page fetches them again.
 - **Surprise me** (Library): rolls a random game, favouring ones you haven't played in a while.
 
-- **Library:** search (Ctrl+F), sort, filter by source or genre, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
-- **Game page:** banner, logo, Play, playtime, details, install folder, Fix match and Change artwork.
+- **Library:** search (Ctrl+F), sort (name, recently played or added, most played, your rating, release date), filter by source, genre or status, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
 - **Themes:** Settings → Appearance has six skins (Midnight, Ocean, Forest, Royal, Sunset, OLED Black). They're defined in `src/shared/themes.ts`; add one there and it appears in Settings.
 - **Launcher status:** the strip at the top of every page shows whether each store's services are reachable: green when online, red when not. They're checked every 5 minutes; click one to check again. Steam uses its Web API, Epic its public status page, and the others whether their store site answers (`src/main/status/checks.ts`).
@@ -173,7 +183,10 @@ The **Trending** tab ranks the most popular PC games right now, across stores. T
 
 Ranking: 55% IGDB popularity (Playing, Steam 24h peak players, Visits and Twitch hours watched, weighted) plus 45% the stronger live signal for that game, Steam players or Twitch viewers. So games that aren't on Steam aren't penalised.
 
-A **Coming soon** banner at the top slowly scrolls through upcoming PC games. Each visit shows a random pick, weighted towards the most anticipated ones (IGDB "hypes"). Hover to pause; click to open the game's store page, just like the cards below.
+The **Most hyped · coming soon** banner at the top slowly scrolls through the upcoming PC games the most people are following on IGDB ("hypes"), in rank order, with each game's release date, genres and a hype meter. Hover to pause; click to open the game's store page, just like the cards below.
+
+- **Follow** on a card (or in the calendar) and Vanity shows a Windows notification on release day. Followed games are listed under the **Following** tab.
+- **Release calendar** lists the same games by release month, soonest first.
 
 Clicking a game opens its only store directly, or a **Choose a launcher** popup when there are several. Launchers whose URI protocol is registered on this PC are marked installed and listed first.
 

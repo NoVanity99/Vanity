@@ -99,8 +99,8 @@ export function bannerUrl(imageId: string | null): string | null {
   return imageId ? `https://images.igdb.com/igdb/image/upload/t_1080p/${imageId}.jpg` : null
 }
 
-/** Upcoming games for the banner: the most anticipated ones that can be opened in at least one store. */
-export function toUpcoming(games: IgdbUpcomingGame[], limit = 40): UpcomingGame[] {
+/** Upcoming games for the banner: the most anticipated ones that can be opened in at least one store, ranked by hype. */
+export function toUpcoming(games: IgdbUpcomingGame[], limit = 30): UpcomingGame[] {
   return games
     .map((g) => ({
       id: g.id,
@@ -109,9 +109,12 @@ export function toUpcoming(games: IgdbUpcomingGame[], limit = 40): UpcomingGame[
       coverUrl: coverUrl(g.coverImageId),
       releaseDate: g.releaseDate,
       hype: g.hype,
-      stores: extractStores(g)
+      stores: extractStores(g),
+      hypeRank: 0,
+      genres: g.genres ?? []
     }))
     .filter((g) => g.stores.length > 0 && (g.bannerUrl || g.coverUrl))
-    .sort((a, b) => b.hype - a.hype)
+    .sort((a, b) => b.hype - a.hype || a.releaseDate.localeCompare(b.releaseDate))
     .slice(0, limit)
+    .map((g, i) => ({ ...g, hypeRank: i + 1 }))
 }

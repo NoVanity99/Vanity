@@ -41,3 +41,22 @@ export function formatAgo(timestamp: number | null, now = Date.now()): string {
   if (hours < 24) return `${hours} h ago`
   return formatRelativeDate(timestamp, now)
 }
+
+/** Rounded hours for charts and tiles: "12 h", "2.5 h", "40 min". */
+export function formatHours(seconds: number): string {
+  const h = seconds / 3600
+  return h >= 10 ? `${Math.round(h)} h` : h >= 1 ? `${h.toFixed(1)} h` : `${Math.round(seconds / 60)} min`
+}
+
+const KB = 1024
+/** 1536 → "1.5 KB", 5.2e9 → "4.8 GB" (binary units, as Windows shows them). */
+export function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = bytes
+  let i = 0
+  while (v >= KB && i < units.length - 1) {
+    v /= KB
+    i++
+  }
+  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}

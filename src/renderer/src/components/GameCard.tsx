@@ -1,7 +1,8 @@
 import { memo } from 'react'
 import { Play, Star } from 'lucide-react'
-import type { Game, SessionState } from '@shared/types'
+import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
+import { STATUS_TONE } from '@/lib/status'
 import { formatCompact } from '@/lib/format'
 import { useTilt } from '@/hooks/useTilt'
 import { CoverArt } from './CoverArt'
@@ -59,7 +60,14 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
           <SourceBadge source={game.source} className="bg-black/55 opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100" />
-          {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
+          <span className="flex flex-col items-end gap-1.5">
+            {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
+            {game.playStatus && (
+              <span className={cn('rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold ring-1 backdrop-blur', STATUS_TONE[game.playStatus])}>
+                {PLAY_STATUS_LABELS[game.playStatus]}
+              </span>
+            )}
+          </span>
         </div>
 
         {session ? (

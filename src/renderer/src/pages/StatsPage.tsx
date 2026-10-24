@@ -2,44 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, Clock, Flame, Gamepad2, Trophy } from 'lucide-react'
 import type { PlayStats } from '@shared/ipc'
-import { formatPlaytime, formatRelativeDate } from '@/lib/format'
+import { formatHours as hours, formatPlaytime, formatRelativeDate } from '@/lib/format'
+import { perDay, streak } from '@/lib/playtime'
 
 const DAYS = 14
-
-function hours(seconds: number): string {
-  const h = seconds / 3600
-  return h >= 10 ? `${Math.round(h)} h` : h >= 1 ? `${h.toFixed(1)} h` : `${Math.round(seconds / 60)} min`
-}
-
-const dayKey = (t: number): string => {
-  const d = new Date(t)
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-}
-
-/** Seconds played per local day for the last `days` days, oldest first. */
-function perDay(recent: PlayStats['recent'], days: number, now = Date.now()): { label: string; date: Date; seconds: number }[] {
-  const totals = new Map<string, number>()
-  for (const s of recent) totals.set(dayKey(s.startedAt), (totals.get(dayKey(s.startedAt)) ?? 0) + s.seconds)
-  return Array.from({ length: days }, (_, i) => {
-    const date = new Date(now)
-    date.setHours(12, 0, 0, 0)
-    date.setDate(date.getDate() - (days - 1 - i))
-    return { label: date.toLocaleDateString(undefined, { weekday: 'narrow' }), date, seconds: totals.get(dayKey(date.getTime())) ?? 0 }
-  })
-}
-
-/** Days in a row, ending today (or yesterday), with at least one session. */
-function streak(recent: PlayStats['recent'], now = Date.now()): number {
-  const played = new Set(recent.map((s) => dayKey(s.startedAt)))
-  const d = new Date(now)
-  if (!played.has(dayKey(d.getTime()))) d.setDate(d.getDate() - 1)
-  let n = 0
-  while (played.has(dayKey(d.getTime()))) {
-    n++
-    d.setDate(d.getDate() - 1)
-  }
-  return n
-}
 
 function Tile({ icon: Icon, label, value, sub, delay }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; sub?: string; delay: number }): React.JSX.Element {
   return (

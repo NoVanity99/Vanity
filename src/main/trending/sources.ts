@@ -78,6 +78,7 @@ interface RawGame {
   screenshots?: { image_id?: string }[]
   cover?: { image_id?: string }
   version_parent?: number
+  genres?: { name?: string }[]
   websites?: { url?: string }[]
   external_games?: { uid?: string; url?: string; external_game_source?: number; category?: number }[]
 }
@@ -173,18 +174,19 @@ export interface IgdbUpcomingGame extends IgdbStoreGame {
   releaseDate: string
   hype: number
   bannerImageId: string | null
+  genres: string[]
 }
 
 /**
  * Upcoming PC games, most anticipated first (IGDB "hypes" = people following
  * a game before release). Only games with a known release date in the future.
  */
-export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 60): Promise<IgdbUpcomingGame[]> {
+export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 100): Promise<IgdbUpcomingGame[]> {
   const now = Math.floor(nowMs / 1000)
   const rows = await igdb.queryWithSourceField<RawGame>(
     'games',
     (field) =>
-      `fields name,slug,first_release_date,hypes,cover.image_id,artworks.image_id,screenshots.image_id,version_parent,` +
+      `fields name,slug,first_release_date,hypes,genres.name,cover.image_id,artworks.image_id,screenshots.image_id,version_parent,` +
       `websites.url,external_games.uid,external_games.url,external_games.${field}; ` +
       `where first_release_date > ${now} & platforms = (${PC_PLATFORM}) & hypes > 0 & version_parent = null; ` +
       `sort hypes desc; limit ${Math.trunc(count)};`
@@ -197,7 +199,8 @@ export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 60): 
         ...g,
         releaseDate: new Date(r.first_release_date * 1000).toISOString().slice(0, 10),
         hype: r.hypes ?? 0,
-        bannerImageId: r.artworks?.find((a) => a.image_id)?.image_id ?? r.screenshots?.find((a) => a.image_id)?.image_id ?? null
+        bannerImageId: r.artworks?.find((a) => a.image_id)?.image_id ?? r.screenshots?.find((a) => a.image_id)?.image_id ?? null,
+        genres: (r.genres ?? []).map((x) => x.name).filter((n): n is string => !!n).slice(0, 3)
       }
     ]
   })

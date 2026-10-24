@@ -47,7 +47,7 @@ function apis() {
   ])
 }
 
-function setup(fetch: FetchFn, over: Partial<Settings> = {}, now = () => Date.now()) {
+function setup(fetch: FetchFn, over: Partial<Settings> = {}, now = () => Date.now(), notify?: (title: string, body: string) => void) {
   const db = openDatabase(':memory:').db
   const updates: TrendingState[] = []
   const opened: string[] = []
@@ -58,6 +58,7 @@ function setup(fetch: FetchFn, over: Partial<Settings> = {}, now = () => Date.no
     isProtocolRegistered: (p) => p === 'steam',
     openExternal: async (url) => void opened.push(url),
     onUpdate: (s) => updates.push(s),
+    notify,
     now
   })
   return { db, service, updates, opened }
@@ -127,6 +128,30 @@ describe('TrendingService', () => {
     expect(service.state().upcoming.map((g) => g.title)).toEqual(['Upcoming Hit'])
     expect(await service.open(99, 'steam')).toBe('launcher')
     expect(opened).toEqual(['steam://store/4242'])
+  })
+
+  it('follows upcoming games and reminds once when they come out', async () => {
+    let t = Date.UTC(2026, 0, 1)
+    const notify = vi.fn()
+    const { service } = setup(apis().fetch, {}, () => t, notify)
+    await service.refresh()
+    expect(service.follow(99, true).followed).toEqual([99])
+    service.checkReleases()
+    expect(notify).not.toHaveBeenCalled()
+
+    t = 1_900_000_000_000 + 2 * 86_400_000 // two days after release
+    service.checkReleases()
+    service.checkReleases()
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify.mock.calls[0][0]).toBe('Upcoming Hit is out now')
+
+    // Forgotten a month after release.
+    t += 40 * 86_400_000
+    service.checkReleases()
+    expect(service.state().followed).toEqual([])
+
+    expect(service.follow(99, false).followed).toEqual([])
+    expect(() => service.follow(12345, true)).toThrow(/no longer/)
   })
 
   it('still lists trending games when the upcoming query fails', async () => {

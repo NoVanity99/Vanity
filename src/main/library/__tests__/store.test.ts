@@ -88,4 +88,15 @@ describe('executable override', () => {
     s.upsert([ubi])
     expect(s.get(g.id)?.executablePath).toBe('C:\\AC\\ACValhalla.exe')
   })
+
+  it('keeps the journal and validates it', () => {
+    const s = store()
+    const [g] = s.upsert([portal]).games
+    expect(g).toMatchObject({ playStatus: null, userRating: null, notes: null })
+    expect(s.update(g.id, { playStatus: 'beaten', userRating: 4, notes: 'Great ending' })).toMatchObject({ playStatus: 'beaten', userRating: 4, notes: 'Great ending' })
+    s.upsert([portal])
+    expect(s.get(g.id)).toMatchObject({ playStatus: 'beaten', userRating: 4 })
+    expect(s.update(g.id, { playStatus: 'nonsense' as never, userRating: 9, notes: '   ' })).toMatchObject({ playStatus: null, userRating: null, notes: null })
+    expect(s.get(g.id)?.metadata.detailsLocked).toBe(false)
+  })
 })

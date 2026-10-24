@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { openDatabase } from '../../db/database'
 import { createPlaytimeStore } from '../playtime'
-import { playStats } from '../stats'
+import { gamePlayStats, playStats } from '../stats'
 import { createSqliteStore } from '../store'
 
 describe('playStats', () => {
@@ -35,5 +35,34 @@ describe('playStats', () => {
 
   it('is empty for a new library', () => {
     expect(playStats(openDatabase(':memory:').db)).toEqual({ totalSeconds: 0, gamesPlayed: 0, sessions: 0, longest: null, top: [], recent: [] })
+  })
+})
+
+describe('gamePlayStats', () => {
+  it('summarises one game and ranks it in the library', () => {
+    const db = openDatabase(':memory:').db
+    const store = createSqliteStore(db)
+    const [a, b, c] = store.upsert([
+      { source: 'steam', externalId: '1', name: 'Alpha', installPath: null, executablePath: null },
+      { source: 'steam', externalId: '2', name: 'Beta', installPath: null, executablePath: null },
+      { source: 'steam', externalId: '3', name: 'Gamma', installPath: null, executablePath: null }
+    ]).games
+    const pt = createPlaytimeStore(db)
+    const s1 = pt.startSession(a.id, 1000)
+    pt.addTime(s1, a.id, 600, 2000)
+    const s2 = pt.startSession(a.id, 5000)
+    pt.addTime(s2, a.id, 1800, 6000)
+    pt.startSession(a.id, 9000) // zero-length: ignored
+    const s3 = pt.startSession(b.id, 3000)
+    pt.addTime(s3, b.id, 7200, 4000)
+
+    const stats = gamePlayStats(db, a.id)
+    expect(stats).toMatchObject({ sessions: 2, averageSeconds: 1200, firstPlayedAt: 1000, rank: 2, playedGames: 2 })
+    expect(stats.longest).toEqual({ seconds: 1800, startedAt: 5000 })
+    expect(stats.share).toBeCloseTo(2400 / 9600)
+    expect(stats.history.map((h) => h.startedAt)).toEqual([5000, 1000])
+
+    expect(gamePlayStats(db, b.id).rank).toBe(1)
+    expect(gamePlayStats(db, c.id)).toMatchObject({ sessions: 0, rank: null, firstPlayedAt: null, longest: null, share: 0 })
   })
 })

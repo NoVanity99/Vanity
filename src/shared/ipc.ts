@@ -7,6 +7,8 @@ import type {
   ArtworkOption,
   Game,
   GameCandidate,
+  GameDetails,
+  GamePlayStats,
   GameLive,
   GamePatch,
   KeyCheck,
@@ -59,6 +61,12 @@ export interface VanityApi {
     confirmCandidates(accepted: GameCandidate[], rejected: GameCandidate[]): Promise<Game[]>
     /** Opens a file picker for an .exe. Resolves to null if cancelled. */
     addManually(): Promise<Game | null>
+    /** Sessions, averages and rank for one game. */
+    playStats(id: number): Promise<GamePlayStats>
+    /** Ratings, time to beat, credits, media, news and similar games (cached; `refresh` refetches). */
+    details(id: number, refresh?: boolean): Promise<GameDetails | null>
+    /** Size of the install folder in bytes, or null if unknown. */
+    diskSize(id: number): Promise<number | null>
   }
   sessions: {
     /** Games currently launching or running, by game ID. */
@@ -91,6 +99,8 @@ export interface VanityApi {
     installed(): Promise<Record<StoreLauncher, boolean>>
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
+    /** Follows (or unfollows) an upcoming game: Vanity reminds you when it comes out. */
+    follow(gameId: number, on: boolean): Promise<TrendingState>
   }
   account: {
     state(): Promise<AccountState>
@@ -158,6 +168,9 @@ export const IPC = {
   gamesOpenFolder: 'games:open-folder',
   gamesLaunch: 'games:launch',
   gamesPickExecutable: 'games:pick-executable',
+  gamesPlayStats: 'games:play-stats',
+  gamesDetails: 'games:details',
+  gamesDiskSize: 'games:disk-size',
   sessionsStates: 'sessions:states',
   metadataProgress: 'metadata:progress',
   metadataProgressChanged: 'metadata:progress-changed',
@@ -176,6 +189,7 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  trendingFollow: 'trending:follow',
   statsGet: 'stats:get',
   accountState: 'account:state',
   accountChanged: 'account:changed',

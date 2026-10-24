@@ -35,6 +35,9 @@ const game = (over: Partial<Game>): Game => ({
     detailsLocked: false,
     lockedArtwork: []
   },
+  playStatus: null,
+  userRating: null,
+  notes: null,
   ...over
 })
 

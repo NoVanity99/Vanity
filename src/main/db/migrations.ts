@@ -67,5 +67,11 @@ export const migrations: string[] = [
     value       TEXT NOT NULL,
     updated_at  INTEGER NOT NULL
   );
+  `,
+  // 5: the user's journal (status, rating, notes)
+  `
+  ALTER TABLE games ADD COLUMN play_status TEXT;
+  ALTER TABLE games ADD COLUMN user_rating INTEGER;
+  ALTER TABLE games ADD COLUMN notes TEXT;
   `
 ]

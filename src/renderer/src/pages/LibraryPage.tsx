@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Plus, Search, Star, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
-import { SOURCE_LABELS, type Game, type GameSource } from '@shared/types'
+import { PLAY_STATUS_LABELS, PLAY_STATUSES, SOURCE_LABELS, type Game, type GameSource, type PlayStatus } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
 import { RecentShelf } from '@/components/RecentShelf'
@@ -13,18 +13,19 @@ import { loadPref, savePref } from '@/lib/storage'
 import { useLibrary } from '@/state/library'
 
 type View = 'all' | 'recent' | 'favorites'
-type Sort = 'name' | 'recent' | 'added'
+type Sort = 'name' | 'recent' | 'added' | 'playtime' | 'rating' | 'release'
 
 interface Prefs {
   sort: Sort
   source: GameSource | 'all'
   genre: string
+  status: PlayStatus | 'none' | 'all'
   showHidden: boolean
   /** Minimum card width in px (the size slider). */
   cardWidth: number
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', showHidden: false, cardWidth: 168 }
+const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168 }
 const CARD_MIN = 128
 const CARD_MAX = 260
 
@@ -34,7 +35,10 @@ const byName = (a: Game, b: Game): number => a.name.localeCompare(b.name, undefi
 const SORTERS: Record<Sort, (a: Game, b: Game) => number> = {
   name: byName,
   recent: (a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0) || byName(a, b),
-  added: (a, b) => b.addedAt - a.addedAt || byName(a, b)
+  added: (a, b) => b.addedAt - a.addedAt || byName(a, b),
+  playtime: (a, b) => b.playtimeSeconds - a.playtimeSeconds || byName(a, b),
+  rating: (a, b) => (b.userRating ?? 0) - (a.userRating ?? 0) || byName(a, b),
+  release: (a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '') || byName(a, b)
 }
 
 function Select<T extends string>({
@@ -73,7 +77,8 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
-  const [prefs, setPrefs] = useState<Prefs>(() => loadPref(`library-${view}`, DEFAULT_PREFS))
+  // Saved before newer options existed: fill in their defaults.
+  const [prefs, setPrefs] = useState<Prefs>(() => ({ ...DEFAULT_PREFS, ...loadPref(`library-${view}`, DEFAULT_PREFS) }))
   const [players, setPlayers] = useState<Record<number, number>>({})
   const [surprise, setSurprise] = useState(false)
 
@@ -115,6 +120,8 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   // A saved filter for a source or genre that no longer has games would hide everything; ignore it.
   const source = prefs.source !== 'all' && sources.includes(prefs.source) ? prefs.source : 'all'
   const genre = prefs.genre !== 'all' && genres.includes(prefs.genre) ? prefs.genre : 'all'
+  const tracked = base.some((g) => g.playStatus !== null)
+  const status = tracked ? prefs.status : 'all'
 
   const shown = useMemo(() => {
     const q = searchKey(query.trim())
@@ -123,16 +130,17 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
       .filter((g) => prefs.showHidden || !g.hidden)
       .filter((g) => source === 'all' || g.source === source)
       .filter((g) => genre === 'all' || g.genres.includes(genre))
+      .filter((g) => status === 'all' || (status === 'none' ? g.playStatus === null : g.playStatus === status))
       .filter((g) => !q || searchKey(g.name).includes(q))
-      .sort(SORTERS[sort])
-  }, [base, query, prefs.showHidden, prefs.sort, source, genre, view])
+      .sort(SORTERS[sort] ?? SORTERS.name)
+  }, [base, query, prefs.showHidden, prefs.sort, source, genre, status, view])
 
-  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all'
+  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all' || status !== 'all'
   const cardWidth = Math.min(CARD_MAX, Math.max(CARD_MIN, prefs.cardWidth || DEFAULT_PREFS.cardWidth))
   const gridStyle = { gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))` }
   const clearFilters = (): void => {
     setQuery('')
-    patch({ source: 'all', genre: 'all' })
+    patch({ source: 'all', genre: 'all', status: 'all' })
   }
 
   const openGame = useCallback((g: Game): void => void navigate(`/game/${g.id}`), [navigate])
@@ -191,7 +199,23 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
               options={[
                 { value: 'name', label: 'Name' },
                 { value: 'recent', label: 'Recently played' },
-                { value: 'added', label: 'Recently added' }
+                { value: 'added', label: 'Recently added' },
+                { value: 'playtime', label: 'Most played' },
+                { value: 'rating', label: 'Your rating' },
+                { value: 'release', label: 'Release date' }
+              ]}
+            />
+          )}
+
+          {tracked && (
+            <Select
+              label="Status"
+              value={status}
+              onChange={(v) => patch({ status: v })}
+              options={[
+                { value: 'all', label: 'Any status' },
+                ...PLAY_STATUSES.map((s) => ({ value: s, label: PLAY_STATUS_LABELS[s] })),
+                { value: 'none', label: 'No status' }
               ]}
             />
           )}
