@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, KeyRound, RefreshCw, WifiOff } from 'lucide-react'
 import type { StoreLauncher, TrendingGame, TrendingState } from '@shared/types'
 import { Button } from '@/components/Dialog'
+import { KeysDialog } from '@/components/KeysDialog'
 import { LauncherPicker } from '@/components/LauncherPicker'
 import { TrendingCard } from '@/components/TrendingCard'
 import { cn } from '@/lib/cn'
@@ -15,6 +16,7 @@ export function TrendingPage(): React.JSX.Element {
   const [state, setState] = useState<TrendingState | null>(null)
   const [installed, setInstalled] = useState<Partial<Record<StoreLauncher, boolean>>>({})
   const [picking, setPicking] = useState<TrendingGame | null>(null)
+  const [enteringKeys, setEnteringKeys] = useState(false)
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -102,9 +104,18 @@ export function TrendingPage(): React.JSX.Element {
               {state.needsKeys ? <KeyRound className="size-7 text-muted" /> : <WifiOff className="size-7 text-muted" />}
             </div>
             <h2 className="text-lg font-semibold">{state.needsKeys ? 'API keys needed' : "Couldn't load trending games"}</h2>
-            <p className="mt-1 max-w-md text-sm text-muted">{state.error}</p>
-            <div className="mt-6">
-              <Button variant="primary" onClick={refresh}>
+            <p className="mt-1 max-w-md text-sm text-muted">
+              {state.needsKeys
+                ? 'Trending needs your Twitch client ID and secret (the same ones IGDB uses). Enter them here, or run "npm run setup-keys" in the project folder and restart.'
+                : state.error}
+            </p>
+            <div className="mt-6 flex gap-3">
+              {state.needsKeys && (
+                <Button variant="primary" onClick={() => setEnteringKeys(true)}>
+                  <KeyRound className="size-4" /> Enter keys
+                </Button>
+              )}
+              <Button variant={state.needsKeys ? 'secondary' : 'primary'} onClick={refresh}>
                 <RefreshCw className="size-4" /> Try again
               </Button>
             </div>
@@ -126,6 +137,7 @@ export function TrendingPage(): React.JSX.Element {
         )}
       </div>
 
+      {enteringKeys && <KeysDialog onClose={() => setEnteringKeys(false)} />}
       {picking && (
         <LauncherPicker game={picking} installed={installed} onPick={(l) => open(picking, l)} onClose={() => setPicking(null)} />
       )}

@@ -15,7 +15,8 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "dist:win": "install-electron && npm run build && electron-builder --win",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "setup-keys": "node scripts/setup-keys.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

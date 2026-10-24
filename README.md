@@ -46,9 +46,18 @@ resources/           App icon and build resources
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
 - Vanity remembers its window size and position, and opening it again brings the existing window to the front. Animations follow Windows' "Animation effects" setting (reduced motion).
 
-## Built-in API keys (optional)
+## API keys
 
-To skip entering API keys in Settings, copy `.env.example` to `.env.local` in the project folder and fill in your keys:
+Trending and game details need a Twitch client ID and secret (IGDB). Artwork uses a SteamGridDB key. There are two ways to provide them:
+
+1. **In the app:** on the Trending tab, click **Enter keys**. They're saved encrypted in Vanity's settings.
+2. **Built in:** run `npm run setup-keys` in the project folder and answer the prompts. It writes `.env.local` for you, and renames `.env.local.txt` if Notepad created that. Then restart `npm run dev`.
+
+`npm run dev` prints a warning if `.env.local` is missing or misnamed.
+
+### Built-in keys (.env.local)
+
+Or create `.env.local` by hand (copy `.env.example`) in the project folder, next to `package.json`:
 
 ```
 MAIN_VITE_STEAMGRIDDB_API_KEY=...
