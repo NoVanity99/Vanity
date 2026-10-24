@@ -1,5 +1,5 @@
 import { isAbsolute, join, relative } from 'node:path'
-import type { DetectedGame, Game, GamePatch, GameSource } from '@shared/types'
+import type { ArtworkKind, DetectedGame, Game, GamePatch, GameSource, MetadataStatus } from '@shared/types'
 import type { Db } from '../db/database'
 
 export interface LibraryStore {
@@ -39,6 +39,14 @@ interface GameRow {
   hero_path: string | null
   logo_path: string | null
   icon_path: string | null
+  metadata_status: MetadataStatus
+  metadata_error: string | null
+  metadata_updated_at: number | null
+  steamgriddb_id: number | null
+  igdb_id: number | null
+  match_locked: number
+  details_locked: number
+  artwork_locked: string
 }
 
 function parseGenres(json: string): string[] {
@@ -71,7 +79,17 @@ function toGame(r: GameRow): Game {
     coverPath: r.cover_path,
     heroPath: r.hero_path,
     logoPath: r.logo_path,
-    iconPath: r.icon_path
+    iconPath: r.icon_path,
+    metadata: {
+      status: r.metadata_status,
+      error: r.metadata_error,
+      updatedAt: r.metadata_updated_at,
+      steamGridDbId: r.steamgriddb_id,
+      igdbId: r.igdb_id,
+      matchLocked: r.match_locked === 1,
+      detailsLocked: r.details_locked === 1,
+      lockedArtwork: r.artwork_locked.split(',').filter(Boolean) as ArtworkKind[]
+    }
   }
 }
 
@@ -172,6 +190,28 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
         sets.push('executable_path = @executablePath', 'executable_locked = 1')
         params.executablePath = patch.executablePath.trim()
       }
+      let details = false
+      if (patch.description !== undefined) {
+        sets.push('description = @description')
+        params.description = patch.description?.trim() || null
+        details = true
+      }
+      if (Array.isArray(patch.genres)) {
+        sets.push('genres = @genres')
+        params.genres = JSON.stringify([...new Set(patch.genres.map((g) => g.trim()).filter(Boolean))])
+        details = true
+      }
+      if (patch.releaseDate !== undefined) {
+        sets.push('release_date = @releaseDate')
+        params.releaseDate = patch.releaseDate?.trim() || null
+        details = true
+      }
+      if (patch.developer !== undefined) {
+        sets.push('developer = @developer')
+        params.developer = patch.developer?.trim() || null
+        details = true
+      }
+      if (details) sets.push('details_locked = 1')
       if (typeof patch.hidden === 'boolean') {
         sets.push('hidden = @hidden')
         params.hidden = patch.hidden ? 1 : 0

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, FolderPlus, RefreshCw, Trash2 } from 'lucide-react'
-import { SCAN_SOURCES, SOURCE_LABELS, type Settings } from '@shared/types'
+import { CheckCircle2, Eye, EyeOff, FolderPlus, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
@@ -76,10 +76,36 @@ function SecretField({ label, value, onSave, help }: { label: string; value: str
   )
 }
 
+function KeyStatus({ label, result }: { label: string; result: KeyCheck | undefined }): React.JSX.Element | null {
+  if (!result) return null
+  const ok = result === 'ok'
+  const text =
+    result === 'ok' ? 'working' : result === 'missing' ? 'not set' : result === 'invalid' ? 'rejected: check the key' : result.error
+  return (
+    <span className={cn('flex items-center gap-1.5 text-sm', ok ? 'text-emerald-400' : result === 'missing' ? 'text-muted' : 'text-accent')}>
+      {ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+      {label} {text}
+    </span>
+  )
+}
+
 export function SettingsPage(): React.JSX.Element {
-  const { scan } = useLibrary()
+  const { scan, metadata } = useLibrary()
   const toast = useToast()
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [keyCheck, setKeyCheck] = useState<{ steamGridDb: KeyCheck; igdb: KeyCheck } | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  async function checkKeys(): Promise<void> {
+    setChecking(true)
+    try {
+      setKeyCheck(await window.vanity.metadata.checkKeys())
+    } catch (err) {
+      toast(`Could not check keys: ${err instanceof Error ? err.message : err}`, 'error')
+    } finally {
+      setChecking(false)
+    }
+  }
 
   useEffect(() => {
     window.vanity.settings.get().then(setSettings, (err) => toast(`Could not load settings: ${err}`, 'error'))
@@ -188,7 +214,7 @@ export function SettingsPage(): React.JSX.Element {
 
         <Section
           title="Metadata & artwork"
-          description="Free API credentials used to download covers, banners, descriptions and genres (stage 5). Stored encrypted on this PC. Keys built in from .env.local are filled in automatically."
+          description="Free API credentials for covers, banners, logos, descriptions and genres. Steam games also get artwork and details from Steam without any key. Stored encrypted on this PC; keys built in from .env.local are filled in automatically."
         >
           <div className="space-y-5">
             <SecretField
@@ -223,6 +249,17 @@ export function SettingsPage(): React.JSX.Element {
               value={settings.igdbClientSecret}
               onSave={(v) => save({ igdbClientSecret: v }, 'IGDB client secret saved')}
             />
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-border pt-5">
+              <Button onClick={checkKeys} disabled={checking}>
+                <KeyRound className="size-4" /> {checking ? 'Checking…' : 'Check keys'}
+              </Button>
+              <Button onClick={() => window.vanity.metadata.refreshAll()} disabled={metadata.running}>
+                <RefreshCw className={cn('size-4', metadata.running && 'animate-spin')} />
+                {metadata.running ? `Fetching ${Math.min(metadata.done, metadata.total)}/${metadata.total}…` : 'Refresh all metadata'}
+              </Button>
+              <KeyStatus label="SteamGridDB" result={keyCheck?.steamGridDb} />
+              <KeyStatus label="IGDB" result={keyCheck?.igdb} />
+            </div>
           </div>
         </Section>
       </div>

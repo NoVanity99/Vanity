@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
-import { EyeOff, Eye, FolderOpen, Image, Pencil, Play, Star, StarOff, Trash2 } from 'lucide-react'
+import { EyeOff, Eye, FolderOpen, Image, Pencil, Play, RefreshCw, Star, StarOff, Trash2 } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { useLibrary } from '@/state/library'
+import { useToast } from '@/state/toasts'
+import { ArtworkDialog } from './ArtworkDialog'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { EditGameDialog } from './EditGameDialog'
 
@@ -13,9 +15,25 @@ export function useGameMenu(): {
   openMenu: (e: React.MouseEvent, game: Game) => void
   menu: React.JSX.Element | null
 } {
-  const { updateGame, removeGame, openFolder, launch, sessions } = useLibrary()
+  const { updateGame, removeGame, openFolder, launch, sessions, replaceGame } = useLibrary()
+  const toast = useToast()
   const [state, setState] = useState<{ x: number; y: number; game: Game } | null>(null)
   const [editing, setEditing] = useState<Game | null>(null)
+  const [artwork, setArtwork] = useState<Game | null>(null)
+
+  const refreshMetadata = useCallback(
+    async (g: Game) => {
+      toast(`Refreshing ${g.name}…`)
+      const res = await window.vanity.metadata.refresh(g.id)
+      if (res.error !== undefined) toast(res.error, 'error')
+      else if (res.data) {
+        replaceGame(res.data)
+        if (res.data.metadata.status === 'matched') toast(`Updated ${res.data.name}`)
+        else if (res.data.metadata.error) toast(res.data.metadata.error, 'error')
+      }
+    },
+    [replaceGame, toast]
+  )
 
   const openMenu = useCallback((e: React.MouseEvent, game: Game) => {
     e.preventDefault()
@@ -38,7 +56,8 @@ export function useGameMenu(): {
         onSelect: () => updateGame(g.id, { favorite: !g.favorite })
       },
       { label: 'Edit metadata', icon: Pencil, onSelect: () => setEditing(g) },
-      { label: 'Change artwork', icon: Image, onSelect: () => {}, disabled: true, hint: 'Artwork arrives in stage 5' },
+      { label: 'Change artwork', icon: Image, onSelect: () => setArtwork(g) },
+      { label: 'Refresh metadata', icon: RefreshCw, onSelect: () => refreshMetadata(g) },
       {
         label: g.hidden ? 'Unhide' : 'Hide',
         icon: g.hidden ? Eye : EyeOff,
@@ -62,6 +81,7 @@ export function useGameMenu(): {
       <>
         {menu}
         {editing && <EditGameDialog game={editing} onClose={() => setEditing(null)} />}
+        {artwork && <ArtworkDialog game={artwork} onClose={() => setArtwork(null)} />}
       </>
     )
   }

@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
-import { IPC } from '@shared/ipc'
-import type { DetectedGame, GameCandidate, GamePatch, ScanSummary, Settings } from '@shared/types'
+import { IPC, type Result } from '@shared/ipc'
+import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings } from '@shared/types'
+import type { MediaCache } from '../metadata/mediaCache'
+import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
 import type { SessionTracker } from '../launcher/tracker'
 import { runScan } from '../library/scan'
@@ -12,7 +14,30 @@ import { getSettings, updateSettings } from '../settings'
 import { nameFromExecutable } from '../util/executables'
 import { isDirectory, pathExists } from '../util/fs'
 
-export function registerIpc(store: LibraryStore, tracker: SessionTracker): void {
+/** Runs a handler and turns any failure into a message the UI can show. */
+async function wrap<T>(fn: () => Promise<T>): Promise<Result<T>> {
+  try {
+    return { data: await fn() }
+  } catch (err) {
+    console.warn('[ipc]', err)
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+const KINDS = new Set<ArtworkKind>(['cover', 'hero', 'logo', 'icon'])
+const validKind = (kind: ArtworkKind): ArtworkKind => {
+  if (!KINDS.has(kind)) throw new Error(`Unknown artwork kind: ${kind}`)
+  return kind
+}
+
+export interface IpcDeps {
+  store: LibraryStore
+  tracker: SessionTracker
+  metadata: MetadataService
+  media: MediaCache
+}
+
+export function registerIpc({ store, tracker, metadata, media }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -21,7 +46,10 @@ export function registerIpc(store: LibraryStore, tracker: SessionTracker): void 
   ipcMain.handle(IPC.gamesList, () => store.list())
   ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
   ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => store.update(id, patch))
-  ipcMain.handle(IPC.gamesRemove, (_e, id: number) => store.remove(id))
+  ipcMain.handle(IPC.gamesRemove, async (_e, id: number) => {
+    store.remove(id)
+    await media.removeGame(id)
+  })
 
   ipcMain.handle(IPC.gamesLaunch, async (_e, id: number) => {
     const game = store.get(id)
@@ -77,9 +105,15 @@ export function registerIpc(store: LibraryStore, tracker: SessionTracker): void 
       onProgress: (p) => {
         if (!e.sender.isDestroyed()) e.sender.send(IPC.scanProgress, p)
       }
-    }).finally(() => {
-      scanInFlight = null
     })
+      .then((summary) => {
+        // Fetch artwork and details for anything new.
+        metadata.enqueuePending()
+        return summary
+      })
+      .finally(() => {
+        scanInFlight = null
+      })
     return scanInFlight
   })
 
@@ -96,7 +130,9 @@ export function registerIpc(store: LibraryStore, tracker: SessionTracker): void 
       for (const c of rejected) if (c.executablePath) ignored.add(c.executablePath)
       await updateSettings({ ignoredExecutables: [...ignored] })
     }
-    return store.upsert(toAdd).games
+    const added = store.upsert(toAdd).games
+    metadata.enqueue(added.map((g) => g.id))
+    return added
   })
 
   ipcMain.handle(IPC.gamesAddManually, async (e) => {
@@ -118,11 +154,60 @@ export function registerIpc(store: LibraryStore, tracker: SessionTracker): void 
         executablePath: exe
       }
     ]).games
+    if (game) metadata.enqueue([game.id])
     return game
   })
 
   ipcMain.handle(IPC.settingsGet, () => getSettings())
-  ipcMain.handle(IPC.settingsUpdate, (_e, patch: Partial<Settings>) => updateSettings(patch))
+  ipcMain.handle(IPC.settingsUpdate, async (_e, patch: Partial<Settings>) => {
+    const before = getSettings()
+    const after = await updateSettings(patch)
+    const keysChanged =
+      before.steamGridDbApiKey !== after.steamGridDbApiKey ||
+      before.igdbClientId !== after.igdbClientId ||
+      before.igdbClientSecret !== after.igdbClientSecret
+    if (keysChanged) metadata.onKeysChanged()
+    return after
+  })
+
+  ipcMain.handle(IPC.metadataProgress, () => metadata.progress())
+  ipcMain.handle(IPC.metadataRefresh, (_e, id: number) => wrap(async () => {
+    await metadata.process(id, true)
+    return store.get(id)
+  }))
+  ipcMain.handle(IPC.metadataRefreshAll, () => metadata.refreshAll())
+  ipcMain.handle(IPC.metadataSearch, (_e, query: string) => wrap(() => metadata.search(String(query))))
+  ipcMain.handle(IPC.metadataApplyMatch, (_e, id: number, candidate: MatchCandidate) =>
+    wrap(() => metadata.applyMatch(id, candidate))
+  )
+  ipcMain.handle(IPC.metadataArtworkOptions, (_e, id: number, kind: ArtworkKind) =>
+    wrap(() => metadata.artworkOptions(id, validKind(kind)))
+  )
+  ipcMain.handle(IPC.metadataSetArtwork, (_e, id: number, kind: ArtworkKind, url: string) =>
+    wrap(async () => {
+      // Only accept https artwork URLs (they come from SteamGridDB results).
+      if (!/^https:\/\//i.test(url)) throw new Error('Invalid image address.')
+      return metadata.setArtworkFromUrl(id, validKind(kind), url)
+    })
+  )
+  ipcMain.handle(IPC.metadataSetArtworkFromFile, (e, id: number, kind: ArtworkKind) =>
+    wrap(async () => {
+      const options: Electron.OpenDialogOptions = {
+        title: 'Choose an image',
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'ico', 'bmp'] }]
+      }
+      const win = windowOf(e)
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      const file = result.filePaths[0]
+      if (result.canceled || !file) return null
+      return metadata.setArtworkFromFile(id, validKind(kind), file)
+    })
+  )
+  ipcMain.handle(IPC.metadataResetArtwork, (_e, id: number, kind: ArtworkKind) =>
+    wrap(() => metadata.resetArtwork(id, validKind(kind)))
+  )
+  ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
 
   ipcMain.handle(IPC.settingsPickFolder, async (e) => {
     const options: Electron.OpenDialogOptions = { title: 'Choose a games folder', properties: ['openDirectory'] }

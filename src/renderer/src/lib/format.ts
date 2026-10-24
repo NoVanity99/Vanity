@@ -21,5 +21,5 @@ export function formatRelativeDate(timestamp: number | null, now = Date.now()): 
 
 /** Lowercase without accents, for forgiving search ("pokemon" finds "Pokémon"). */
 export function searchKey(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }

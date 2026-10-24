@@ -25,6 +25,16 @@ const game = (over: Partial<Game>): Game => ({
   heroPath: null,
   logoPath: null,
   iconPath: null,
+  metadata: {
+    status: 'pending',
+    error: null,
+    updatedAt: null,
+    steamGridDbId: null,
+    igdbId: null,
+    matchLocked: false,
+    detailsLocked: false,
+    lockedArtwork: []
+  },
   ...over
 })
 

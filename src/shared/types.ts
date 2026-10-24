@@ -41,7 +41,71 @@ export interface Game {
   heroPath: string | null
   logoPath: string | null
   iconPath: string | null
+  metadata: GameMetadataInfo
 }
+
+export type MetadataStatus =
+  /** Not fetched yet. */
+  | 'pending'
+  /** Found on SteamGridDB, IGDB or Steam. */
+  | 'matched'
+  /** Searched, but no confident match: the user can pick one. */
+  | 'unmatched'
+  /** No API keys, and no keyless source for this game. */
+  | 'no-keys'
+  /** The last attempt failed (offline, API error); retried later. */
+  | 'error'
+
+export interface GameMetadataInfo {
+  status: MetadataStatus
+  error: string | null
+  updatedAt: number | null
+  steamGridDbId: number | null
+  igdbId: number | null
+  /** The user picked the match; automatic matching leaves it alone. */
+  matchLocked: boolean
+  /** The user edited description/genres/date/developer; refreshes don't overwrite them. */
+  detailsLocked: boolean
+  /** Artwork kinds the user chose by hand. */
+  lockedArtwork: ArtworkKind[]
+}
+
+export type ArtworkKind = 'cover' | 'hero' | 'logo' | 'icon'
+
+export const ARTWORK_LABELS: Record<ArtworkKind, string> = {
+  cover: 'Cover',
+  hero: 'Banner',
+  logo: 'Logo',
+  icon: 'Icon'
+}
+
+/** A possible game to match against, shown in the "Fix match" search. */
+export interface MatchCandidate {
+  provider: 'igdb' | 'steamgriddb'
+  id: number
+  name: string
+  year: number | null
+  /** Small cover image (remote URL) for the picker. */
+  thumbUrl: string | null
+  /** Steam app ID, if the provider knows it (helps find the same game on the other provider). */
+  steamAppId: string | null
+}
+
+export interface ArtworkOption {
+  id: number
+  url: string
+  thumbUrl: string
+  width: number
+  height: number
+}
+
+export interface MetadataProgress {
+  running: boolean
+  done: number
+  total: number
+}
+
+export type KeyCheck = 'ok' | 'missing' | 'invalid' | { error: string }
 
 /** A game discovered by a scanner, before it is stored. */
 export interface DetectedGame {
@@ -92,6 +156,11 @@ export interface GamePatch {
   hidden?: boolean
   /** Overrides the scanner's choice of exe; kept across rescans. */
   executablePath?: string
+  // Editing any of these locks the details against automatic refreshes.
+  description?: string | null
+  genres?: string[]
+  releaseDate?: string | null
+  developer?: string | null
 }
 
 /** Whether a launched game is still starting, running, or has stopped. */

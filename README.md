@@ -80,11 +80,34 @@ Playtime is tracked by checking running processes every few seconds (via PowerSh
 
 Tracking stops when Vanity is closed; time up to that moment is kept.
 
+## Metadata and artwork
+
+After each scan (and at startup), Vanity fetches details and artwork in the background for games that don't have them yet. Progress shows in the sidebar.
+
+| What | Where from |
+| --- | --- |
+| Cover, banner (hero), logo, icon | SteamGridDB, top-rated static image. Steam games fall back to Steam's own artwork, with no key needed. |
+| Description, genres, release date, developer | IGDB. Steam games fill any gaps from the Steam store, with no key needed. |
+
+**Matching:** Steam games are matched by app ID on both SteamGridDB and IGDB. Other games are matched by name, using a fuzzy comparison that ignores punctuation, ™/®, "GOTY"/"Definitive Edition" and similar, and treats "II" and "2" alike. It only picks a match automatically when it is confident, and different sequel numbers count against a match, so "Hades" won't match "Hades II". A game without a confident match shows **Fix match** on its page.
+
+**Fixing things by hand:**
+- **Fix match** (game page, or Edit metadata) searches IGDB, or SteamGridDB if there's no IGDB key. Picking a result re-downloads everything for it, and the match is kept from then on.
+- **Change artwork** (right-click or game page) shows SteamGridDB's options for each of cover, banner, logo and icon, or lets you use your own image file. Your pick is kept when metadata refreshes; **Automatic** undoes it.
+- **Edit metadata** changes the description, genres, release date and developer. Edited details are kept when metadata refreshes.
+- **Refresh metadata** (right-click) refetches one game; **Settings → Refresh all metadata** refetches everything.
+- **Settings → Check keys** tests your SteamGridDB key and IGDB credentials.
+
+**Offline and failures:** Everything is cached in `%APPDATA%\Vanity\media` and in the database, so the library works offline. If the services can't be reached, fetching pauses and retries 10 minutes later and on the next start. A rejected key or API error is shown on the game's page instead of crashing anything.
+
+Requests go through Electron's network stack, so Windows proxy settings apply. Rate limits: IGDB about 4 requests per second, SteamGridDB about 6 per second, the Steam store about 1 every 1.6 seconds.
+
 ## Your data
 
 Everything lives in `%APPDATA%\Vanity`:
 
-- `vanity.db`: the game library (SQLite)
+- `vanity.db`: the game library (SQLite), including metadata and play sessions
+- `media\`: cached artwork, one folder per game
 - `settings.json`: settings, custom folders and declined custom-folder finds. API credentials are encrypted with Windows DPAPI via Electron's `safeStorage`, so the file is only readable by your Windows account.
 
 Rescans update games in place, so favorites, hidden flags, playtime and names you changed are kept. A game a scan no longer finds is flagged "Not found" rather than deleted, so an unplugged drive doesn't lose your playtime; it clears again once the game is back.

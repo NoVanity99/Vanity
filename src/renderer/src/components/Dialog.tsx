@@ -2,7 +2,10 @@ import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/cn'
 
+const SIZES = { md: 'max-w-lg', lg: 'max-w-xl', xl: 'max-w-2xl', '2xl': 'max-w-4xl' } as const
+
 interface Props {
+  size?: keyof typeof SIZES
   title: string
   description?: string
   onClose: () => void
@@ -11,7 +14,7 @@ interface Props {
   className?: string
 }
 
-export function Dialog({ title, description, onClose, children, footer, className }: Props): React.JSX.Element {
+export function Dialog({ size = 'md', title, description, onClose, children, footer, className }: Props): React.JSX.Element {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
@@ -29,7 +32,8 @@ export function Dialog({ title, description, onClose, children, footer, classNam
         role="dialog"
         aria-label={title}
         className={cn(
-          'flex max-h-full w-full max-w-lg animate-[dialog-in_180ms_ease-out] flex-col rounded-2xl border border-border bg-surface shadow-2xl',
+          'flex max-h-full w-full animate-[dialog-in_180ms_ease-out] flex-col rounded-2xl border border-border bg-surface shadow-2xl',
+          SIZES[size],
           className
         )}
       >

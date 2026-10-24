@@ -1,4 +1,21 @@
-import type { Game, GameCandidate, GamePatch, ScanProgress, ScanSummary, SessionChange, SessionState, Settings } from './types'
+import type {
+  ArtworkKind,
+  ArtworkOption,
+  Game,
+  GameCandidate,
+  GamePatch,
+  KeyCheck,
+  MatchCandidate,
+  MetadataProgress,
+  ScanProgress,
+  ScanSummary,
+  SessionChange,
+  SessionState,
+  Settings
+} from './types'
+
+/** For calls that can fail in ways the user should see: either data or a readable error. */
+export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
 /** The API the preload script exposes to the renderer as `window.vanity`. */
 export interface VanityApi {
@@ -24,6 +41,23 @@ export interface VanityApi {
     states(): Promise<Record<number, Exclude<SessionState, 'stopped'>>>
     onChange(callback: (change: SessionChange) => void): () => void
   }
+  metadata: {
+    progress(): Promise<MetadataProgress>
+    onProgress(callback: (progress: MetadataProgress) => void): () => void
+    /** A game's metadata or artwork changed in the background. */
+    onGameUpdated(callback: (gameId: number) => void): () => void
+    /** Re-matches and refetches one game. */
+    refresh(id: number): Promise<Result<Game | null>>
+    refreshAll(): Promise<void>
+    search(query: string): Promise<Result<MatchCandidate[]>>
+    applyMatch(id: number, candidate: MatchCandidate): Promise<Result<Game | null>>
+    artworkOptions(id: number, kind: ArtworkKind): Promise<Result<ArtworkOption[]>>
+    setArtwork(id: number, kind: ArtworkKind, url: string): Promise<Result<Game | null>>
+    /** Opens an image picker. data is null if cancelled. */
+    setArtworkFromFile(id: number, kind: ArtworkKind): Promise<Result<Game | null>>
+    resetArtwork(id: number, kind: ArtworkKind): Promise<Result<Game | null>>
+    checkKeys(): Promise<{ steamGridDb: KeyCheck; igdb: KeyCheck }>
+  }
   scan: {
     start(): Promise<ScanSummary>
     onProgress(callback: (progress: ScanProgress[]) => void): () => void
@@ -46,6 +80,18 @@ export const IPC = {
   gamesLaunch: 'games:launch',
   gamesPickExecutable: 'games:pick-executable',
   sessionsStates: 'sessions:states',
+  metadataProgress: 'metadata:progress',
+  metadataProgressChanged: 'metadata:progress-changed',
+  metadataGameUpdated: 'metadata:game-updated',
+  metadataRefresh: 'metadata:refresh',
+  metadataRefreshAll: 'metadata:refresh-all',
+  metadataSearch: 'metadata:search',
+  metadataApplyMatch: 'metadata:apply-match',
+  metadataArtworkOptions: 'metadata:artwork-options',
+  metadataSetArtwork: 'metadata:set-artwork',
+  metadataSetArtworkFromFile: 'metadata:set-artwork-from-file',
+  metadataResetArtwork: 'metadata:reset-artwork',
+  metadataCheckKeys: 'metadata:check-keys',
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',

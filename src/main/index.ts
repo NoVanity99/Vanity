@@ -1,5 +1,6 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { app, BrowserWindow, dialog, net, protocol, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -8,9 +9,23 @@ import { listProcessPaths } from './launcher/processes'
 import { SessionTracker } from './launcher/tracker'
 import { createPlaytimeStore } from './library/playtime'
 import { createSqliteStore } from './library/store'
+import { MediaCache } from './metadata/mediaCache'
+import { createMetadataRepo } from './metadata/repo'
+import { MetadataService } from './metadata/service'
+import { getSettings } from './settings'
 
 let db: Db | null = null
 let tracker: SessionTracker | null = null
+let metadata: MetadataService | null = null
+
+// Cached artwork is served to the UI as vanity-media://media/<relative path>.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+])
+
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
+}
 
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
 if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USER_DATA)
@@ -56,13 +71,37 @@ app.whenReady().then(() => {
   tracker = new SessionTracker({
     store: createPlaytimeStore(db),
     listProcesses: listProcessPaths,
-    onChange: (gameId, state) => {
-      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.sessionsChanged, { gameId, state })
-    }
+    onChange: (gameId, state) => broadcast(IPC.sessionsChanged, { gameId, state })
   })
-  registerIpc(createSqliteStore(db), tracker)
+
+  const store = createSqliteStore(db)
+  // Electron's net.fetch uses Chromium's network stack, so system proxy settings apply.
+  const fetchFn = (url: string, init?: RequestInit): Promise<Response> => net.fetch(url, init)
+  const media = new MediaCache(join(app.getPath('userData'), 'media'), fetchFn)
+
+  protocol.handle('vanity-media', (request) => {
+    const url = new URL(request.url)
+    const rel = decodeURIComponent(url.pathname.replace(/^\/+/, ''))
+    const file = url.hostname === 'media' ? media.resolve(rel) : null
+    if (!file) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(file).toString())
+  })
+
+  metadata = new MetadataService({
+    store,
+    repo: createMetadataRepo(db),
+    media,
+    fetchFn,
+    getSettings,
+    onProgress: (p) => broadcast(IPC.metadataProgressChanged, p),
+    onGameUpdated: (id) => broadcast(IPC.metadataGameUpdated, id)
+  })
+
+  registerIpc({ store, tracker, metadata, media })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
+  // Fetch artwork for games that don't have it yet (or failed last time), in the background.
+  metadata.enqueuePending()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -76,6 +115,7 @@ process.on('unhandledRejection', (err) => console.error('[main] unhandled reject
 app.on('will-quit', () => {
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
+  metadata?.dispose()
   db?.close()
   db = null
 })

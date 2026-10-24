@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { ScanProgress, SessionChange } from '@shared/types'
+import type { MetadataProgress, ScanProgress, SessionChange } from '@shared/types'
 
 const api: VanityApi = {
   games: {
@@ -21,6 +21,28 @@ const api: VanityApi = {
       ipcRenderer.on(IPC.sessionsChanged, listener)
       return () => ipcRenderer.removeListener(IPC.sessionsChanged, listener)
     }
+  },
+  metadata: {
+    progress: () => ipcRenderer.invoke(IPC.metadataProgress),
+    onProgress(callback) {
+      const listener = (_: Electron.IpcRendererEvent, p: MetadataProgress): void => callback(p)
+      ipcRenderer.on(IPC.metadataProgressChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.metadataProgressChanged, listener)
+    },
+    onGameUpdated(callback) {
+      const listener = (_: Electron.IpcRendererEvent, id: number): void => callback(id)
+      ipcRenderer.on(IPC.metadataGameUpdated, listener)
+      return () => ipcRenderer.removeListener(IPC.metadataGameUpdated, listener)
+    },
+    refresh: (id) => ipcRenderer.invoke(IPC.metadataRefresh, id),
+    refreshAll: () => ipcRenderer.invoke(IPC.metadataRefreshAll),
+    search: (query) => ipcRenderer.invoke(IPC.metadataSearch, query),
+    applyMatch: (id, candidate) => ipcRenderer.invoke(IPC.metadataApplyMatch, id, candidate),
+    artworkOptions: (id, kind) => ipcRenderer.invoke(IPC.metadataArtworkOptions, id, kind),
+    setArtwork: (id, kind, url) => ipcRenderer.invoke(IPC.metadataSetArtwork, id, kind, url),
+    setArtworkFromFile: (id, kind) => ipcRenderer.invoke(IPC.metadataSetArtworkFromFile, id, kind),
+    resetArtwork: (id, kind) => ipcRenderer.invoke(IPC.metadataResetArtwork, id, kind),
+    checkKeys: () => ipcRenderer.invoke(IPC.metadataCheckKeys)
   },
   scan: {
     start: () => ipcRenderer.invoke(IPC.scanStart),

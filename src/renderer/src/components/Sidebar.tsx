@@ -32,7 +32,7 @@ function NavItem({ to, icon: Icon, label, count }: { to: string; icon: LucideIco
 }
 
 export function Sidebar(): React.JSX.Element {
-  const { games, scan, addManually, sessions } = useLibrary()
+  const { games, scan, addManually, sessions, metadata } = useLibrary()
   const playing = games.filter((g) => sessions[g.id])
   const visible = games.filter((g) => !g.hidden)
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
@@ -82,6 +82,19 @@ export function Sidebar(): React.JSX.Element {
               />
             </div>
           </NavLink>
+        )}
+        {metadata.running && !scan.running && metadata.total > 0 && (
+          <div className="mb-2 rounded-lg bg-white/5 px-3 py-2.5 text-xs text-muted">
+            <div className="mb-2 flex items-center justify-between">
+              <span>Fetching artwork…</span>
+              <span className="tabular-nums">
+                {Math.min(metadata.done, metadata.total)}/{metadata.total}
+              </span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-accent/80 transition-[width] duration-500" style={{ width: `${(metadata.done / metadata.total) * 100}%` }} />
+            </div>
+          </div>
         )}
         <button
           onClick={addManually}

@@ -46,5 +46,18 @@ export const migrations: string[] = [
   CREATE INDEX play_sessions_game ON play_sessions (game_id, started_at);
   -- 1 once the user picks the exe, so rescans don't overwrite it
   ALTER TABLE games ADD COLUMN executable_locked INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 3: metadata matching and artwork
+  `
+  ALTER TABLE games ADD COLUMN metadata_status TEXT NOT NULL DEFAULT 'pending';
+  ALTER TABLE games ADD COLUMN metadata_error TEXT;
+  ALTER TABLE games ADD COLUMN metadata_updated_at INTEGER;
+  ALTER TABLE games ADD COLUMN steamgriddb_id INTEGER;
+  ALTER TABLE games ADD COLUMN igdb_id INTEGER;
+  ALTER TABLE games ADD COLUMN match_locked INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE games ADD COLUMN details_locked INTEGER NOT NULL DEFAULT 0;
+  -- comma-separated artwork kinds the user picked by hand
+  ALTER TABLE games ADD COLUMN artwork_locked TEXT NOT NULL DEFAULT '';
+  CREATE INDEX games_metadata_status ON games (metadata_status);
   `
 ]

@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, MoreHorizontal, Star, Timer } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Wand2 } from 'lucide-react'
 import { SOURCE_LABELS } from '@shared/types'
+import { ArtworkDialog } from '@/components/ArtworkDialog'
 import { Button } from '@/components/Dialog'
+import { MatchDialog } from '@/components/MatchDialog'
 import { PlayButton } from '@/components/PlayButton'
 import { SourceBadge } from '@/components/SourceBadge'
 import { useGameMenu } from '@/components/useGameMenu'
@@ -27,8 +30,9 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { games, loading, updateGame, openFolder, pickExecutable } = useLibrary()
+  const { games, loading, updateGame, openFolder, pickExecutable, metadata } = useLibrary()
   const { openMenu, menu } = useGameMenu()
+  const [dialog, setDialog] = useState<'match' | 'artwork' | null>(null)
   const game = games.find((g) => g.id === Number(id))
 
   if (!game) {
@@ -42,14 +46,21 @@ export function GameDetailPage(): React.JSX.Element {
 
   const hue = nameHue(game.name)
   const hero = mediaUrl(game.heroPath)
+  const cover = mediaUrl(game.coverPath)
   const logo = mediaUrl(game.logoPath)
+  const icon = mediaUrl(game.iconPath)
+  const status = game.metadata.status
+  const fetching = status === 'pending' && metadata.running
   const folder = game.installPath ?? game.executablePath
 
   return (
     <div className="h-full overflow-y-auto">
       <section className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden">
         {hero ? (
-          <img src={hero} alt="" className="absolute inset-0 size-full object-cover" draggable={false} />
+          <img src={hero} alt="" className="absolute inset-0 size-full animate-[fade-in_400ms_ease-out] object-cover" draggable={false} />
+        ) : cover ? (
+          // No banner: a blurred, enlarged cover still gives the page the game's colours.
+          <img src={cover} alt="" className="absolute inset-0 size-full scale-125 object-cover opacity-60 blur-3xl" draggable={false} />
         ) : (
           <div
             className="absolute inset-0"
@@ -78,10 +89,10 @@ export function GameDetailPage(): React.JSX.Element {
             <h1 className="max-w-3xl text-5xl font-black leading-[1.05] tracking-tight drop-shadow-2xl">{game.name}</h1>
           )}
           <div className="mt-4 flex items-center gap-3 text-sm text-muted">
+            {icon && <img src={icon} alt="" className="size-6 rounded" draggable={false} />}
             <SourceBadge source={game.source} />
             {game.developer && <span>{game.developer}</span>}
             {game.releaseDate && <span>{game.releaseDate.slice(0, 4)}</span>}
-            {game.genres.length > 0 && <span>{game.genres.slice(0, 3).join(' · ')}</span>}
           </div>
         </div>
       </section>
@@ -124,13 +135,36 @@ export function GameDetailPage(): React.JSX.Element {
           </div>
         )}
 
+        {(status === 'unmatched' || status === 'no-keys' || status === 'error') && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 text-sm">
+            <Info className="size-5 shrink-0 text-muted" />
+            <p className="flex-1 text-muted">{game.metadata.error ?? 'No details found for this game yet.'}</p>
+            {status === 'no-keys' ? (
+              <Button onClick={() => navigate('/settings')}>Open settings</Button>
+            ) : (
+              <Button onClick={() => setDialog('match')}>
+                <Wand2 className="size-4" /> Fix match
+              </Button>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-10 lg:grid-cols-[1fr_360px]">
           <section>
             <h2 className="mb-3 text-lg font-semibold">About</h2>
+            {game.genres.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {game.genres.map((g) => (
+                  <span key={g} className="rounded-full bg-white/5 px-3 py-1 text-xs text-text/80 ring-1 ring-white/10">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
             {game.description ? (
               <p className="max-w-3xl whitespace-pre-line leading-relaxed text-text/80">{game.description}</p>
             ) : (
-              <p className="text-sm text-muted">No description yet. Descriptions, genres and artwork are added in stage 5.</p>
+              <p className="text-sm text-muted">{fetching ? 'Fetching details…' : 'No description available.'}</p>
             )}
           </section>
 
@@ -165,10 +199,20 @@ export function GameDetailPage(): React.JSX.Element {
             <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
               <FolderOpen className="size-4" /> Open install folder
             </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => setDialog('artwork')}>
+                <Image className="size-4" /> Artwork
+              </Button>
+              <Button onClick={() => setDialog('match')}>
+                <Wand2 className="size-4" /> Fix match
+              </Button>
+            </div>
           </section>
         </div>
       </div>
       {menu}
+      {dialog === 'match' && <MatchDialog game={game} onClose={() => setDialog(null)} />}
+      {dialog === 'artwork' && <ArtworkDialog game={game} onClose={() => setDialog(null)} />}
     </div>
   )
 }

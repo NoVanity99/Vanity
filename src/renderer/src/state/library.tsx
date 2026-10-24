@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Game, GameCandidate, GamePatch, ScanProgress, ScanSummary, SessionState } from '@shared/types'
+import type { Game, GameCandidate, GamePatch, MetadataProgress, ScanProgress, ScanSummary, SessionState } from '@shared/types'
 import { useToast } from './toasts'
 
 interface LibraryState {
@@ -20,6 +20,9 @@ interface LibraryState {
     last: ScanSummary | null
     start(): Promise<void>
   }
+  metadata: MetadataProgress
+  /** Replaces a game in the list (after a dialog changed it). */
+  replaceGame(game: Game): void
   /** Custom-folder finds waiting for review; the app shows the review dialog while non-empty. */
   candidates: GameCandidate[]
   clearCandidates(): void
@@ -45,11 +48,24 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
   const [candidates, setCandidates] = useState<GameCandidate[]>([])
   const autoScanned = useRef(false)
   const [sessions, setSessions] = useState<LibraryState['sessions']>({})
+  const [metadata, setMetadata] = useState<MetadataProgress>({ running: false, done: 0, total: 0 })
+  const replaceGame = useCallback((game: Game) => setGames((gs) => gs.map((g) => (g.id === game.id ? game : g))), [])
 
   const reloadGame = useCallback(async (id: number) => {
     const game = await window.vanity.games.get(id).catch(() => null)
     if (game) setGames((gs) => gs.map((g) => (g.id === id ? game : g)))
   }, [])
+
+  // Artwork and details arrive in the background; pick them up as each game finishes.
+  useEffect(() => {
+    window.vanity.metadata.progress().then(setMetadata, () => {})
+    const offProgress = window.vanity.metadata.onProgress(setMetadata)
+    const offGame = window.vanity.metadata.onGameUpdated((id) => reloadGame(id))
+    return () => {
+      offProgress()
+      offGame()
+    }
+  }, [reloadGame])
 
   useEffect(() => {
     window.vanity.sessions.states().then(setSessions, () => {})
@@ -204,10 +220,30 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       launch,
       pickExecutable,
       scan: { running, progress, last, start },
+      metadata,
+      replaceGame,
       candidates,
       clearCandidates: () => setCandidates([])
     }),
-    [games, loading, refresh, updateGame, removeGame, addManually, openFolder, sessions, launch, pickExecutable, running, progress, last, start, candidates]
+    [
+      games,
+      loading,
+      refresh,
+      updateGame,
+      removeGame,
+      addManually,
+      openFolder,
+      sessions,
+      launch,
+      pickExecutable,
+      running,
+      progress,
+      last,
+      start,
+      metadata,
+      replaceGame,
+      candidates
+    ]
   )
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
