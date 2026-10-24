@@ -55,6 +55,9 @@ const api: VanityApi = {
     installed: () => ipcRenderer.invoke(IPC.trendingInstalled),
     open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher)
   },
+  stats: {
+    get: () => ipcRenderer.invoke(IPC.statsGet)
+  },
   live: {
     game: (id) => ipcRenderer.invoke(IPC.liveGame, id),
     library: () => ipcRenderer.invoke(IPC.liveLibrary),

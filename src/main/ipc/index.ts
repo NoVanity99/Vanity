@@ -43,11 +43,12 @@ export interface IpcDeps {
   status: StatusService
   music: MusicLibrary
   live: LiveService
+  stats: () => unknown
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -223,6 +224,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
   )
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
 
+  ipcMain.handle(IPC.statsGet, () => stats())
   ipcMain.handle(IPC.liveGame, (_e, id: number) => live.forGame(Number(id)).catch(() => null))
   ipcMain.handle(IPC.liveLibrary, () => live.libraryPlayers().catch(() => ({})))
   ipcMain.handle(IPC.liveOpenWorkshop, (_e, id: number) =>

@@ -12,6 +12,7 @@ import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
 import { formatCompact, formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { useToast } from '@/state/toasts'
+import { useCoverTint } from '@/hooks/useCoverTint'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { useLibrary } from '@/state/library'
 
@@ -57,6 +58,7 @@ export function GameDetailPage(): React.JSX.Element {
   const game = games.find((g) => g.id === Number(id))
   const toast = useToast()
   const [live, setLive] = useState<GameLive | null>(null)
+  const tint = useCoverTint(game ? mediaUrl(game.coverPath) : null)
 
   useEffect(() => {
     setLive(null)
@@ -127,6 +129,13 @@ export function GameDetailPage(): React.JSX.Element {
             />
           )}
         </div>
+        {/* The cover's colour washes over the banner, so every game page feels like its own. */}
+        {tint && (
+          <div
+            className="pointer-events-none absolute inset-0 animate-[fade-in_900ms_ease-out] mix-blend-soft-light"
+            style={{ background: `radial-gradient(80% 90% at 70% 20%, ${tint}cc, transparent 70%)` }}
+          />
+        )}
         {/* Fade into the page and darken behind the title for legibility. */}
         <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/10 to-transparent" />
@@ -165,6 +174,13 @@ export function GameDetailPage(): React.JSX.Element {
       </section>
 
       <div key={`body-${game.id}`} className="relative space-y-10 bg-bg px-10 pb-16 pt-2">
+        {tint && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-80 animate-[fade-in_900ms_ease-out] opacity-25"
+            style={{ background: `radial-gradient(60% 100% at 20% 0%, ${tint}, transparent 70%)` }}
+          />
+        )}
         <div className="animate-rise-in flex flex-wrap items-center gap-3" style={{ '--delay': '360ms' } as React.CSSProperties}>
           <PlayButton game={game} />
           <button

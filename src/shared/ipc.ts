@@ -18,6 +18,15 @@ import type {
   TrendingState
 } from './types'
 
+export interface PlayStats {
+  totalSeconds: number
+  gamesPlayed: number
+  sessions: number
+  longest: { seconds: number; gameId: number; name: string; startedAt: number } | null
+  top: { id: number; name: string; seconds: number; coverPath: string | null }[]
+  recent: { startedAt: number; seconds: number }[]
+}
+
 export interface MusicState {
   folder: string | null
   count: number
@@ -79,6 +88,10 @@ export interface VanityApi {
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
   }
+  stats: {
+    /** Playtime totals, top games and recent sessions. */
+    get(): Promise<PlayStats>
+  }
   live: {
     /** Live players/viewers and Workshop availability for one game (cached ~10 min). */
     game(id: number): Promise<GameLive | null>
@@ -138,6 +151,7 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  statsGet: 'stats:get',
   liveGame: 'live:game',
   liveLibrary: 'live:library',
   liveOpenWorkshop: 'live:open-workshop',

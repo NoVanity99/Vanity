@@ -16,6 +16,7 @@ import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
+import { playStats } from './library/stats'
 import { themeById } from '@shared/themes'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -27,6 +28,21 @@ let tracker: SessionTracker | null = null
 let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
 let status: StatusService | null = null
+
+/** True while Vanity minimised itself for a running game, so it only restores what it hid. */
+let minimizedForGame = false
+
+function minimizeWhilePlaying(state: 'launching' | 'running' | 'stopped'): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (state === 'running' && getSettings().minimizeWhilePlaying && !win.isMinimized()) {
+    win.minimize()
+    minimizedForGame = true
+  } else if (state === 'stopped' && minimizedForGame && Object.keys(tracker?.states() ?? {}).length === 0) {
+    minimizedForGame = false
+    if (win.isMinimized()) win.restore()
+  }
+}
 
 /** Window chrome colours for the current theme. */
 function chromeColors(): { bg: string; symbol: string } {
@@ -49,7 +65,7 @@ function applyChrome(): void {
 
 // Cached artwork is served to the UI as vanity-media://media/<relative path>.
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   // Music for the mini player: vanity-music://track/<index>. Streams with Range support.
   { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ])
@@ -125,7 +141,10 @@ app.whenReady().then(() => {
   tracker = new SessionTracker({
     store: createPlaytimeStore(db),
     listProcesses: listProcessPaths,
-    onChange: (gameId, state) => broadcast(IPC.sessionsChanged, { gameId, state })
+    onChange: (gameId, state) => {
+      broadcast(IPC.sessionsChanged, { gameId, state })
+      minimizeWhilePlaying(state)
+    }
   })
 
   const store = createSqliteStore(db)
@@ -133,12 +152,16 @@ app.whenReady().then(() => {
   const fetchFn = (url: string, init?: RequestInit): Promise<Response> => net.fetch(url, init)
   const media = new MediaCache(join(app.getPath('userData'), 'media'), fetchFn)
 
-  protocol.handle('vanity-media', (request) => {
+  protocol.handle('vanity-media', async (request) => {
     const url = new URL(request.url)
     const rel = decodeURIComponent(url.pathname.replace(/^\/+/, ''))
     const file = url.hostname === 'media' ? media.resolve(rel) : null
     if (!file) return new Response('Not found', { status: 404 })
-    return net.fetch(pathToFileURL(file).toString())
+    const res = await net.fetch(pathToFileURL(file).toString())
+    // Allow the UI to read pixels (game pages tint themselves with the cover's colour).
+    const headers = new Headers(res.headers)
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(res.body, { status: res.status, headers })
   })
 
   metadata = new MetadataService({
@@ -179,7 +202,7 @@ app.whenReady().then(() => {
 
   const live = new LiveService({ db, store, fetchFn, getSettings })
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, onSettingsChanged: applyChrome })
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.

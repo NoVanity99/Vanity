@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, type LucideIcon } from 'lucide-react'
+import { BarChart3, Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 
@@ -115,6 +115,7 @@ export function Sidebar(): React.JSX.Element {
         <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
+        <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
       </nav>
 
       <div className="mt-auto space-y-1 px-3 pb-4">

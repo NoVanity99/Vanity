@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Clock, FolderSearch, Image as ImageIcon, Plus, Search, Star, X } from 'lucide-react'
+import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Plus, Search, Star, X } from 'lucide-react'
+import { SurpriseDialog } from '@/components/SurpriseDialog'
 import { SOURCE_LABELS, type Game, type GameSource } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
@@ -74,6 +75,7 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [prefs, setPrefs] = useState<Prefs>(() => loadPref(`library-${view}`, DEFAULT_PREFS))
   const [players, setPlayers] = useState<Record<number, number>>({})
+  const [surprise, setSurprise] = useState(false)
 
   // Live Steam player counts for the cards (cached in the main process for 10 minutes).
   useEffect(() => {
@@ -230,7 +232,17 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
             </button>
           )}
 
-          <label className="ml-auto flex items-center gap-2 text-muted" title="Card size">
+          {view === 'all' && games.length > 1 && (
+            <button
+              onClick={() => setSurprise(true)}
+              className="group/dice ml-auto flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
+            >
+              <Dices className="size-4 text-accent transition-transform duration-500 group-hover/dice:rotate-[360deg]" />
+              Surprise me
+            </button>
+          )}
+
+          <label className={cn('flex items-center gap-2 text-muted', !(view === 'all' && games.length > 1) && 'ml-auto')} title="Card size">
             <ImageIcon className="size-3.5" />
             <input
               type="range"
@@ -293,6 +305,7 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
         )}
       </div>
       {menu}
+      {surprise && <SurpriseDialog onClose={() => setSurprise(false)} />}
     </div>
   )
 }
