@@ -10,10 +10,10 @@ import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 
 /**
- * The API key fields are hidden because the keys are built in from .env.local.
- * Set this to true to show the "Metadata & artwork" section again.
+ * Shows the "Metadata & artwork" section with the API key fields.
+ * Set to false to hide it (e.g. when keys are built in from .env.local).
  */
-const SHOW_API_KEYS = false
+const SHOW_API_KEYS = true
 
 function Section({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -268,7 +268,7 @@ export function SettingsPage(): React.JSX.Element {
         {SHOW_API_KEYS && (
           <Section
             title="Metadata & artwork"
-            description="Free API credentials for covers, banners, logos, descriptions and genres. Steam games also get artwork and details from Steam without any key. Stored encrypted on this PC; keys built in from .env.local are filled in automatically."
+            description="Free API credentials for covers, banners, logos, descriptions and genres, and for the Trending tab (Twitch client ID and secret). Steam games also get artwork and details from Steam without any key. Stored encrypted on this PC; keys built in from .env.local are filled in automatically."
           >
             <div className="space-y-5">
               <SecretField

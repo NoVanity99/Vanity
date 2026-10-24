@@ -169,7 +169,9 @@ export function GameDetailPage(): React.JSX.Element {
           <div className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 text-sm">
             <Info className="size-5 shrink-0 text-muted" />
             <p className="flex-1 text-muted">{game.metadata.error ?? 'No details found for this game yet.'}</p>
-            {status === 'no-keys' ? null : (
+            {status === 'no-keys' ? (
+              <Button onClick={() => navigate('/settings')}>Open settings</Button>
+            ) : (
               <Button onClick={() => setDialog('match')}>
                 <Wand2 className="size-4" /> Fix match
               </Button>
