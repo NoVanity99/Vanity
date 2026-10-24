@@ -1,0 +1,25 @@
+{
+  "name": "vanity-server",
+  "private": true,
+  "type": "module",
+  "description": "Vanity account API (accounts, friends, presence, stats) backed by Neon Postgres.",
+  "scripts": {
+    "dev": "tsx watch src/node.ts",
+    "start": "tsx src/node.ts",
+    "migrate": "node scripts/migrate.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.3",
+    "@neondatabase/serverless": "1.2.0",
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "^22.0.0",
+    "tsx": "4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
