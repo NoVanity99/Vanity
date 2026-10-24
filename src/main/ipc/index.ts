@@ -1,5 +1,5 @@
 import { dirname } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '@shared/ipc'
 import type { DetectedGame, GameCandidate, GamePatch, ScanSummary, Settings } from '@shared/types'
 import { runScan } from '../library/scan'
@@ -7,6 +7,7 @@ import type { LibraryStore } from '../library/store'
 import { exeExternalId } from '../scanners/custom'
 import { getSettings, updateSettings } from '../settings'
 import { nameFromExecutable } from '../util/executables'
+import { isDirectory } from '../util/fs'
 
 export function registerIpc(store: LibraryStore): void {
   let scanInFlight: Promise<ScanSummary> | null = null
@@ -18,6 +19,15 @@ export function registerIpc(store: LibraryStore): void {
   ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
   ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => store.update(id, patch))
   ipcMain.handle(IPC.gamesRemove, (_e, id: number) => store.remove(id))
+
+  ipcMain.handle(IPC.gamesOpenFolder, async (_e, id: number) => {
+    const game = store.get(id)
+    const folder = game?.installPath ?? (game?.executablePath ? dirname(game.executablePath) : null)
+    if (!folder) return 'This game has no install folder.'
+    if (!(await isDirectory(folder))) return `Folder not found: ${folder}`
+    const error = await shell.openPath(folder)
+    return error || null
+  })
 
   ipcMain.handle(IPC.scanStart, (e) => {
     // A second click while scanning joins the running scan instead of starting another.

@@ -32,10 +32,10 @@ src/
     ipc/             IPC handlers exposed to the renderer
   preload/           contextBridge that exposes window.vanity to the renderer
   renderer/          React UI
-    src/pages/       Library, Game detail, Recently played, Favorites, Settings
-    src/components/  Sidebar, game grid and cards, context menu…
-    src/hooks/       Data hooks over window.vanity
-    src/lib/         Small UI helpers
+    src/pages/       Library (also Recently Played and Favorites), Game detail, Settings
+    src/components/  Sidebar, game cards, context menu, dialogs, scan progress
+    src/state/       Library and toast state shared across pages
+    src/lib/         Formatting, preferences, placeholder art helpers
 resources/           App icon and build resources
 ```
 
@@ -59,7 +59,7 @@ To add a source, write a module in `src/main/scanners/` that exports a `Scanner`
 Everything lives in `%APPDATA%\Vanity`:
 
 - `vanity.db`: the game library (SQLite)
-- `settings.json`: settings, custom folders and declined custom-folder finds
+- `settings.json`: settings, custom folders and declined custom-folder finds. API credentials are encrypted with Windows DPAPI via Electron's `safeStorage`, so the file is only readable by your Windows account.
 
 Rescans update games in place, so favorites, hidden flags, playtime and names you changed are kept. A game a scan no longer finds is flagged "Not found" rather than deleted, so an unplugged drive doesn't lose your playtime; it clears again once the game is back.
 

@@ -1,6 +1,6 @@
 import { promises as fs, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 import { SCAN_SOURCES, type Settings } from '@shared/types'
 
 const DEFAULTS: Settings = {
@@ -13,6 +13,36 @@ const DEFAULTS: Settings = {
 }
 
 let cache: Settings | null = null
+
+/** API credentials are encrypted at rest with the OS keystore (DPAPI on Windows) when it is available. */
+const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret'] as const
+const ENCRYPTED_PREFIX = 'enc:'
+
+function encryptSecrets(settings: Settings): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...settings }
+  if (!safeStorage.isEncryptionAvailable()) return out
+  for (const field of SECRET_FIELDS) {
+    const value = settings[field]
+    if (value) out[field] = ENCRYPTED_PREFIX + safeStorage.encryptString(value).toString('base64')
+  }
+  return out
+}
+
+function decryptSecrets(stored: Record<string, unknown>): Partial<Settings> {
+  const out: Record<string, unknown> = { ...stored }
+  for (const field of SECRET_FIELDS) {
+    const value = stored[field]
+    if (typeof value !== 'string' || !value.startsWith(ENCRYPTED_PREFIX)) continue
+    try {
+      out[field] = safeStorage.decryptString(Buffer.from(value.slice(ENCRYPTED_PREFIX.length), 'base64'))
+    } catch (err) {
+      // E.g. the file was copied from another Windows account. The user has to re-enter the key.
+      console.warn(`[settings] could not decrypt ${field}:`, err)
+      out[field] = ''
+    }
+  }
+  return out as Partial<Settings>
+}
 
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -30,7 +60,7 @@ function withDefaults(stored: Partial<Settings>): Settings {
 export function getSettings(): Settings {
   if (cache) return cache
   try {
-    cache = withDefaults(JSON.parse(readFileSync(settingsPath(), 'utf8')))
+    cache = withDefaults(decryptSecrets(JSON.parse(readFileSync(settingsPath(), 'utf8'))))
   } catch {
     // Missing or corrupt file: start from defaults rather than failing.
     cache = withDefaults({})
@@ -44,7 +74,7 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
   const file = settingsPath()
   await fs.mkdir(dirname(file), { recursive: true })
   // Write to a temp file and rename, so a crash mid-write cannot corrupt settings.
-  await fs.writeFile(`${file}.tmp`, JSON.stringify(next, null, 2))
+  await fs.writeFile(`${file}.tmp`, JSON.stringify(encryptSecrets(next), null, 2))
   await fs.rename(`${file}.tmp`, file)
   return next
 }

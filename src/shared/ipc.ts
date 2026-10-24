@@ -8,6 +8,8 @@ export interface VanityApi {
     update(id: number, patch: GamePatch): Promise<Game | null>
     /** Removes a game from the library. A launcher game comes back on the next scan if it is still installed. */
     remove(id: number): Promise<void>
+    /** Opens the game's install folder in Explorer. Resolves to an error message, or null on success. */
+    openFolder(id: number): Promise<string | null>
     /** Adds the confirmed custom-folder candidates and ignores the rest. */
     confirmCandidates(accepted: GameCandidate[], rejected: GameCandidate[]): Promise<Game[]>
     /** Opens a file picker for an .exe. Resolves to null if cancelled. */
@@ -31,6 +33,7 @@ export const IPC = {
   gamesGet: 'games:get',
   gamesUpdate: 'games:update',
   gamesRemove: 'games:remove',
+  gamesOpenFolder: 'games:open-folder',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',
   scanStart: 'scan:start',

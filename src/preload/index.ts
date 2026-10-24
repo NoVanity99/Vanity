@@ -8,6 +8,7 @@ const api: VanityApi = {
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
     update: (id, patch) => ipcRenderer.invoke(IPC.gamesUpdate, id, patch),
     remove: (id) => ipcRenderer.invoke(IPC.gamesRemove, id),
+    openFolder: (id) => ipcRenderer.invoke(IPC.gamesOpenFolder, id),
     confirmCandidates: (accepted, rejected) => ipcRenderer.invoke(IPC.gamesConfirmCandidates, accepted, rejected),
     addManually: () => ipcRenderer.invoke(IPC.gamesAddManually)
   },

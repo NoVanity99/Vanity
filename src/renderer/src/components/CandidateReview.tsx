@@ -10,7 +10,8 @@ interface Row {
 
 interface Props {
   candidates: GameCandidate[]
-  onDone: () => void
+  /** Called with the number of games added (0 if the dialog was dismissed). */
+  onDone: (added: number) => void
 }
 
 /** Lets the user confirm which custom-folder finds are games, rename them and pick the right exe. */
@@ -29,11 +30,11 @@ export function CandidateReview({ candidates, onDone }: Props): React.JSX.Elemen
     setError(null)
     try {
       const toCandidate = (r: Row): GameCandidate => ({ ...r.candidate, name: r.name, executablePath: r.exe })
-      await window.vanity.games.confirmCandidates(
+      const added = await window.vanity.games.confirmCandidates(
         rows.filter((r) => r.selected).map(toCandidate),
         rows.filter((r) => !r.selected).map((r) => r.candidate)
       )
-      onDone()
+      onDone(added.length)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setSaving(false)
@@ -87,7 +88,7 @@ export function CandidateReview({ candidates, onDone }: Props): React.JSX.Elemen
         </ul>
         <div className="flex items-center justify-end gap-3 border-t border-border p-4">
           {error && <span className="mr-auto text-sm text-accent">{error}</span>}
-          <button className="rounded-lg px-4 py-2 text-sm text-muted hover:text-text" onClick={onDone} disabled={saving}>
+          <button className="rounded-lg px-4 py-2 text-sm text-muted hover:text-text" onClick={() => onDone(0)} disabled={saving}>
             Decide later
           </button>
           <button
