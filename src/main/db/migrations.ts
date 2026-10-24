@@ -59,5 +59,13 @@ export const migrations: string[] = [
   -- comma-separated artwork kinds the user picked by hand
   ALTER TABLE games ADD COLUMN artwork_locked TEXT NOT NULL DEFAULT '';
   CREATE INDEX games_metadata_status ON games (metadata_status);
+  `,
+  // 4: small key-value cache (Trending list)
+  `
+  CREATE TABLE kv (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  INTEGER NOT NULL
+  );
   `
 ]

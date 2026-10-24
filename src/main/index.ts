@@ -12,6 +12,7 @@ import { createSqliteStore } from './library/store'
 import { MediaCache } from './metadata/mediaCache'
 import { createMetadataRepo } from './metadata/repo'
 import { MetadataService } from './metadata/service'
+import { TrendingService } from './trending/service'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
 import icon from '../../resources/icon.png?asset'
@@ -19,6 +20,7 @@ import icon from '../../resources/icon.png?asset'
 let db: Db | null = null
 let tracker: SessionTracker | null = null
 let metadata: MetadataService | null = null
+let trending: TrendingService | null = null
 
 // Cached artwork is served to the UI as vanity-media://media/<relative path>.
 protocol.registerSchemesAsPrivileged([
@@ -117,11 +119,23 @@ app.whenReady().then(() => {
     onGameUpdated: (id) => broadcast(IPC.metadataGameUpdated, id)
   })
 
-  registerIpc({ store, tracker, metadata, media })
+  trending = new TrendingService({
+    db,
+    fetchFn,
+    getSettings,
+    // A launcher counts as installed when Windows has a handler for its URI protocol.
+    isProtocolRegistered: (protocol) => app.getApplicationNameForProtocol(`${protocol}://`) !== '',
+    openExternal: (url) => shell.openExternal(url),
+    onUpdate: (state) => broadcast(IPC.trendingUpdated, state)
+  })
+
+  registerIpc({ store, tracker, metadata, media, trending })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
   metadata.enqueuePending()
+  // Keep the Trending list fresh in the background so the tab opens instantly.
+  trending.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -136,6 +150,7 @@ app.on('will-quit', () => {
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
   metadata?.dispose()
+  trending?.dispose()
   db?.close()
   db = null
 })

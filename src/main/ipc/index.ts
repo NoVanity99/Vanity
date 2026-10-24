@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { IPC, type Result } from '@shared/ipc'
-import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings } from '@shared/types'
+import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
+import type { TrendingService } from '../trending/service'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
@@ -35,9 +36,10 @@ export interface IpcDeps {
   tracker: SessionTracker
   metadata: MetadataService
   media: MediaCache
+  trending: TrendingService
 }
 
-export function registerIpc({ store, tracker, metadata, media }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -166,7 +168,10 @@ export function registerIpc({ store, tracker, metadata, media }: IpcDeps): void 
       before.steamGridDbApiKey !== after.steamGridDbApiKey ||
       before.igdbClientId !== after.igdbClientId ||
       before.igdbClientSecret !== after.igdbClientSecret
-    if (keysChanged) metadata.onKeysChanged()
+    if (keysChanged) {
+      metadata.onKeysChanged()
+      void trending.refresh()
+    }
     return after
   })
 
@@ -208,6 +213,16 @@ export function registerIpc({ store, tracker, metadata, media }: IpcDeps): void 
     wrap(() => metadata.resetArtwork(id, validKind(kind)))
   )
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
+
+  ipcMain.handle(IPC.trendingGet, () => trending.get())
+  ipcMain.handle(IPC.trendingRefresh, async () => {
+    await trending.refresh()
+    return trending.state()
+  })
+  ipcMain.handle(IPC.trendingInstalled, () => trending.installed())
+  ipcMain.handle(IPC.trendingOpen, (_e, gameId: number, launcher: StoreLauncher) =>
+    wrap(() => trending.open(Number(gameId), launcher))
+  )
 
   ipcMain.handle(IPC.settingsPickFolder, async (e) => {
     const options: Electron.OpenDialogOptions = { title: 'Choose a games folder', properties: ['openDirectory'] }

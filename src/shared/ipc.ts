@@ -11,7 +11,9 @@ import type {
   ScanSummary,
   SessionChange,
   SessionState,
-  Settings
+  Settings,
+  StoreLauncher,
+  TrendingState
 } from './types'
 
 /** For calls that can fail in ways the user should see: either data or a readable error. */
@@ -58,6 +60,16 @@ export interface VanityApi {
     resetArtwork(id: number, kind: ArtworkKind): Promise<Result<Game | null>>
     checkKeys(): Promise<{ steamGridDb: KeyCheck; igdb: KeyCheck }>
   }
+  trending: {
+    /** The cached list straight away (refreshes in the background if it's old). */
+    get(): Promise<TrendingState>
+    refresh(): Promise<TrendingState>
+    onUpdate(callback: (state: TrendingState) => void): () => void
+    /** Which launchers are installed on this PC. */
+    installed(): Promise<Record<StoreLauncher, boolean>>
+    /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
+    open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
+  }
   scan: {
     start(): Promise<ScanSummary>
     onProgress(callback: (progress: ScanProgress[]) => void): () => void
@@ -92,6 +104,11 @@ export const IPC = {
   metadataSetArtworkFromFile: 'metadata:set-artwork-from-file',
   metadataResetArtwork: 'metadata:reset-artwork',
   metadataCheckKeys: 'metadata:check-keys',
+  trendingGet: 'trending:get',
+  trendingRefresh: 'trending:refresh',
+  trendingUpdated: 'trending:updated',
+  trendingInstalled: 'trending:installed',
+  trendingOpen: 'trending:open',
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { MetadataProgress, ScanProgress, SessionChange } from '@shared/types'
+import type { MetadataProgress, ScanProgress, SessionChange, TrendingState } from '@shared/types'
 
 const api: VanityApi = {
   games: {
@@ -43,6 +43,17 @@ const api: VanityApi = {
     setArtworkFromFile: (id, kind) => ipcRenderer.invoke(IPC.metadataSetArtworkFromFile, id, kind),
     resetArtwork: (id, kind) => ipcRenderer.invoke(IPC.metadataResetArtwork, id, kind),
     checkKeys: () => ipcRenderer.invoke(IPC.metadataCheckKeys)
+  },
+  trending: {
+    get: () => ipcRenderer.invoke(IPC.trendingGet),
+    refresh: () => ipcRenderer.invoke(IPC.trendingRefresh),
+    onUpdate(callback) {
+      const listener = (_: Electron.IpcRendererEvent, s: TrendingState): void => callback(s)
+      ipcRenderer.on(IPC.trendingUpdated, listener)
+      return () => ipcRenderer.removeListener(IPC.trendingUpdated, listener)
+    },
+    installed: () => ipcRenderer.invoke(IPC.trendingInstalled),
+    open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher)
   },
   scan: {
     start: () => ipcRenderer.invoke(IPC.scanStart),

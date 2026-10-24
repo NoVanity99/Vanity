@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const SIZES = { md: 'max-w-lg', lg: 'max-w-xl', xl: 'max-w-2xl', '2xl': 'max-w-4xl' } as const
@@ -37,9 +38,18 @@ export function Dialog({ size = 'md', title, description, onClose, children, foo
           className
         )}
       >
-        <div className="border-b border-border p-6">
-          <h2 className="text-xl font-semibold">{title}</h2>
-          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+        <div className="flex items-start gap-4 border-b border-border p-6">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="-m-1.5 rounded-lg p-1.5 text-muted transition hover:bg-white/8 hover:text-text"
+          >
+            <X className="size-5" />
+          </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer && <div className="flex items-center justify-end gap-3 border-t border-border p-4">{footer}</div>}

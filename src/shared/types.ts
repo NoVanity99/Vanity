@@ -170,3 +170,55 @@ export interface SessionChange {
   gameId: number
   state: SessionState
 }
+
+// ---- Trending ---------------------------------------------------------------
+
+/** Stores a trending game can be opened in. Add new ones in src/main/trending/launcherLinks.ts. */
+export type StoreLauncher = 'steam' | 'epic' | 'ea' | 'ubisoft' | 'battlenet' | 'gog' | 'microsoft'
+
+export const STORE_LABELS: Record<StoreLauncher, string> = {
+  steam: 'Steam',
+  epic: 'Epic Games Store',
+  ea: 'EA app',
+  ubisoft: 'Ubisoft Connect',
+  battlenet: 'Battle.net',
+  gog: 'GOG Galaxy',
+  microsoft: 'Microsoft Store'
+}
+
+export interface StoreLink {
+  launcher: StoreLauncher
+  /** The store's own ID (Steam app ID, Epic slug, GOG product ID or slug, Microsoft product ID…), if known. */
+  storeId: string | null
+  /** URI that opens the launcher on the game's page, if the launcher supports one. */
+  deepLink: string | null
+  /** The game's page on the store's website (always set; the browser fallback). */
+  webUrl: string
+}
+
+export interface PopularityStat {
+  kind: 'players' | 'viewers' | 'igdb'
+  /** Current Steam players or Twitch viewers; null for 'igdb'. */
+  value: number | null
+}
+
+export interface TrendingGame {
+  /** IGDB game ID. */
+  id: number
+  title: string
+  coverUrl: string | null
+  rank: number
+  popularityStat: PopularityStat
+  stores: StoreLink[]
+}
+
+export interface TrendingState {
+  games: TrendingGame[]
+  /** When the cached list was fetched (ms), or null if never. */
+  updatedAt: number | null
+  refreshing: boolean
+  /** Why the last refresh failed, if it did. Cached games may still be shown. */
+  error: string | null
+  /** The error is about missing credentials (the user needs to add keys). */
+  needsKeys: boolean
+}

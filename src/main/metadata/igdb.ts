@@ -1,7 +1,7 @@
 import type { MatchCandidate } from '@shared/types'
 import { createLimiter, HttpError, requestJson, type FetchFn } from './http'
+import { TwitchAppToken } from './twitch'
 
-const TOKEN_URL = 'https://id.twitch.tv/oauth2/token'
 const API = 'https://api.igdb.com/v4'
 /** IGDB's external source ID for Steam. */
 const STEAM_SOURCE = 1
@@ -61,40 +61,27 @@ const DETAIL_FIELDS =
 
 /** IGDB client. Credentials are a Twitch app's client ID and secret (client-credentials OAuth). */
 export class Igdb {
-  private token: { value: string; expiresAt: number } | null = null
-  private tokenRequest: Promise<string> | null = null
+  readonly auth: TwitchAppToken
   // IGDB allows 4 requests per second.
   private limit = createLimiter(260)
 
   constructor(
-    private clientId: string,
-    private clientSecret: string,
+    clientId: string,
+    clientSecret: string,
     private fetchFn: FetchFn,
-    private now: () => number = Date.now
-  ) {}
+    now: () => number = Date.now,
+    /** Share a token with other Twitch API clients. */
+    auth?: TwitchAppToken
+  ) {
+    this.auth = auth ?? new TwitchAppToken(clientId, clientSecret, fetchFn, now)
+  }
 
-  private async accessToken(): Promise<string> {
-    if (this.token && this.token.expiresAt > this.now() + 60_000) return this.token.value
-    this.tokenRequest ??= (async () => {
-      try {
-        const params = new URLSearchParams({
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-          grant_type: 'client_credentials'
-        })
-        const res = await requestJson<{ access_token: string; expires_in: number }>(
-          this.fetchFn,
-          `${TOKEN_URL}?${params}`,
-          { method: 'POST' },
-          'Twitch login'
-        )
-        this.token = { value: res.access_token, expiresAt: this.now() + res.expires_in * 1000 }
-        return res.access_token
-      } finally {
-        this.tokenRequest = null
-      }
-    })()
-    return this.tokenRequest
+  private get clientId(): string {
+    return this.auth.clientId
+  }
+
+  private accessToken(): Promise<string> {
+    return this.auth.get()
   }
 
   private async query<T>(endpoint: string, body: string): Promise<T[]> {
@@ -116,7 +103,7 @@ export class Igdb {
     } catch (err) {
       // A token can be revoked before it expires; get a new one and retry once.
       if (err instanceof HttpError && err.status === 401) {
-        this.token = null
+        this.auth.invalidate()
         return send()
       }
       throw err
@@ -126,8 +113,9 @@ export class Igdb {
   /**
    * IGDB renamed external_games.category to external_game_source in 2025. Use
    * the new name, and fall back to the old one if the API rejects it (400).
+   * `build` receives the field name to use.
    */
-  private async queryWithSourceField<T>(endpoint: string, build: (field: string) => string): Promise<T[]> {
+  async queryWithSourceField<T>(endpoint: string, build: (field: string) => string): Promise<T[]> {
     try {
       return await this.query<T>(endpoint, build('external_game_source'))
     } catch (err) {
@@ -172,7 +160,12 @@ export class Igdb {
 
   /** Throws when the client ID or secret is wrong. */
   async checkCredentials(): Promise<void> {
-    this.token = null
+    this.auth.invalidate()
     await this.accessToken()
+  }
+
+  /** Runs a raw Apicalypse query. */
+  raw<T>(endpoint: string, body: string): Promise<T[]> {
+    return this.query<T>(endpoint, body)
   }
 }

@@ -109,6 +109,34 @@ After each scan (and at startup), Vanity fetches details and artwork in the back
 
 Requests go through Electron's network stack, so Windows proxy settings apply. Rate limits: IGDB about 4 requests per second, SteamGridDB about 6 per second, the Steam store about 1 every 1.6 seconds.
 
+## Trending
+
+The **Trending** tab ranks the most popular PC games right now, across stores. There is no single cross-platform ranking API, so `src/main/trending/` aggregates one:
+
+| Module | Job |
+| --- | --- |
+| `sources.ts` | Fetching: IGDB popularity primitives (cross-platform base ranking) and game details (cover, PC platform filter, store URLs and IDs), Steam current player counts (keyless), Twitch top games and live viewers |
+| `aggregate.ts` | Pure functions: build each game's store links and blend the signals into one ranked list of `{ id, title, coverUrl, rank, popularityStat, stores: [{ launcher, storeId, deepLink, webUrl }] }` |
+| `launcherLinks.ts` | One entry per store: how to recognise its store URLs, its deep link, its web page and its URI protocol. Add a launcher by adding an entry here. |
+| `service.ts` | Caching in SQLite, refresh every 45 minutes and when the tab opens with an old list, error state, opening links |
+
+Ranking: 55% IGDB popularity (Playing, Steam 24h peak players, Visits and Twitch hours watched, weighted) plus 45% the stronger live signal for that game, Steam players or Twitch viewers. So games that aren't on Steam aren't penalised.
+
+Clicking a game opens its only store directly, or a **Choose a launcher** popup when there are several. Launchers whose URI protocol is registered on this PC are marked installed and listed first.
+
+| Store | Opens with |
+| --- | --- |
+| Steam | `steam://store/<appid>` |
+| Epic Games Store | `com.epicgames.launcher://store/p/<slug>` |
+| GOG Galaxy | `goggalaxy://openGameView/<product id>` (needs the numeric ID; otherwise the browser) |
+| Microsoft Store | `ms-windows-store://pdp/?productid=<id>` |
+| Battle.net | `battlenet://<product code>` for the games it knows a code for |
+| EA app, Ubisoft Connect | The browser: neither has a documented store-page link |
+
+If a launcher isn't installed or its link fails, the store's web page opens in the browser. Only deep links using the launcher's own protocol, and web pages on the store's own domains, are ever opened.
+
+It uses the same Twitch client ID and secret as IGDB metadata (`MAIN_VITE_IGDB_CLIENT_ID` / `MAIN_VITE_IGDB_CLIENT_SECRET`); without them the tab explains what to add.
+
 ## Your data
 
 Everything lives in `%APPDATA%\Vanity`:

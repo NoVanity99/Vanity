@@ -23,3 +23,21 @@ export function formatRelativeDate(timestamp: number | null, now = Date.now()): 
 export function searchKey(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
+
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+
+/** 1234567 → "1.2M" */
+export function formatCompact(n: number): string {
+  return compact.format(n)
+}
+
+/** "just now", "12 min ago", "3 h ago", or a date. */
+export function formatAgo(timestamp: number | null, now = Date.now()): string {
+  if (!timestamp) return 'never'
+  const minutes = Math.floor((now - timestamp) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  return formatRelativeDate(timestamp, now)
+}

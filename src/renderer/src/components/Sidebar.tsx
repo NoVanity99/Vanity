@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Clock, Gamepad2, LayoutGrid, Plus, Settings, Star, type LucideIcon } from 'lucide-react'
+import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, Star, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 
@@ -48,6 +48,7 @@ export function Sidebar(): React.JSX.Element {
 
       <nav className="space-y-1 px-3 pt-2">
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} />
+        <NavItem to="/trending" icon={Flame} label="Trending" />
         <NavItem to="/recent" icon={Clock} label="Recently Played" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} />
       </nav>
