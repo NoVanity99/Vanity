@@ -4,6 +4,7 @@
 interface ImportMetaEnv {
   readonly MAIN_VITE_STEAMGRIDDB_API_KEY?: string
   readonly MAIN_VITE_IGDB_CLIENT_ID?: string
+  readonly MAIN_VITE_GITHUB_TOKEN?: string
   readonly MAIN_VITE_IGDB_CLIENT_SECRET?: string
   /** Vanity account server URL (server/README.md). */
   readonly MAIN_VITE_VANITY_API_URL?: string

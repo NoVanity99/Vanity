@@ -184,6 +184,8 @@ export interface Settings {
   accountUsername: string
   /** Navigate the launcher with a game controller. */
   controllerEnabled: boolean
+  /** GitHub token for updates when Vanity isn't a git checkout (encrypted at rest). */
+  githubToken: string
 }
 
 /** Fields the user can change on a game. */
@@ -434,4 +436,40 @@ export interface GameDetails {
   /** Which services answered. */
   sources: { igdb: boolean; steam: boolean }
   fetchedAt: number
+}
+
+// ---- Updates ---------------------------------------------------------------------
+
+export interface UpdateNote {
+  version: string
+  /** ISO date, if the changelog gives one. */
+  date: string | null
+  changes: string[]
+}
+
+export interface UpdateState {
+  current: string
+  latest: string | null
+  /** A newer version is on GitHub and can be applied. */
+  available: boolean
+  /** Patch notes for every version newer than this one, newest first. */
+  notes: UpdateNote[]
+  /** How updates are fetched: git (a clone), github (download with a token), or not at all (installed builds). */
+  mode: 'git' | 'github' | 'unsupported'
+  branch: string
+  checking: boolean
+  lastChecked: number | null
+  error: string | null
+  /** Updates need a GitHub token (the repo is private and this isn't a git clone). */
+  needsToken: boolean
+  /** While installing: what it's doing now. */
+  applying: string | null
+}
+
+/** What the mini player shows for the current song. */
+export interface TrackInfo {
+  title: string
+  artist: string | null
+  album: string | null
+  hasArt: boolean
 }

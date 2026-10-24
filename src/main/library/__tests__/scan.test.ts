@@ -23,7 +23,8 @@ const settings: Settings = {
   accountServerUrl: '',
   accountToken: '',
   accountUsername: '',
-  controllerEnabled: true
+  controllerEnabled: true,
+  githubToken: ''
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

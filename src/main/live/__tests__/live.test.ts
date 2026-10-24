@@ -23,7 +23,8 @@ const settings = (keys: boolean): Settings =>
   accountServerUrl: '',
   accountToken: '',
   accountUsername: '',
-  controllerEnabled: true
+  controllerEnabled: true,
+  githubToken: ''
   }) as Settings
 
 function apis() {

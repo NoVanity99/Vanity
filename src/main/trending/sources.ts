@@ -181,7 +181,7 @@ export interface IgdbUpcomingGame extends IgdbStoreGame {
  * Upcoming PC games, most anticipated first (IGDB "hypes" = people following
  * a game before release). Only games with a known release date in the future.
  */
-export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 100): Promise<IgdbUpcomingGame[]> {
+export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 200): Promise<IgdbUpcomingGame[]> {
   const now = Math.floor(nowMs / 1000)
   const rows = await igdb.queryWithSourceField<RawGame>(
     'games',

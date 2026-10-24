@@ -1,5 +1,7 @@
 import { createReadStream, promises as fs } from 'node:fs'
-import { extname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
+import { parseFile } from 'music-metadata'
+import type { TrackInfo } from '@shared/types'
 import { Readable } from 'node:stream'
 import { safeReaddir } from '../util/fs'
 
@@ -69,17 +71,32 @@ export async function audioResponse(file: string, rangeHeader: string | null): P
   return new Response(body, { status: range ? 206 : 200, headers })
 }
 
-/** Holds the scanned tracks. The UI only ever sees how many there are, never names or paths. */
+/** "03 - Artist - Song.mp3" → "Artist - Song", for files without tags. */
+export function titleFromFile(file: string): string {
+  return basename(file, extname(file)).replace(/^\s*\d{1,3}\s*[-._)]\s*/, '').replace(/_/g, ' ').trim() || basename(file)
+}
+
+const COVER_FILES = /^(cover|folder|front|album|albumart(small|large)?|artwork)\.(jpe?g|png|webp)$/i
+const IMAGE_TYPES: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }
+
+interface Art {
+  data: Uint8Array
+  type: string
+}
+
+/** Holds the scanned tracks, and reads each one's title, artist and artwork when it plays. */
 export class MusicLibrary {
   private tracks: string[] = []
   private folder: string | null = null
   /** Bumped on every rescan, so the UI's track URLs change when the list does. */
   private version = 0
+  private info = new Map<number, Promise<{ info: TrackInfo; art: Art | null }>>()
 
   async load(folder: string | null): Promise<void> {
     this.folder = folder
     this.tracks = folder ? await scanMusic(folder) : []
     this.version++
+    this.info.clear()
   }
 
   state(): { folder: string | null; count: number; version: number } {
@@ -89,5 +106,58 @@ export class MusicLibrary {
   /** The file for a track number, or null. */
   track(index: number): string | null {
     return Number.isInteger(index) && index >= 0 && index < this.tracks.length ? this.tracks[index] : null
+  }
+
+  private read(index: number): Promise<{ info: TrackInfo; art: Art | null }> | null {
+    const file = this.track(index)
+    if (!file) return null
+    let hit = this.info.get(index)
+    if (!hit) {
+      hit = readTrack(file)
+      this.info.set(index, hit)
+      // Keep the cache small: artwork can be a few hundred KB per track.
+      if (this.info.size > 50) this.info.delete(this.info.keys().next().value!)
+    }
+    return hit
+  }
+
+  /** Title, artist and whether there's artwork, from the file's tags (or its name). */
+  async trackInfo(index: number): Promise<TrackInfo | null> {
+    return (await this.read(index))?.info ?? null
+  }
+
+  /** The track's artwork: embedded in the file, or a cover image next to it. */
+  async art(index: number): Promise<Art | null> {
+    return (await this.read(index))?.art ?? null
+  }
+}
+
+async function readTrack(file: string): Promise<{ info: TrackInfo; art: Art | null }> {
+  let title: string | null = null
+  let artist: string | null = null
+  let album: string | null = null
+  let art: Art | null = null
+  try {
+    const meta = await parseFile(file, { duration: false, skipCovers: false })
+    title = meta.common.title?.trim() || null
+    artist = meta.common.artist?.trim() || meta.common.albumartist?.trim() || null
+    album = meta.common.album?.trim() || null
+    const pic = meta.common.picture?.[0]
+    if (pic?.data?.length) art = { data: pic.data, type: pic.format.includes('/') ? pic.format : `image/${pic.format}` }
+  } catch {
+    // Unreadable tags: fall back to the file name.
+  }
+  if (!art) art = await folderCover(dirname(file))
+  return { info: { title: title ?? titleFromFile(file), artist, album, hasArt: art !== null }, art }
+}
+
+async function folderCover(dir: string): Promise<Art | null> {
+  const entries = await safeReaddir(dir)
+  const cover = entries.find((e) => e.isFile() && COVER_FILES.test(e.name))
+  if (!cover) return null
+  try {
+    return { data: await fs.readFile(join(dir, cover.name)), type: IMAGE_TYPES[extname(cover.name).toLowerCase()] ?? 'image/jpeg' }
+  } catch {
+    return null
   }
 }

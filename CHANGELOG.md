@@ -1,0 +1,20 @@
+# Changelog
+
+Every version of Vanity, newest first. The in-app updater shows these notes before you install.
+Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
+
+## 0.2.0 (2026-10-24)
+- Updates: a round button at the top right checks GitHub for a new version every minute. When one is out it shows a red badge and a small red "Update software" banner.
+- Updates: clicking it shows every change since your version, with "Update and restart" or "Not now". Installing pulls the new code, installs any new dependencies, rebuilds and restarts by itself. No more wiping the folder and downloading everything again.
+- Settings: a new Updates section (check now, update channel, GitHub token for downloaded copies). The version number is at the bottom right of Settings.
+- Music player: longer and slimmer, with album art, the song's title and artist (scrolling when long), previous, play/pause and next, and an always-visible volume slider.
+- Music player: keyboard media keys and the Windows media overlay control it too.
+- Trending: the Most hyped banner now slowly scrolls through the top 30 upcoming games.
+
+## 0.1.0 (2026-10-24)
+- Library: scans Steam, Epic, GOG, EA, Ubisoft and your own folders, with no duplicates.
+- Library: launches games and tracks playtime, with search, sorting, filters, favourites and Surprise me.
+- Metadata: artwork and details from SteamGridDB, IGDB and Steam, with Fix match and custom artwork.
+- Trending: popular PC games across every store, the Most hyped upcoming games, a release calendar and release reminders.
+- Game pages: your stats, milestones, session history, time to beat, ratings, details, media, news, similar games and your journal.
+- Extras: Steam store tab, Friends and accounts, stats page, themes and fonts, mini music player, launcher status and full controller support.

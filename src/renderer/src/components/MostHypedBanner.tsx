@@ -6,8 +6,8 @@ import { formatCompact } from '@/lib/format'
 import { nameHue } from '@/lib/media'
 import { StoreIcon } from './StoreIcon'
 
-const SHOWN = 15
-const SECONDS_PER_CARD = 7
+const SHOWN = 30
+const SECONDS_PER_CARD = 8
 
 export function releaseLabel(iso: string, now = Date.now()): string {
   const date = new Date(`${iso}T00:00:00`)

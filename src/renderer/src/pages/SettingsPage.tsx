@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, GitBranch, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_THEMES } from '@shared/fonts'
@@ -10,6 +10,8 @@ import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
+import { checkForUpdate, openUpdateDialog, pendingCount, useUpdate } from '@/state/update'
+import { formatAgo } from '@/lib/format'
 
 /**
  * Shows the "Metadata & artwork" section with the API key fields.
@@ -116,6 +118,75 @@ function ControllerStatus(): React.JSX.Element {
       <Gamepad className="size-4" /> {label}
     </p>
   )
+}
+
+/** Version, update channel and "Check now". A downloaded copy (not a git clone) needs a GitHub token. */
+function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>, confirmation?: string) => Promise<void> }): React.JSX.Element | null {
+  const update = useUpdate()
+  if (!update) return null
+  const count = pendingCount(update)
+  return (
+    <Section
+      title="Updates"
+      description={
+        update.mode === 'unsupported'
+          ? 'This is an installed build. Install a newer build to update.'
+          : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge.'
+      }
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        {count > 0 ? (
+          <Button variant="primary" onClick={openUpdateDialog}>
+            <ArrowDownToLine className="size-4" /> Install v{update.latest}
+          </Button>
+        ) : (
+          <Button onClick={() => void checkForUpdate()} disabled={update.checking || update.mode === 'unsupported'}>
+            <RefreshCw className={cn('size-4', update.checking && 'animate-spin')} /> {update.checking ? 'Checking…' : 'Check now'}
+          </Button>
+        )}
+        <span className="text-sm text-muted">
+          {count > 0
+            ? `v${update.latest} is ready to install.`
+            : update.needsToken
+              ? 'Add a GitHub token below to get updates.'
+              : update.error
+                ? update.error
+                : update.lastChecked
+                  ? `Up to date. Checked ${formatAgo(update.lastChecked)}.`
+                  : ''}
+        </span>
+      </div>
+      {update.mode !== 'unsupported' && (
+        <p className="mt-4 flex items-center gap-2 text-xs text-muted">
+          <GitBranch className="size-3.5" />
+          {update.mode === 'git' ? 'Updates with git from' : 'Downloads updates from'} the <code className="rounded bg-white/5 px-1.5 py-0.5">{update.branch}</code> branch.
+        </p>
+      )}
+      {update.mode === 'github' && (
+        <div className="mt-5">
+          <SecretField
+            label="GitHub token"
+            value={settings.githubToken}
+            onSave={(v) => void save({ githubToken: v }, v ? 'GitHub token saved' : 'GitHub token removed')}
+            help={
+              <>
+                The Vanity repo is private, so a copy that wasn't made with git clone needs a token to download updates. Create a fine-grained token at{' '}
+                <a className="text-accent hover:underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">
+                  github.com/settings/personal-access-tokens
+                </a>{' '}
+                with read-only access to the repo's Contents. It's stored encrypted on this PC.
+              </>
+            }
+          />
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function VersionLabel(): React.JSX.Element | null {
+  const update = useUpdate()
+  return update ? <p className="!mt-3 text-right text-[11px] tabular-nums text-muted/70">Vanity v{update.current}</p> : null
 }
 
 export function SettingsPage(): React.JSX.Element {
@@ -258,6 +329,8 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </Section>
 
+        <UpdatesSection settings={settings} save={save} />
+
         <Section
           title="Library scan"
           description="Vanity looks for installed games in the launchers below and in your own folders. Rescanning never creates duplicates."
@@ -390,6 +463,7 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           </Section>
         )}
+        <VersionLabel />
       </div>
     </div>
   )

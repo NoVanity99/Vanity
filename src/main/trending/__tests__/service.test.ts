@@ -21,7 +21,8 @@ const settings: Settings = {
   accountServerUrl: '',
   accountToken: '',
   accountUsername: '',
-  controllerEnabled: true
+  controllerEnabled: true,
+  githubToken: ''
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

@@ -21,7 +21,9 @@ import type {
   SessionState,
   Settings,
   StoreLauncher,
-  TrendingState
+  TrendingState,
+  UpdateState,
+  TrackInfo
 } from './types'
 
 export interface PlayStats {
@@ -136,8 +138,10 @@ export interface VanityApi {
     openWorkshop(id: number): Promise<Result<true>>
   }
   music: {
-    /** The music folder and how many tracks it has. Track names are never exposed. */
+    /** The music folder and how many tracks it has. */
     state(): Promise<MusicState>
+    /** Title, artist and artwork availability for a track (artwork is at vanity-music://art/<index>). */
+    track(index: number): Promise<TrackInfo | null>
     /** Opens a folder picker, then scans it. Resolves to the new state, or null if cancelled. */
     pickFolder(): Promise<MusicState | null>
   }
@@ -146,6 +150,14 @@ export interface VanityApi {
     get(): Promise<LauncherStatus[]>
     refresh(): Promise<LauncherStatus[]>
     onUpdate(callback: (statuses: LauncherStatus[]) => void): () => void
+  }
+  update: {
+    state(): Promise<UpdateState>
+    /** Looks for a new version now. */
+    check(): Promise<UpdateState>
+    /** Installs the new version and restarts Vanity. */
+    apply(): Promise<Result<true>>
+    onChange(callback: (state: UpdateState) => void): () => void
   }
   scan: {
     start(): Promise<ScanSummary>
@@ -210,12 +222,17 @@ export const IPC = {
   liveOpenWorkshop: 'live:open-workshop',
   musicState: 'music:state',
   musicPickFolder: 'music:pick-folder',
+  musicTrack: 'music:track',
   statusGet: 'status:get',
   statusRefresh: 'status:refresh',
   statusUpdated: 'status:updated',
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateApply: 'update:apply',
+  updateChanged: 'update:changed',
   scanStart: 'scan:start',
   scanProgress: 'scan:progress',
   settingsGet: 'settings:get',

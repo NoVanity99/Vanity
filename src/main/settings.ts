@@ -21,13 +21,14 @@ const DEFAULTS: Settings = {
   accountServerUrl: '',
   accountToken: '',
   accountUsername: '',
-  controllerEnabled: true
+  controllerEnabled: true,
+  githubToken: ''
 }
 
 let cache: Settings | null = null
 
 /** API credentials are encrypted at rest with the OS keystore (DPAPI on Windows) when it is available. */
-const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret', 'accountToken'] as const
+const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret', 'accountToken', 'githubToken'] as const
 const ENCRYPTED_PREFIX = 'enc:'
 
 function encryptSecrets(settings: Settings): Record<string, unknown> {
@@ -69,7 +70,9 @@ const BUILT_IN: Pick<Settings, (typeof SECRET_FIELDS)[number]> = {
   igdbClientId: import.meta.env.MAIN_VITE_IGDB_CLIENT_ID?.trim() ?? '',
   igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() ?? '',
   // Never built in: a session belongs to whoever signs in.
-  accountToken: ''
+  accountToken: '',
+  // Lets the updater read the (private) GitHub repo when Vanity isn't a git checkout.
+  githubToken: import.meta.env.MAIN_VITE_GITHUB_TOKEN?.trim() ?? ''
 }
 
 /** Merges stored settings over defaults, so new fields get sensible values. */

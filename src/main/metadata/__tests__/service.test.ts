@@ -27,7 +27,8 @@ const baseSettings: Settings = {
   accountServerUrl: '',
   accountToken: '',
   accountUsername: '',
-  controllerEnabled: true
+  controllerEnabled: true,
+  githubToken: ''
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

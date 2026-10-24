@@ -8,6 +8,7 @@ import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
 import type { DetailsService } from '../details/service'
+import type { UpdateService } from '../update/service'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
@@ -49,6 +50,7 @@ export interface IpcDeps {
   music: MusicLibrary
   live: LiveService
   details: DetailsService
+  update: UpdateService
   db: Db
   stats: () => unknown
   account: AccountService
@@ -56,7 +58,7 @@ export interface IpcDeps {
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, db, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -193,6 +195,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
       metadata.onKeysChanged()
       void trending.refresh()
     }
+    if (before.githubToken !== after.githubToken) void update.check()
     onSettingsChanged?.(after)
     return after
   })
@@ -270,6 +273,7 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
   )
 
   ipcMain.handle(IPC.musicState, () => music.state())
+  ipcMain.handle(IPC.musicTrack, (_e, index: number) => music.trackInfo(Number(index)).catch(() => null))
   ipcMain.handle(IPC.musicPickFolder, async (e) => {
     const options: Electron.OpenDialogOptions = { title: 'Choose your music folder', properties: ['openDirectory'] }
     const win = windowOf(e)
@@ -280,6 +284,10 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     await music.load(folder)
     return music.state()
   })
+
+  ipcMain.handle(IPC.updateState, () => update.state())
+  ipcMain.handle(IPC.updateCheck, () => update.check())
+  ipcMain.handle(IPC.updateApply, () => wrap(async () => (await update.apply(), true as const)))
 
   ipcMain.handle(IPC.statusGet, () => status.get())
   ipcMain.handle(IPC.statusRefresh, async () => {

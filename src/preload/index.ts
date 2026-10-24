@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState } from '@shared/types'
+import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState } from '@shared/types'
 
 const api: VanityApi = {
   games: {
@@ -91,7 +91,8 @@ const api: VanityApi = {
   },
   music: {
     state: () => ipcRenderer.invoke(IPC.musicState),
-    pickFolder: () => ipcRenderer.invoke(IPC.musicPickFolder)
+    pickFolder: () => ipcRenderer.invoke(IPC.musicPickFolder),
+    track: (index) => ipcRenderer.invoke(IPC.musicTrack, index)
   },
   status: {
     get: () => ipcRenderer.invoke(IPC.statusGet),
@@ -100,6 +101,16 @@ const api: VanityApi = {
       const listener = (_: Electron.IpcRendererEvent, s: LauncherStatus[]): void => callback(s)
       ipcRenderer.on(IPC.statusUpdated, listener)
       return () => ipcRenderer.removeListener(IPC.statusUpdated, listener)
+    }
+  },
+  update: {
+    state: () => ipcRenderer.invoke(IPC.updateState),
+    check: () => ipcRenderer.invoke(IPC.updateCheck),
+    apply: () => ipcRenderer.invoke(IPC.updateApply),
+    onChange(callback) {
+      const listener = (_: Electron.IpcRendererEvent, s: UpdateState): void => callback(s)
+      ipcRenderer.on(IPC.updateChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.updateChanged, listener)
     }
   },
   scan: {

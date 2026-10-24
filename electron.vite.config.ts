@@ -18,7 +18,8 @@ if (!existsSync(resolve(__dirname, '.env.local'))) {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // music-metadata is ESM-only: bundle it into the (CommonJS) main process instead of requiring it.
+    plugins: [externalizeDepsPlugin({ exclude: ['music-metadata'] })],
     resolve: { alias: { '@shared': shared } }
   },
   preload: {

@@ -6,6 +6,7 @@ import { useSettings } from './state/settings'
 import { CandidateReview } from './components/CandidateReview'
 import { LauncherStatusBar } from './components/LauncherStatusBar'
 import { MusicPlayer } from './components/MusicPlayer'
+import { UpdateBanner, UpdateButton } from './components/UpdateButton'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
@@ -39,8 +40,9 @@ function Shell(): React.JSX.Element {
         {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
         <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] [-webkit-app-region:drag]">
           <LauncherStatusBar />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
             <MusicPlayer />
+            <UpdateButton />
           </div>
         </div>
         <div key={location.pathname} className="h-full animate-[page-in_220ms_ease-out]">
@@ -60,6 +62,7 @@ function Shell(): React.JSX.Element {
         </div>
       </main>
       <GamepadLayer />
+      <UpdateBanner />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

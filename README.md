@@ -9,6 +9,7 @@ Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v
 ```bash
 npm install        # no C++ build tools needed (see note below)
 npm run dev        # start the app with hot reload
+npm start          # build and run the app as it ships (updates rebuild and restart it)
 npm test           # run the unit tests (scanners, parsers, filters)
 npm run typecheck  # type-check main and renderer
 npm run build      # type-check, then build to out/
@@ -45,7 +46,10 @@ resources/           App icon and build resources
   - **Library**, **Trending** and **Steam Store** (the store embedded and locked down; your sign-in persists).
   - **Friends**, **Recently Played**, **Favorites** and **Stats** (your playtime, streak, longest session and per-day chart).
   - **Settings**, and **Account** below Settings.
-- **Title bar:** launcher status on the left. On the right, the mini music player: choose a folder, press play, and it shuffles everything. Song names are never shown.
+- **Title bar:**
+  - **Launcher status** on the left.
+  - **Music player** on the right: click the artwork circle to choose a music folder, then press play to shuffle it. It shows the album art, the title and artist (from the file's tags, or its name), previous / play-pause / next and volume. Keyboard media keys work too. Artwork comes from the file, or from a `cover.jpg` / `folder.jpg` next to it.
+  - **Update button:** the small round button beside the player.
 - **Game pages:**
   - **Cover tint:** the page takes on the colour of the game's cover.
   - **Live stats:** players on Steam, or viewers on Twitch.
@@ -183,7 +187,7 @@ The **Trending** tab ranks the most popular PC games right now, across stores. T
 
 Ranking: 55% IGDB popularity (Playing, Steam 24h peak players, Visits and Twitch hours watched, weighted) plus 45% the stronger live signal for that game, Steam players or Twitch viewers. So games that aren't on Steam aren't penalised.
 
-The **Most hyped · coming soon** banner at the top slowly scrolls through the upcoming PC games the most people are following on IGDB ("hypes"), in rank order, with each game's release date, genres and a hype meter. Hover to pause; click to open the game's store page, just like the cards below.
+The **Most hyped · coming soon** banner at the top slowly scrolls through the top 30 upcoming PC games the most people are following on IGDB ("hypes"), in rank order, with each game's release date, genres and a hype meter. Hover to pause; click to open the game's store page, just like the cards below.
 
 - **Follow** on a card (or in the calendar) and Vanity shows a Windows notification on release day. Followed games are listed under the **Following** tab.
 - **Release calendar** lists the same games by release month, soonest first.
@@ -216,6 +220,19 @@ Rescans update games in place, so favorites, hidden flags, playtime and names yo
 The schema is versioned with SQLite's `user_version`. Before a schema upgrade, the old file is copied to `vanity.db.v<N>.bak`. If the database is unreadable it is moved aside as `vanity.db.corrupt-<time>` and a fresh one is created; if even that fails, the app runs on an in-memory library for that session and tells you.
 
 Set `VANITY_USER_DATA` to a folder path to run the app with a separate profile.
+
+## Updates
+
+Vanity updates itself from this GitHub repo, so you never have to delete it and download everything again.
+
+- **Checking:** every minute, in the background. When a new version is pushed, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
+- **Installing:** Vanity pulls the new code, runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
+- **How it reaches GitHub:** the repo is private.
+  - If your copy was made with `git clone` (recommended), updates use git and your normal GitHub login. Nothing else is needed. If git asks for a login, run `git pull` once in the Vanity folder.
+  - If you downloaded a zip, add a GitHub token in **Settings → Updates**: a fine-grained token with read-only **Contents** access to this repo. You can also put it in `.env.local` as `MAIN_VITE_GITHUB_TOKEN`. Your `.env.local`, `node_modules` and data are never overwritten.
+- **Where updates come from:** the `vanity.updateBranch` field in `package.json`, or for a git clone, the branch it tracks.
+- **Patch notes:** come from [`CHANGELOG.md`](CHANGELOG.md). Each release bumps `version` in `package.json` and adds an entry there. The current version is at the bottom right of Settings.
+- Installed builds (`npm run dist:win`) don't update themselves. Build a new installer instead.
 
 ## Native modules
 

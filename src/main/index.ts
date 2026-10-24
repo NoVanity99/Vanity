@@ -17,6 +17,8 @@ import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
+import { UpdateService } from './update/service'
+import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
@@ -31,6 +33,7 @@ let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
 let status: StatusService | null = null
 let account: AccountService | null = null
+let update: UpdateService | null = null
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
@@ -69,7 +72,7 @@ function applyChrome(): void {
 // Cached artwork is served to the UI as vanity-media://media/<relative path>.
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
-  // Music for the mini player: vanity-music://track/<index>. Streams with Range support.
+  // Music for the mini player: vanity-music://track/<index> (streams with Range support) and vanity-music://art/<index>.
   { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ])
 
@@ -198,8 +201,12 @@ app.whenReady().then(() => {
   void music.load(getSettings().musicFolder).catch((err) => console.warn('[music] scan failed:', err))
   protocol.handle('vanity-music', async (request) => {
     const url = new URL(request.url)
-    const index = url.hostname === 'track' ? Number(url.pathname.replace(/^\/+/, '')) : NaN
-    const file = music.track(index)
+    const index = Number(url.pathname.replace(/^\/+/, ''))
+    if (url.hostname === 'art') {
+      const art = await music.art(index).catch(() => null)
+      return art ? new Response(new Uint8Array(art.data), { headers: { 'Content-Type': art.type, 'Cache-Control': 'max-age=3600' } }) : new Response('Not found', { status: 404 })
+    }
+    const file = url.hostname === 'track' ? music.track(index) : null
     if (!file) return new Response('Not found', { status: 404 })
     try {
       return await audioResponse(file, request.headers.get('range'))
@@ -222,7 +229,30 @@ app.whenReady().then(() => {
   })
   account.start()
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  const devServer = is.dev && !!process.env['ELECTRON_RENDERER_URL']
+  update = new UpdateService({
+    root: app.getAppPath(),
+    fetchFn,
+    getToken: () => getSettings().githubToken,
+    exec,
+    unzip,
+    tmpDir: app.getPath('temp'),
+    isDev: devServer,
+    supported: !app.isPackaged,
+    onUpdate: (s) => broadcast(IPC.updateChanged, s),
+    restart: () => {
+      if (devServer) {
+        // electron-vite restarts the app when main-process code changed; reload in case only the UI did.
+        setTimeout(() => BrowserWindow.getAllWindows().forEach((w) => w.webContents.reloadIgnoringCache()), 2500)
+      } else {
+        app.relaunch()
+        app.quit()
+      }
+    }
+  })
+  update.start()
+
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
@@ -255,6 +285,7 @@ app.on('will-quit', () => {
   metadata?.dispose()
   trending?.dispose()
   status?.dispose()
+  update?.dispose()
   db?.close()
   db = null
 })

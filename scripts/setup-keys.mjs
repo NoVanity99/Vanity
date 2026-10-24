@@ -11,7 +11,8 @@ const file = join(root, '.env.local')
 const FIELDS = [
   ['MAIN_VITE_IGDB_CLIENT_ID', 'Twitch client ID (for IGDB and Trending)'],
   ['MAIN_VITE_IGDB_CLIENT_SECRET', 'Twitch client secret'],
-  ['MAIN_VITE_STEAMGRIDDB_API_KEY', 'SteamGridDB API key (optional, for artwork)']
+  ['MAIN_VITE_STEAMGRIDDB_API_KEY', 'SteamGridDB API key (optional, for artwork)'],
+  ['MAIN_VITE_GITHUB_TOKEN', 'GitHub token (optional, for updates if you did not git clone)']
 ]
 
 // Notepad often saves ".env.local" as ".env.local.txt", which Windows hides.
