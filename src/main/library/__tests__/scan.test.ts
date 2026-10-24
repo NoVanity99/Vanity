@@ -19,7 +19,10 @@ const settings: Settings = {
   ambientBackground: true,
   minimizeWhilePlaying: false,
   musicFolder: null,
-  musicVolume: 0.5
+  musicVolume: 0.5,
+  accountServerUrl: '',
+  accountToken: '',
+  accountUsername: ''
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

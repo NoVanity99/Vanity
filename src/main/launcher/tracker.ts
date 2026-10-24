@@ -84,6 +84,12 @@ export class SessionTracker {
     return Object.fromEntries([...this.sessions].map(([id, s]) => [id, s.state]))
   }
 
+  /** The game that's running (the earliest, if several), and when it started. */
+  running(): { id: number; startedAt: number } | null {
+    for (const [id, s] of this.sessions) if (s.state === 'running') return { id, startedAt: s.launchedAt }
+    return null
+  }
+
   isTracking(gameId: number): boolean {
     return this.sessions.has(gameId)
   }

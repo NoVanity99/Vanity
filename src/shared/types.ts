@@ -159,6 +159,11 @@ export interface Settings {
   musicFolder: string | null
   /** Music volume, 0–1. */
   musicVolume: number
+  /** Vanity account server URL (see server/README.md). Empty uses the built-in one, if any. */
+  accountServerUrl: string
+  /** Session token for the account server (encrypted at rest). */
+  accountToken: string
+  accountUsername: string
 }
 
 /** Fields the user can change on a game. */
@@ -272,4 +277,66 @@ export interface GameLive {
   /** The game has a Steam Workshop (only offered for Steam copies). */
   workshop: boolean
   checkedAt: number
+}
+
+// ---- Accounts and friends ------------------------------------------------------
+
+export interface AccountState {
+  /** A server URL is set (in Settings or built in). */
+  serverConfigured: boolean
+  serverUrl: string
+  signedIn: boolean
+  username: string | null
+}
+
+export interface FriendStatus {
+  state: 'playing' | 'online' | 'offline'
+  gameName: string | null
+  /** When the current game started (ms). */
+  since: number | null
+  /** Last heartbeat (ms). */
+  lastSeen: number | null
+}
+
+export interface Friend {
+  id: string
+  username: string
+  status: FriendStatus
+  totalPlaytimeSeconds: number
+  gamesPlayed: number
+  topGame: string | null
+}
+
+export interface FriendRequest {
+  id: string
+  username: string
+  createdAt: number | null
+}
+
+export interface FriendsList {
+  friends: Friend[]
+  incoming: FriendRequest[]
+  outgoing: FriendRequest[]
+}
+
+export interface FriendGameStat {
+  gameKey: string
+  gameName: string
+  playtimeSeconds: number
+  lastPlayedAt: number | null
+}
+
+export interface FriendStats {
+  username: string
+  totalPlaytimeSeconds: number
+  gamesPlayed: number
+  top: FriendGameStat[]
+  recent: FriendGameStat[]
+}
+
+export interface GameFriend {
+  id: string
+  username: string
+  playtimeSeconds: number
+  lastPlayedAt: number | null
 }

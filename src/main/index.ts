@@ -17,8 +17,9 @@ import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
 import { playStats } from './library/stats'
+import { AccountService } from './account/service'
+import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
-import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
 import { secureWebviews } from './steamStoreView'
 import icon from '../../resources/icon.png?asset'
@@ -28,6 +29,7 @@ let tracker: SessionTracker | null = null
 let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
 let status: StatusService | null = null
+let account: AccountService | null = null
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
@@ -144,6 +146,7 @@ app.whenReady().then(() => {
     onChange: (gameId, state) => {
       broadcast(IPC.sessionsChanged, { gameId, state })
       minimizeWhilePlaying(state)
+      account?.onSessionChange(state)
     }
   })
 
@@ -202,7 +205,18 @@ app.whenReady().then(() => {
 
   const live = new LiveService({ db, store, fetchFn, getSettings })
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  account = new AccountService({
+    store,
+    fetchFn,
+    getSettings,
+    saveSettings: updateSettings,
+    serverUrl: () => accountServerUrl(),
+    runningGame: () => tracker?.running() ?? null,
+    onChange: (s) => broadcast(IPC.accountChanged, s)
+  })
+  account.start()
+
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
@@ -219,6 +233,15 @@ app.whenReady().then(() => {
 // Log rather than crash on unexpected errors (a scanner bug must never take the app down).
 process.on('uncaughtException', (err) => console.error('[main] uncaught exception:', err))
 process.on('unhandledRejection', (err) => console.error('[main] unhandled rejection:', err))
+
+// Tell friends we've gone offline before quitting (waits at most 1.5 s).
+let signedOff = false
+app.on('before-quit', (event) => {
+  if (signedOff || !account?.state().signedIn) return
+  event.preventDefault()
+  signedOff = true
+  void account.signOffQuickly().finally(() => app.quit())
+})
 
 app.on('will-quit', () => {
   // Record playtime up to now for games still running; tracking stops with the app.

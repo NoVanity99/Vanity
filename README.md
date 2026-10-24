@@ -41,6 +41,18 @@ resources/           App icon and build resources
 
 ## Using the app
 
+- **Sidebar:**
+  - **Library**, **Trending** and **Steam Store** (the store embedded and locked down; your sign-in persists).
+  - **Friends**, **Recently Played**, **Favorites** and **Stats** (your playtime, streak, longest session and per-day chart).
+  - **Settings**, and **Account** below Settings.
+- **Title bar:** launcher status on the left. On the right, the mini music player: choose a folder, press play, and it shuffles everything. Song names are never shown.
+- **Game pages:**
+  - **Cover tint:** the page takes on the colour of the game's cover.
+  - **Live stats:** players on Steam, or viewers on Twitch.
+  - **Workshop:** a button for Steam games that have one.
+  - **Friends who played:** shown when you're signed in.
+- **Surprise me** (Library): rolls a random game, favouring ones you haven't played in a while.
+
 - **Library:** search (Ctrl+F), sort, filter by source or genre, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Game page:** banner, logo, Play, playtime, details, install folder, Fix match and Change artwork.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
@@ -119,6 +131,15 @@ After each scan (and at startup), Vanity fetches details and artwork in the back
 **Offline and failures:** Everything is cached in `%APPDATA%\Vanity\media` and in the database, so the library works offline. If the services can't be reached, fetching pauses and retries 10 minutes later and on the next start. A rejected key or API error is shown on the game's page instead of crashing anything.
 
 Requests go through Electron's network stack, so Windows proxy settings apply. Rate limits: IGDB about 4 requests per second, SteamGridDB about 6 per second, the Steam store about 1 every 1.6 seconds.
+
+## Accounts and friends
+
+Friends, presence ("Playing X · 23 min") and shared stats use a small account server in [`server/`](server/README.md), backed by **Neon** Postgres. That README walks through creating the Neon database, running the server locally or on Vercel, and pointing Vanity at it, either on the Account page or with `MAIN_VITE_VANITY_API_URL` in `.env.local`. The app only talks to that server, never to the database, so no database credentials ship with the app.
+
+While you're signed in:
+- **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
+- **Stats:** your playtime syncs after each session and every 15 minutes.
+- **Quitting:** you're marked offline when you quit.
 
 ## Trending
 

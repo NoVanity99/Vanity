@@ -17,7 +17,10 @@ const settings: Settings = {
   ambientBackground: true,
   minimizeWhilePlaying: false,
   musicFolder: null,
-  musicVolume: 0.5
+  musicVolume: 0.5,
+  accountServerUrl: '',
+  accountToken: '',
+  accountUsername: ''
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

@@ -361,3 +361,10 @@ h2,
   85% { transform: rotate(-4deg); }
 }
 .icon-swing { animation: icon-swing 650ms ease-in-out; transform-origin: 50% 0%; }
+@keyframes icon-wave {
+  20% { transform: translateY(-3px) scale(1.1); }
+  40% { transform: translateY(0) rotate(-10deg); }
+  60% { transform: translateY(-2px) rotate(8deg); }
+  80% { transform: rotate(-3deg); }
+}
+.icon-wave { animation: icon-wave 650ms ease-in-out; }

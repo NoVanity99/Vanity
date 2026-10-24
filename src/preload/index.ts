@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState } from '@shared/types'
+import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState } from '@shared/types'
 
 const api: VanityApi = {
   games: {
@@ -57,6 +57,28 @@ const api: VanityApi = {
   },
   stats: {
     get: () => ipcRenderer.invoke(IPC.statsGet)
+  },
+  account: {
+    state: () => ipcRenderer.invoke(IPC.accountState),
+    onChange(callback) {
+      const listener = (_: Electron.IpcRendererEvent, s: AccountState): void => callback(s)
+      ipcRenderer.on(IPC.accountChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.accountChanged, listener)
+    },
+    setServer: (url) => ipcRenderer.invoke(IPC.accountSetServer, url),
+    register: (u, p) => ipcRenderer.invoke(IPC.accountRegister, u, p),
+    login: (u, p) => ipcRenderer.invoke(IPC.accountLogin, u, p),
+    logout: () => ipcRenderer.invoke(IPC.accountLogout),
+    deleteAccount: () => ipcRenderer.invoke(IPC.accountDelete)
+  },
+  friends: {
+    list: () => ipcRenderer.invoke(IPC.friendsList),
+    add: (username) => ipcRenderer.invoke(IPC.friendsAdd, username),
+    accept: (id) => ipcRenderer.invoke(IPC.friendsAccept, id),
+    decline: (id) => ipcRenderer.invoke(IPC.friendsDecline, id),
+    remove: (id) => ipcRenderer.invoke(IPC.friendsRemove, id),
+    stats: (id) => ipcRenderer.invoke(IPC.friendsStats, id),
+    forGame: (gameId) => ipcRenderer.invoke(IPC.friendsForGame, gameId)
   },
   live: {
     game: (id) => ipcRenderer.invoke(IPC.liveGame, id),

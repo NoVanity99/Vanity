@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { BarChart3, Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, type LucideIcon } from 'lucide-react'
+import { BarChart3, Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { useAccount } from '@/state/account'
+import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 
-type IconAnimation = 'bounce' | 'flame' | 'rewind' | 'star' | 'gear' | 'plus' | 'swing'
+type IconAnimation = 'bounce' | 'flame' | 'rewind' | 'star' | 'gear' | 'plus' | 'swing' | 'wave'
 
 /** Replays an icon animation on each click: a new key remounts the icon with the animation class. */
 function useClickAnimation(): [number, () => void] {
@@ -90,6 +92,36 @@ function Indicator({ top, height, visible }: { top: number; height: number; visi
   )
 }
 
+/** Below Settings: your avatar and name when signed in, otherwise a sign-in prompt. */
+function AccountItem(): React.JSX.Element {
+  const account = useAccount()
+  const [played, play] = useClickAnimation()
+  return (
+    <NavLink
+      to="/account"
+      onClick={play}
+      className={({ isActive }) =>
+        cn('group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors', isActive ? 'text-text' : 'text-muted hover:bg-white/5 hover:text-text')
+      }
+    >
+      {account?.signedIn && account.username ? (
+        <>
+          <Avatar key={played} name={account.username} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-text">{account.username}</span>
+            <span className="block text-[11px] text-muted">Account</span>
+          </span>
+        </>
+      ) : (
+        <>
+          <UserCircle2 key={played} className={cn('size-[18px]', played > 0 && 'icon-bounce')} />
+          <span className="flex-1">Sign in</span>
+        </>
+      )}
+    </NavLink>
+  )
+}
+
 export function Sidebar(): React.JSX.Element {
   const sidebarRef = useRef<HTMLElement>(null)
   const indicator = useActiveIndicator(sidebarRef)
@@ -113,6 +145,7 @@ export function Sidebar(): React.JSX.Element {
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
         <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
         <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />
+        <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
         <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
@@ -173,6 +206,7 @@ export function Sidebar(): React.JSX.Element {
           Add a game
         </button>
         <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
+        <AccountItem />
       </div>
     </aside>
   )

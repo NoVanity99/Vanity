@@ -92,7 +92,7 @@ All routes except `/auth/*` need `Authorization: Bearer <token>`.
 | GET | `/friends/:id/stats` | A friend's playtime totals, top games and recent games (friends only) |
 | GET | `/games/:gameKey/friends` | Friends who've played a game |
 
-`gameKey` is `steam:<appid>` for Steam games and `name:<normalised title>` for everything else, so the same game matches across friends' libraries.
+`gameKey` is `g:<normalised-title>` (e.g. `g:the-witcher-3-wild-hunt`, ignoring punctuation, ™ and edition words), so the same game matches across friends' libraries whichever store they own it on.
 
 **Security notes:**
 - **Passwords:** hashed with scrypt.
@@ -102,10 +102,18 @@ All routes except `/auth/*` need `Authorization: Bearer <token>`.
 
 There is no email or password reset. To add one later, add an `email` column and a reset flow.
 
+## Trying it without Neon
+
+```bash
+DATABASE_URL=pglite: JWT_SECRET=any-32-plus-character-secret-for-local-use npm run dev
+```
+
+This runs on an in-memory Postgres (PGlite), with no Neon account needed, and the data is gone when it stops. Use `pglite:./data` to keep it in a folder.
+
 ## Tests
 
 ```bash
 npm test
 ```
 
-The tests run the real `schema.sql` and every route against an in-process Postgres (PGlite), so no Neon connection is needed.
+The tests run the real `schema.sql` and every route against an in-process Postgres (PGlite), so no Neon connection is needed. `test/app-client.test.ts` also runs the desktop app's account service against this server end to end.

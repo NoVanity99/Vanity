@@ -1,4 +1,8 @@
 import type {
+  AccountState,
+  FriendsList,
+  FriendStats,
+  GameFriend,
   ArtworkKind,
   ArtworkOption,
   Game,
@@ -88,6 +92,27 @@ export interface VanityApi {
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
   }
+  account: {
+    state(): Promise<AccountState>
+    onChange(callback: (state: AccountState) => void): () => void
+    /** Sets (and checks) the account server URL. Signs out of the previous server. */
+    setServer(url: string): Promise<Result<AccountState>>
+    register(username: string, password: string): Promise<Result<AccountState>>
+    login(username: string, password: string): Promise<Result<AccountState>>
+    logout(): Promise<AccountState>
+    deleteAccount(): Promise<Result<AccountState>>
+  }
+  friends: {
+    list(): Promise<Result<FriendsList>>
+    add(username: string): Promise<Result<'pending' | 'accepted'>>
+    accept(id: string): Promise<Result<true>>
+    /** Declines an incoming request or cancels an outgoing one. */
+    decline(id: string): Promise<Result<true>>
+    remove(id: string): Promise<Result<true>>
+    stats(id: string): Promise<Result<FriendStats>>
+    /** Friends who have played a library game. */
+    forGame(gameId: number): Promise<Result<GameFriend[]>>
+  }
   stats: {
     /** Playtime totals, top games and recent sessions. */
     get(): Promise<PlayStats>
@@ -152,6 +177,20 @@ export const IPC = {
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
   statsGet: 'stats:get',
+  accountState: 'account:state',
+  accountChanged: 'account:changed',
+  accountSetServer: 'account:set-server',
+  accountRegister: 'account:register',
+  accountLogin: 'account:login',
+  accountLogout: 'account:logout',
+  accountDelete: 'account:delete',
+  friendsList: 'friends:list',
+  friendsAdd: 'friends:add',
+  friendsAccept: 'friends:accept',
+  friendsDecline: 'friends:decline',
+  friendsRemove: 'friends:remove',
+  friendsStats: 'friends:stats',
+  friendsForGame: 'friends:for-game',
   liveGame: 'live:game',
   liveLibrary: 'live:library',
   liveOpenWorkshop: 'live:open-workshop',

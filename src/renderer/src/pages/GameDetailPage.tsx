@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Calendar, Clock, Eye, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Users, Wand2, Wrench } from 'lucide-react'
-import type { GameLive } from '@shared/types'
+import type { GameFriend, GameLive } from '@shared/types'
+import { Avatar } from '@/components/Avatar'
+import { useAccount } from '@/state/account'
 import { SOURCE_LABELS } from '@shared/types'
 import { ArtworkDialog } from '@/components/ArtworkDialog'
 import { Button } from '@/components/Dialog'
@@ -59,6 +61,18 @@ export function GameDetailPage(): React.JSX.Element {
   const toast = useToast()
   const [live, setLive] = useState<GameLive | null>(null)
   const tint = useCoverTint(game ? mediaUrl(game.coverPath) : null)
+  const account = useAccount()
+  const [friendsPlayed, setFriendsPlayed] = useState<GameFriend[] | null>(null)
+
+  useEffect(() => {
+    setFriendsPlayed(null)
+    if (!account?.signedIn) return
+    let cancelled = false
+    window.vanity.friends.forGame(Number(id)).then((r) => !cancelled && setFriendsPlayed(r.error === undefined ? r.data : []), () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [id, account?.signedIn])
 
   useEffect(() => {
     setLive(null)
@@ -263,6 +277,36 @@ export function GameDetailPage(): React.JSX.Element {
               <p className="max-w-3xl whitespace-pre-line leading-relaxed text-text/80">{game.description}</p>
             ) : (
               <p className="text-sm text-muted">{fetching ? 'Fetching details…' : 'No description available.'}</p>
+            )}
+          
+            {account?.signedIn && (
+              <div className="mt-10">
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">Friends who played</h2>
+                {friendsPlayed === null ? (
+                  <div className="shimmer h-14 rounded-xl bg-surface" />
+                ) : friendsPlayed.length === 0 ? (
+                  <p className="text-sm text-muted">None of your friends have played this yet.</p>
+                ) : (
+                  <ul className="flex flex-wrap gap-3">
+                    {friendsPlayed.map((f, i) => (
+                      <li
+                        key={f.id}
+                        style={{ '--i': i } as React.CSSProperties}
+                        className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface py-2 pl-2 pr-4"
+                      >
+                        <Avatar name={f.username} size="sm" />
+                        <span>
+                          <span className="block text-sm font-semibold">{f.username}</span>
+                          <span className="block text-xs text-muted">
+                            {formatPlaytime(f.playtimeSeconds)}
+                            {f.lastPlayedAt ? ` · ${formatRelativeDate(f.lastPlayedAt).toLowerCase()}` : ''}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </section>
 

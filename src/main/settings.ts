@@ -17,13 +17,16 @@ const DEFAULTS: Settings = {
   ambientBackground: true,
   minimizeWhilePlaying: false,
   musicFolder: null,
-  musicVolume: 0.5
+  musicVolume: 0.5,
+  accountServerUrl: '',
+  accountToken: '',
+  accountUsername: ''
 }
 
 let cache: Settings | null = null
 
 /** API credentials are encrypted at rest with the OS keystore (DPAPI on Windows) when it is available. */
-const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret'] as const
+const SECRET_FIELDS = ['steamGridDbApiKey', 'igdbClientId', 'igdbClientSecret', 'accountToken'] as const
 const ENCRYPTED_PREFIX = 'enc:'
 
 function encryptSecrets(settings: Settings): Record<string, unknown> {
@@ -63,7 +66,9 @@ function settingsPath(): string {
 const BUILT_IN: Pick<Settings, (typeof SECRET_FIELDS)[number]> = {
   steamGridDbApiKey: import.meta.env.MAIN_VITE_STEAMGRIDDB_API_KEY?.trim() ?? '',
   igdbClientId: import.meta.env.MAIN_VITE_IGDB_CLIENT_ID?.trim() ?? '',
-  igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() ?? ''
+  igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() ?? '',
+  // Never built in: a session belongs to whoever signs in.
+  accountToken: ''
 }
 
 /** Merges stored settings over defaults, so new fields get sensible values. */
@@ -97,4 +102,9 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
   await fs.writeFile(`${file}.tmp`, JSON.stringify(encryptSecrets(next), null, 2))
   await fs.rename(`${file}.tmp`, file)
   return next
+}
+
+/** The account server URL: the one set in the app, else the one built in from .env.local. */
+export function accountServerUrl(settings: Settings = getSettings()): string {
+  return (settings.accountServerUrl || import.meta.env.MAIN_VITE_VANITY_API_URL || '').trim().replace(/\/+$/, '')
 }

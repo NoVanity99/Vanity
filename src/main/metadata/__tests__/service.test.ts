@@ -23,7 +23,10 @@ const baseSettings: Settings = {
   ambientBackground: true,
   minimizeWhilePlaying: false,
   musicFolder: null,
-  musicVolume: 0.5
+  musicVolume: 0.5,
+  accountServerUrl: '',
+  accountToken: '',
+  accountUsername: ''
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

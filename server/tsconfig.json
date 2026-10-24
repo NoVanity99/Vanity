@@ -9,5 +9,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "api", "test"]
+  "include": ["src", "api", "test"],
+  // Uses the desktop app's path aliases; Vitest runs it, this type-check doesn't.
+  "exclude": ["test/app-client.test.ts"]
 }

@@ -7,6 +7,8 @@ import type { TrendingService } from '../trending/service'
 import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
+import type { AccountService } from '../account/service'
+import { gameKey } from '../account/gameKey'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
@@ -44,11 +46,12 @@ export interface IpcDeps {
   music: MusicLibrary
   live: LiveService
   stats: () => unknown
+  account: AccountService
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -225,6 +228,27 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
 
   ipcMain.handle(IPC.statsGet, () => stats())
+
+  const text = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(0, max) : '')
+  ipcMain.handle(IPC.accountState, () => account.state())
+  ipcMain.handle(IPC.accountSetServer, (_e, url: string) => wrap(() => account.setServer(text(url, 500))))
+  ipcMain.handle(IPC.accountRegister, (_e, u: string, p: string) => wrap(() => account.register(text(u), text(p))))
+  ipcMain.handle(IPC.accountLogin, (_e, u: string, p: string) => wrap(() => account.login(text(u), text(p))))
+  ipcMain.handle(IPC.accountLogout, () => account.logout())
+  ipcMain.handle(IPC.accountDelete, () => wrap(() => account.deleteAccount()))
+  ipcMain.handle(IPC.friendsList, () => wrap(() => account.guard((c) => c.friends())))
+  ipcMain.handle(IPC.friendsAdd, (_e, u: string) => wrap(async () => (await account.guard((c) => c.addFriend(text(u)))).status))
+  ipcMain.handle(IPC.friendsAccept, (_e, id: string) => wrap(async () => (await account.guard((c) => c.accept(text(id))), true as const)))
+  ipcMain.handle(IPC.friendsDecline, (_e, id: string) => wrap(async () => (await account.guard((c) => c.decline(text(id))), true as const)))
+  ipcMain.handle(IPC.friendsRemove, (_e, id: string) => wrap(async () => (await account.guard((c) => c.removeFriend(text(id))), true as const)))
+  ipcMain.handle(IPC.friendsStats, (_e, id: string) => wrap(() => account.guard((c) => c.friendStats(text(id)))))
+  ipcMain.handle(IPC.friendsForGame, (_e, gameId: number) =>
+    wrap(async () => {
+      const game = store.get(Number(gameId))
+      if (!game) return []
+      return account.guard((c) => c.gameFriends(gameKey(game.name)))
+    })
+  )
   ipcMain.handle(IPC.liveGame, (_e, id: number) => live.forGame(Number(id)).catch(() => null))
   ipcMain.handle(IPC.liveLibrary, () => live.libraryPlayers().catch(() => ({})))
   ipcMain.handle(IPC.liveOpenWorkshop, (_e, id: number) =>
