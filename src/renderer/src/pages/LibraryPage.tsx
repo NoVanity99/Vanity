@@ -73,6 +73,16 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   const searchRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [prefs, setPrefs] = useState<Prefs>(() => loadPref(`library-${view}`, DEFAULT_PREFS))
+  const [players, setPlayers] = useState<Record<number, number>>({})
+
+  // Live Steam player counts for the cards (cached in the main process for 10 minutes).
+  useEffect(() => {
+    let cancelled = false
+    window.vanity.live.library().then((p) => !cancelled && setPlayers(p), () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => savePref(`library-${view}`, prefs), [view, prefs])
   const patch = (p: Partial<Prefs>): void => setPrefs((prev) => ({ ...prev, ...p }))
@@ -253,7 +263,7 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
             {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
             <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
               {shown.map((g, i) => (
-                <GameCard key={g.id} game={g} index={i} session={sessions[g.id]} onOpen={openGame} onPlay={playGame} onMenu={openMenu} />
+                <GameCard key={g.id} game={g} index={i} session={sessions[g.id]} players={players[g.id]} onOpen={openGame} onPlay={playGame} onMenu={openMenu} />
               ))}
             </div>
           </>

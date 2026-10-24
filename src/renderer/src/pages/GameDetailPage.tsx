@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Calendar, Clock, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Wand2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Calendar, Clock, Eye, FolderOpen, Image, Info, MoreHorizontal, Star, Timer, Users, Wand2, Wrench } from 'lucide-react'
+import type { GameLive } from '@shared/types'
 import { SOURCE_LABELS } from '@shared/types'
 import { ArtworkDialog } from '@/components/ArtworkDialog'
 import { Button } from '@/components/Dialog'
@@ -9,7 +10,8 @@ import { PlayButton } from '@/components/PlayButton'
 import { SourceBadge } from '@/components/SourceBadge'
 import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
-import { formatPlaytime, formatRelativeDate } from '@/lib/format'
+import { formatCompact, formatPlaytime, formatRelativeDate } from '@/lib/format'
+import { useToast } from '@/state/toasts'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { useLibrary } from '@/state/library'
 
@@ -27,6 +29,25 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
   )
 }
 
+/** A stat with a live pulse, for current players or viewers. */
+function LiveStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }): React.JSX.Element {
+  return (
+    <div className="animate-pop-in flex items-center gap-3">
+      <div className="relative flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/25">
+        <Icon className="size-[18px] text-emerald-400" />
+        <span className="absolute -right-0.5 -top-0.5 flex size-2.5">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
+          <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+        </span>
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">{label}</p>
+        <p className="text-sm font-medium">{value}</p>
+      </div>
+    </div>
+  )
+}
+
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -34,6 +55,22 @@ export function GameDetailPage(): React.JSX.Element {
   const { openMenu, menu } = useGameMenu()
   const [dialog, setDialog] = useState<'match' | 'artwork' | null>(null)
   const game = games.find((g) => g.id === Number(id))
+  const toast = useToast()
+  const [live, setLive] = useState<GameLive | null>(null)
+
+  useEffect(() => {
+    setLive(null)
+    let cancelled = false
+    window.vanity.live.game(Number(id)).then((l) => !cancelled && setLive(l), () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  const openWorkshop = async (): Promise<void> => {
+    const res = await window.vanity.live.openWorkshop(Number(id))
+    if (res.error !== undefined) toast(res.error, 'error')
+  }
 
   // Parallax: the banner drifts slower than the page and the title fades as you scroll.
   // Written straight to the elements' style so scrolling doesn't re-render React.
@@ -148,7 +185,22 @@ export function GameDetailPage(): React.JSX.Element {
             <MoreHorizontal className="size-5 text-muted" />
           </button>
 
+          {live?.workshop && (
+            <button
+              onClick={openWorkshop}
+              title="Open this game's Steam Workshop in Steam"
+              className="flex h-14 items-center gap-2 rounded-xl border border-border bg-surface-2 px-5 font-semibold transition hover:-translate-y-0.5 hover:border-white/25"
+            >
+              <Wrench className="size-5 text-muted" /> Workshop
+            </button>
+          )}
+
           <div className="ml-6 flex flex-wrap gap-8">
+            {live?.players != null && live.players > 0 ? (
+              <LiveStat icon={Users} label="Playing now" value={`${formatCompact(live.players)} on Steam`} />
+            ) : live?.viewers ? (
+              <LiveStat icon={Eye} label="Watching now" value={`${formatCompact(live.viewers)} on Twitch`} />
+            ) : null}
             <Stat icon={Timer} label="Playtime" value={formatPlaytime(game.playtimeSeconds)} />
             <Stat icon={Clock} label="Last played" value={formatRelativeDate(game.lastPlayedAt)} />
             <Stat icon={Calendar} label="Added" value={formatRelativeDate(game.addedAt)} />

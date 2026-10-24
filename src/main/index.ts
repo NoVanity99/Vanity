@@ -15,6 +15,7 @@ import { MetadataService } from './metadata/service'
 import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
+import { LiveService } from './live/service'
 import { themeById } from '@shared/themes'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -176,7 +177,9 @@ app.whenReady().then(() => {
     }
   })
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, onSettingsChanged: applyChrome })
+  const live = new LiveService({ db, store, fetchFn, getSettings })
+
+  registerIpc({ store, tracker, metadata, media, trending, status, music, live, onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.

@@ -55,6 +55,11 @@ const api: VanityApi = {
     installed: () => ipcRenderer.invoke(IPC.trendingInstalled),
     open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher)
   },
+  live: {
+    game: (id) => ipcRenderer.invoke(IPC.liveGame, id),
+    library: () => ipcRenderer.invoke(IPC.liveLibrary),
+    openWorkshop: (id) => ipcRenderer.invoke(IPC.liveOpenWorkshop, id)
+  },
   music: {
     state: () => ipcRenderer.invoke(IPC.musicState),
     pickFolder: () => ipcRenderer.invoke(IPC.musicPickFolder)

@@ -7,7 +7,12 @@ export interface SteamDetails {
   genres: string[]
   releaseDate: string | null
   developer: string | null
+  /** The game has a Steam Workshop (store category 30). */
+  hasWorkshop: boolean
 }
+
+/** Steam store category ID for "Steam Workshop". */
+export const WORKSHOP_CATEGORY = 30
 
 interface AppDetailsResponse {
   [appId: string]: {
@@ -16,6 +21,7 @@ interface AppDetailsResponse {
       name: string
       short_description?: string
       genres?: { description: string }[]
+      categories?: { id: number; description?: string }[]
       developers?: string[]
       release_date?: { date?: string; coming_soon?: boolean }
     }
@@ -81,7 +87,8 @@ export class SteamStore {
       description: d.short_description ? decodeEntities(d.short_description).trim() || null : null,
       genres: (d.genres ?? []).map((g) => g.description).filter(Boolean),
       releaseDate: d.release_date?.coming_soon ? null : parseSteamDate(d.release_date?.date),
-      developer: d.developers?.[0] ?? null
+      developer: d.developers?.[0] ?? null,
+      hasWorkshop: (d.categories ?? []).some((c) => c.id === WORKSHOP_CATEGORY)
     }
   }
 }

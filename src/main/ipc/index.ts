@@ -6,6 +6,7 @@ import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidat
 import type { TrendingService } from '../trending/service'
 import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
+import type { LiveService } from '../live/service'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
@@ -41,11 +42,12 @@ export interface IpcDeps {
   trending: TrendingService
   status: StatusService
   music: MusicLibrary
+  live: LiveService
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -220,6 +222,17 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     wrap(() => metadata.resetArtwork(id, validKind(kind)))
   )
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
+
+  ipcMain.handle(IPC.liveGame, (_e, id: number) => live.forGame(Number(id)).catch(() => null))
+  ipcMain.handle(IPC.liveLibrary, () => live.libraryPlayers().catch(() => ({})))
+  ipcMain.handle(IPC.liveOpenWorkshop, (_e, id: number) =>
+    wrap(async () => {
+      const game = store.get(Number(id))
+      if (!game || game.source !== 'steam' || !/^\d+$/.test(game.externalId)) throw new Error('Only Steam games have a Workshop.')
+      await shell.openExternal(`steam://url/SteamWorkshopPage/${game.externalId}`)
+      return true as const
+    })
+  )
 
   ipcMain.handle(IPC.musicState, () => music.state())
   ipcMain.handle(IPC.musicPickFolder, async (e) => {

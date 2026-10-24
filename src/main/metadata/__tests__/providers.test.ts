@@ -155,8 +155,14 @@ describe('Steam store', () => {
       description: 'The "Perpetual Testing Initiative" & more',
       genres: ['Action', 'Adventure'],
       releaseDate: '2011-04-18',
-      developer: 'Valve'
+      developer: 'Valve',
+      hasWorkshop: false
     })
+  })
+
+  it('detects the Steam Workshop category', async () => {
+    const { fetch } = fakeFetch([() => json({ '4000': { success: true, data: { name: "Garry's Mod", categories: [{ id: 2 }, { id: 30, description: 'Steam Workshop' }] } } })])
+    expect((await new SteamStore(fetch).details('4000'))?.hasWorkshop).toBe(true)
   })
 
   it('parses Steam date formats and builds CDN URLs', () => {

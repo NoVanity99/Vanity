@@ -3,6 +3,7 @@ import type {
   ArtworkOption,
   Game,
   GameCandidate,
+  GameLive,
   GamePatch,
   KeyCheck,
   LauncherStatus,
@@ -78,6 +79,14 @@ export interface VanityApi {
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
   }
+  live: {
+    /** Live players/viewers and Workshop availability for one game (cached ~10 min). */
+    game(id: number): Promise<GameLive | null>
+    /** Current Steam players for Steam games in the library, by game ID. */
+    library(): Promise<Record<number, number>>
+    /** Opens the game's Steam Workshop in the Steam client. */
+    openWorkshop(id: number): Promise<Result<true>>
+  }
   music: {
     /** The music folder and how many tracks it has. Track names are never exposed. */
     state(): Promise<MusicState>
@@ -129,6 +138,9 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  liveGame: 'live:game',
+  liveLibrary: 'live:library',
+  liveOpenWorkshop: 'live:open-workshop',
   musicState: 'music:state',
   musicPickFolder: 'music:pick-folder',
   statusGet: 'status:get',

@@ -259,3 +259,17 @@ export interface LauncherStatus {
   detail: string | null
   checkedAt: number | null
 }
+
+// ---- Live stats --------------------------------------------------------------
+
+export interface GameLive {
+  /** Current players on Steam, if the game is on Steam. */
+  players: number | null
+  /** Live Twitch viewers (needs Twitch credentials). */
+  viewers: number | null
+  /** Steam app ID used for live stats and the Workshop, if known. */
+  steamAppId: string | null
+  /** The game has a Steam Workshop (only offered for Steam copies). */
+  workshop: boolean
+  checkedAt: number
+}

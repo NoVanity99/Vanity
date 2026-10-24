@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Play, Star } from 'lucide-react'
 import type { Game, SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
+import { formatCompact } from '@/lib/format'
 import { useTilt } from '@/hooks/useTilt'
 import { CoverArt } from './CoverArt'
 import { SourceBadge } from './SourceBadge'
@@ -11,12 +12,14 @@ interface Props {
   /** Position in the grid, for the cascade-in animation. */
   index: number
   session?: Exclude<SessionState, 'stopped'>
+  /** Current Steam players, shown on hover. */
+  players?: number
   onOpen: (game: Game) => void
   onPlay: (game: Game) => void
   onMenu: (e: React.MouseEvent, game: Game) => void
 }
 
-export const GameCard = memo(function GameCard({ game, index, session, onOpen, onPlay, onMenu }: Props): React.JSX.Element {
+export const GameCard = memo(function GameCard({ game, index, session, players, onOpen, onPlay, onMenu }: Props): React.JSX.Element {
   const dimmed = (game.missing || game.hidden) && !session
   const tilt = useTilt<HTMLDivElement>()
 
@@ -69,6 +72,12 @@ export const GameCard = memo(function GameCard({ game, index, session, onOpen, o
             {game.missing && (
               <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[11px] font-medium text-accent backdrop-blur transition group-hover:opacity-0">
                 Not found
+              </span>
+            )}
+            {players !== undefined && players > 0 && (
+              <span className="absolute bottom-4 left-3 flex translate-y-2 items-center gap-1.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
+                {formatCompact(players)} playing
               </span>
             )}
             <button
