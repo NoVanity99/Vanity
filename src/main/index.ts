@@ -1,8 +1,14 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
-import { createMemoryStore } from './library/store'
+import { createSqliteStore } from './library/store'
+
+let db: Db | null = null
+
+// Lets tests (and anyone wanting a separate profile) point the app at another data folder.
+if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USER_DATA)
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -40,8 +46,11 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vanity.launcher')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
-  registerIpc(createMemoryStore())
+  const opened = openDatabase(join(app.getPath('userData'), 'vanity.db'))
+  db = opened.db
+  registerIpc(createSqliteStore(db))
   createWindow()
+  if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -51,6 +60,11 @@ app.whenReady().then(() => {
 // Log rather than crash on unexpected errors (a scanner bug must never take the app down).
 process.on('uncaughtException', (err) => console.error('[main] uncaught exception:', err))
 process.on('unhandledRejection', (err) => console.error('[main] unhandled rejection:', err))
+
+app.on('will-quit', () => {
+  db?.close()
+  db = null
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

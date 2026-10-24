@@ -5,7 +5,7 @@ import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { useScan } from '@/hooks/useScan'
 
 /**
- * Stage 1 test page for scanning. The real Library grid and Settings page
+ * Test page for scanning and the library (stages 1–2). The real Library grid and Settings page
  * replace it in stage 3; the scan pieces (progress, review) are reused there.
  */
 export function ScanPreview(): React.JSX.Element {
@@ -16,6 +16,16 @@ export function ScanPreview(): React.JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
 
   const refreshGames = useCallback(() => window.vanity.games.list().then(setGames), [])
+
+  async function updateGame(id: number, patch: Parameters<typeof window.vanity.games.update>[1]): Promise<void> {
+    const updated = await window.vanity.games.update(id, patch)
+    if (updated) setGames((gs) => gs.map((g) => (g.id === id ? updated : g)))
+  }
+
+  async function removeGame(id: number): Promise<void> {
+    await window.vanity.games.remove(id)
+    setGames((gs) => gs.filter((g) => g.id !== id))
+  }
 
   useEffect(() => {
     window.vanity.settings.get().then(setSettings)
@@ -65,10 +75,10 @@ export function ScanPreview(): React.JSX.Element {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl space-y-8 px-10 pb-16 pt-14">
         <header>
-          <p className="text-xs font-semibold uppercase tracking-widest text-accent">Stage 1 preview</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Game scanning</h1>
+          <p className="text-xs font-semibold uppercase tracking-widest text-accent">Stage 2 preview</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Game scanning &amp; library</h1>
           <p className="mt-2 text-muted">
-            Results are kept in memory until stage 2 adds the SQLite library. Settings are saved.
+            Your library is saved locally and survives restarts. The cover-art grid replaces this page in stage 3.
           </p>
         </header>
 
@@ -146,6 +156,7 @@ export function ScanPreview(): React.JSX.Element {
             {lastSummary && !scan.scanning && (
               <span className="text-sm text-muted">
                 {lastSummary.added} new, {lastSummary.updated} already known
+                {lastSummary.missing > 0 && `, ${lastSummary.missing} no longer found`}
               </span>
             )}
             {notice && <span className="text-sm text-emerald-400">{notice}</span>}
@@ -166,14 +177,35 @@ export function ScanPreview(): React.JSX.Element {
               </h3>
               <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
                 {list.map((g) => (
-                  <li key={g.id} className="px-4 py-2.5">
-                    <div className="flex items-baseline gap-3">
-                      <span className="font-medium">{g.name}</span>
-                      {g.source !== 'custom' && g.source !== 'manual' && (
-                        <span className="text-xs text-muted">{g.externalId}</span>
-                      )}
+                  <li key={g.id} className={`group flex items-center gap-3 px-4 py-2.5 ${g.hidden ? 'opacity-45' : ''}`}>
+                    <button
+                      className={`text-lg leading-none transition ${g.favorite ? 'text-amber-400' : 'text-border hover:text-muted'}`}
+                      title={g.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                      onClick={() => updateGame(g.id, { favorite: !g.favorite })}
+                    >
+                      ★
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-3">
+                        <span className="font-medium">{g.name}</span>
+                        {g.source !== 'custom' && g.source !== 'manual' && (
+                          <span className="text-xs text-muted">{g.externalId}</span>
+                        )}
+                        {g.missing && (
+                          <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent">Not found</span>
+                        )}
+                        {g.hidden && <span className="text-[11px] text-muted">Hidden</span>}
+                      </div>
+                      <p className="truncate text-xs text-muted">{g.executablePath ?? g.installPath}</p>
                     </div>
-                    <p className="truncate text-xs text-muted">{g.executablePath ?? g.installPath}</p>
+                    <div className="flex gap-3 text-xs text-muted opacity-0 transition group-hover:opacity-100">
+                      <button className="hover:text-text" onClick={() => updateGame(g.id, { hidden: !g.hidden })}>
+                        {g.hidden ? 'Unhide' : 'Hide'}
+                      </button>
+                      <button className="hover:text-accent" onClick={() => removeGame(g.id)}>
+                        Remove
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

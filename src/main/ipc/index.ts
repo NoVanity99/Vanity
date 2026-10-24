@@ -1,7 +1,7 @@
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC } from '@shared/ipc'
-import type { DetectedGame, GameCandidate, ScanSummary, Settings } from '@shared/types'
+import type { DetectedGame, GameCandidate, GamePatch, ScanSummary, Settings } from '@shared/types'
 import { runScan } from '../library/scan'
 import type { LibraryStore } from '../library/store'
 import { exeExternalId } from '../scanners/custom'
@@ -15,6 +15,9 @@ export function registerIpc(store: LibraryStore): void {
     BrowserWindow.fromWebContents(e.sender) ?? undefined
 
   ipcMain.handle(IPC.gamesList, () => store.list())
+  ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
+  ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => store.update(id, patch))
+  ipcMain.handle(IPC.gamesRemove, (_e, id: number) => store.remove(id))
 
   ipcMain.handle(IPC.scanStart, (e) => {
     // A second click while scanning joins the running scan instead of starting another.

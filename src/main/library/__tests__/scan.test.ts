@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GameCandidate, Settings } from '@shared/types'
-import { filterCandidates, runScan } from '../../library/scan'
-import { createMemoryStore, isSameOrInside } from '../../library/store'
-import type { Scanner } from '../types'
+import { openDatabase } from '../../db/database'
+import type { Scanner } from '../../scanners/types'
+import { filterCandidates, runScan } from '../scan'
+import { createSqliteStore, isSameOrInside } from '../store'
+
+const createMemoryStore = () => createSqliteStore(openDatabase(':memory:').db)
 
 const settings: Settings = {
   steamGridDbApiKey: '',
@@ -63,6 +66,39 @@ describe('runScan', () => {
     expect(second.added).toBe(0)
     expect(second.updated).toBe(1)
     expect(store.list()).toHaveLength(1)
+  })
+
+  it('flags games that a successful scan no longer finds, and un-flags them when they return', async () => {
+    const store = createMemoryStore()
+    let installed = true
+    const steam: Scanner = {
+      source: 'steam',
+      isAvailable: async () => true,
+      scan: async () => (installed ? [{ source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }] : [])
+    }
+    const run = () => runScan({ settings, store, onProgress: () => {}, scannerList: [steam] })
+    await run()
+    installed = false
+    expect((await run()).missing).toBe(1)
+    expect(store.list()[0].missing).toBe(true)
+    installed = true
+    await run()
+    expect(store.list()[0].missing).toBe(false)
+  })
+
+  it('does not flag games when their source failed', async () => {
+    const store = createMemoryStore()
+    store.upsert([{ source: 'gog', externalId: '1', name: 'Witcher', installPath: '/w', executablePath: null }])
+    await runScan({ settings, store, onProgress: () => {}, scannerList: fakeScanners })
+    expect(store.list().find((g) => g.source === 'gog')?.missing).toBe(false)
+  })
+
+  it('flags custom games whose exe was deleted', async () => {
+    const store = createMemoryStore()
+    store.upsert([{ source: 'manual', externalId: '/gone/game.exe', name: 'Gone', installPath: '/gone', executablePath: '/gone/game.exe' }])
+    const summary = await runScan({ settings, store, onProgress: () => {}, scannerList: [] })
+    expect(summary.missing).toBe(1)
+    expect(store.list()[0].missing).toBe(true)
   })
 
   it('stops suggesting custom games once they are in the library', () => {

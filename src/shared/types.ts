@@ -27,6 +27,8 @@ export interface Game {
   executablePath: string | null
   favorite: boolean
   hidden: boolean
+  /** The last scan of this game's source no longer found it (uninstalled or moved). */
+  missing: boolean
   addedAt: number
   lastPlayedAt: number | null
   playtimeSeconds: number
@@ -67,6 +69,8 @@ export interface ScanSummary {
   progress: ScanProgress[]
   added: number
   updated: number
+  /** Games that were in the library but were not found this time. */
+  missing: number
   /** Custom-folder finds waiting for the user to confirm. */
   candidates: GameCandidate[]
 }
@@ -79,4 +83,11 @@ export interface Settings {
   enabledSources: Record<ScanSource, boolean>
   /** Executables the user declined when reviewing custom-folder finds. */
   ignoredExecutables: string[]
+}
+
+/** Fields the user can change on a game. */
+export interface GamePatch {
+  name?: string
+  favorite?: boolean
+  hidden?: boolean
 }

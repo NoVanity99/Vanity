@@ -1,4 +1,5 @@
 import type { DetectedGame, GameCandidate, ScanProgress, ScanSummary, Settings } from '@shared/types'
+import { pathExists } from '../util/fs'
 import { scanners } from '../scanners'
 import type { Scanner, ScanContext } from '../scanners/types'
 import { isSameOrInside, type LibraryStore } from './store'
@@ -60,6 +61,7 @@ export async function runScan({ settings, store, onProgress, scannerList = scann
   const emit = (): void => onProgress(progress.map((p) => ({ ...p })))
   let added = 0
   let updated = 0
+  let missing = 0
   let candidates: GameCandidate[] = []
 
   emit()
@@ -82,6 +84,8 @@ export async function runScan({ settings, store, onProgress, scannerList = scann
         const r = store.upsert(found)
         added += r.added
         updated += r.updated
+        // Only after a successful scan: a skipped or failed source says nothing about its games.
+        missing += store.markMissing(scanner.source, found.map((g) => g.externalId))
         entry.found = found.length
       }
       entry.status = 'done'
@@ -94,5 +98,20 @@ export async function runScan({ settings, store, onProgress, scannerList = scann
     }
   }
 
-  return { progress: progress.map((p) => ({ ...p })), added, updated, candidates }
+  missing += await checkExecutables(store)
+  return { progress: progress.map((p) => ({ ...p })), added, updated, missing, candidates }
+}
+
+/** Custom and manually added games have no launcher to ask, so check that their exe still exists. */
+async function checkExecutables(store: LibraryStore): Promise<number> {
+  let newlyMissing = 0
+  for (const game of store.list()) {
+    if ((game.source !== 'custom' && game.source !== 'manual') || !game.executablePath) continue
+    const exists = await pathExists(game.executablePath)
+    if (exists === game.missing) {
+      store.setMissing(game.id, !exists)
+      if (!exists) newlyMissing++
+    }
+  }
+  return newlyMissing
 }

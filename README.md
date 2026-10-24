@@ -26,7 +26,7 @@ src/
     library/         Scan orchestration and the game store
     util/            Registry reader, VDF parser, exe filtering, fs helpers
     settings.ts      Settings saved as JSON in the app's user-data folder
-    db/              SQLite connection, migrations, repositories
+    db/              SQLite connection and schema migrations
     launcher/        Launching games and tracking playtime
     metadata/        SteamGridDB and IGDB clients, matching, local image cache
     ipc/             IPC handlers exposed to the renderer
@@ -53,6 +53,19 @@ resources/           App icon and build resources
 Registry keys are read with one PowerShell call per lookup, which keeps non-ASCII names intact. A source whose launcher is missing is shown as skipped; one that fails is shown as failed. Neither stops the rest of the scan.
 
 To add a source, write a module in `src/main/scanners/` that exports a `Scanner` and add it to `src/main/scanners/index.ts`.
+
+## Your data
+
+Everything lives in `%APPDATA%\Vanity`:
+
+- `vanity.db`: the game library (SQLite)
+- `settings.json`: settings, custom folders and declined custom-folder finds
+
+Rescans update games in place, so favorites, hidden flags, playtime and names you changed are kept. A game a scan no longer finds is flagged "Not found" rather than deleted, so an unplugged drive doesn't lose your playtime; it clears again once the game is back.
+
+The schema is versioned with SQLite's `user_version`. Before a schema upgrade, the old file is copied to `vanity.db.v<N>.bak`. If the database is unreadable it is moved aside as `vanity.db.corrupt-<time>` and a fresh one is created; if even that fails, the app runs on an in-memory library for that session and tells you.
+
+Set `VANITY_USER_DATA` to a folder path to run the app with a separate profile.
 
 ## Native modules
 

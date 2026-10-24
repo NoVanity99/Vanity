@@ -5,6 +5,9 @@ import type { ScanProgress } from '@shared/types'
 const api: VanityApi = {
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
+    get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
+    update: (id, patch) => ipcRenderer.invoke(IPC.gamesUpdate, id, patch),
+    remove: (id) => ipcRenderer.invoke(IPC.gamesRemove, id),
     confirmCandidates: (accepted, rejected) => ipcRenderer.invoke(IPC.gamesConfirmCandidates, accepted, rejected),
     addManually: () => ipcRenderer.invoke(IPC.gamesAddManually)
   },
