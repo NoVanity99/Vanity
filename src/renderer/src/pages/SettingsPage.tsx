@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, GitBranch, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
-import { FONT_THEMES } from '@shared/fonts'
+import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
 import { applyFont, applyTheme } from '@/lib/theme'
 import { saveSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
@@ -277,33 +277,41 @@ export function SettingsPage(): React.JSX.Element {
             })}
           </div>
 
-          <h3 className="mb-3 mt-7 text-sm font-semibold text-muted">Font</h3>
-          <div className="grid grid-cols-4 gap-3">
-            {FONT_THEMES.map((f) => {
-              const active = (settings.font ?? 'system') === f.id
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => {
-                    applyFont(f.id)
-                    void save({ font: f.id })
-                  }}
-                  aria-pressed={active}
-                  className={cn(
-                    'rounded-xl border bg-surface-2 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5',
-                    active ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25'
-                  )}
-                >
-                  <span className="block text-2xl leading-none" style={{ fontFamily: f.display }}>
-                    Aa
-                  </span>
-                  <span className="mt-2 block truncate text-xs text-muted" style={{ fontFamily: f.body }}>
-                    {f.name}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <h3 className="mb-1 mt-7 text-sm font-semibold text-muted">Font</h3>
+          <p className="mb-4 text-xs text-muted">Every font is built in, so it works offline. Mixed themes use the first font for headings and the second for everything else.</p>
+          {FONT_GROUPS.map((group) => (
+            <div key={group} className="mb-5 last:mb-0">
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted/80">{group}</h4>
+              <div className="grid grid-cols-3 gap-3 xl:grid-cols-4">
+                {FONT_THEMES.filter((f) => f.group === group).map((f) => {
+                  const active = (settings.font ?? 'system') === f.id
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        applyFont(f.id)
+                        void save({ font: f.id })
+                      }}
+                      aria-pressed={active}
+                      title={f.name}
+                      className={cn(
+                        'relative rounded-xl border bg-surface-2 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5',
+                        active ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25'
+                      )}
+                    >
+                      <span className="block truncate text-2xl leading-none" style={{ fontFamily: f.display }}>
+                        Aa <span className="text-base text-muted">Play</span>
+                      </span>
+                      <span className="mt-2 block truncate text-xs text-muted" style={{ fontFamily: f.body }}>
+                        {f.name}
+                      </span>
+                      {active && <span className="absolute right-2.5 top-2.5 size-2 rounded-full bg-accent" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
 
           <div className="-mx-3 mt-6 border-t border-border pt-3">
             <Toggle

@@ -70,7 +70,9 @@ resources/           App icon and build resources
 
 - **Library:** search (Ctrl+F), sort (name, recently played or added, most played, your rating, release date), filter by source, genre or status, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
-- **Themes:** Settings → Appearance has six skins (Midnight, Ocean, Forest, Royal, Sunset, OLED Black). They're defined in `src/shared/themes.ts`; add one there and it appears in Settings.
+- **Themes:** Settings → Appearance has 15 colour skins, defined in `src/shared/themes.ts`. Add one there and it appears in Settings.
+- **Fonts:** Settings → Appearance has 25 fonts in four groups (Clean, Friendly, Gaming, Stylish). Some pair a heading font with a body font, such as Poster (Bebas Neue + Montserrat) or Retro (Press Start 2P + Inter). They're all bundled from Fontsource, so they work offline.
+  - To add one: `npm install @fontsource-variable/<name>`, import it in `src/renderer/src/main.tsx`, and add an entry in `src/shared/fonts.ts`. A test checks that every font listed there is bundled.
 - **Launcher status:** the strip at the top of every page shows whether each store's services are reachable: green when online, red when not. They're checked every 5 minutes; click one to check again. Steam uses its Web API, Epic its public status page, and the others whether their store site answers (`src/main/status/checks.ts`).
 - Vanity remembers its window size and position, and opening it again brings the existing window to the front. Animations follow Windows' "Animation effects" setting (reduced motion).
 
