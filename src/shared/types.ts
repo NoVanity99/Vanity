@@ -164,6 +164,8 @@ export interface Settings {
   /** Session token for the account server (encrypted at rest). */
   accountToken: string
   accountUsername: string
+  /** Navigate the launcher with a game controller. */
+  controllerEnabled: boolean
 }
 
 /** Fields the user can change on a game. */

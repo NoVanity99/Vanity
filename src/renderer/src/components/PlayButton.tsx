@@ -10,6 +10,7 @@ export function PlayButton({ game }: { game: Game }): React.JSX.Element {
 
   return (
     <button
+      data-gamepad-play-main
       onClick={() => launch(game.id)}
       disabled={state !== undefined}
       className={cn(

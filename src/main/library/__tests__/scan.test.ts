@@ -22,7 +22,8 @@ const settings: Settings = {
   musicVolume: 0.5,
   accountServerUrl: '',
   accountToken: '',
-  accountUsername: ''
+  accountUsername: '',
+  controllerEnabled: true
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

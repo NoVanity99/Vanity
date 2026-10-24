@@ -29,6 +29,11 @@ export function ContextMenu({ x, y, items, onClose }: Props): React.JSX.Element 
     })
   }, [x, y])
 
+  // Opened with a controller: put focus on the first item.
+  useEffect(() => {
+    if (document.documentElement.classList.contains('gamepad-mode')) ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus()
+  }, [])
+
   useEffect(() => {
     const onDown = (e: MouseEvent): void => {
       if (!ref.current?.contains(e.target as Node)) onClose()

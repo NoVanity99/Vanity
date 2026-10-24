@@ -81,6 +81,8 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
               </span>
             )}
             <button
+              data-gamepad-play
+              tabIndex={-1}
               aria-label={`Play ${game.name}`}
               title="Play"
               onClick={(e) => {

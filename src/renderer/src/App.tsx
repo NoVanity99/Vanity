@@ -6,6 +6,7 @@ import { useSettings } from './state/settings'
 import { CandidateReview } from './components/CandidateReview'
 import { LauncherStatusBar } from './components/LauncherStatusBar'
 import { MusicPlayer } from './components/MusicPlayer'
+import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -58,6 +59,7 @@ function Shell(): React.JSX.Element {
           </Routes>
         </div>
       </main>
+      <GamepadLayer />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

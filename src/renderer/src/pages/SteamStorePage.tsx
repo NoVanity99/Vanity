@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { setGamepadScroll, useGamepadHandler } from '@/gamepad/GamepadLayer'
+import type { Action } from '@/gamepad/input'
 import { ArrowLeft, ArrowRight, ExternalLink, Home, RotateCw, ShieldCheck, WifiOff } from 'lucide-react'
 import type { WebviewTag } from 'electron'
 import { Button } from '@/components/Dialog'
@@ -64,6 +66,30 @@ export function SteamStorePage(): React.JSX.Element {
       el.removeEventListener('did-navigate-in-page', sync)
       el.removeEventListener('did-fail-load', onFail)
     }
+  }, [])
+
+  // Controller: B goes back inside the store, the right stick scrolls the store page.
+  useGamepadHandler(
+    useCallback((a: Action) => {
+      const el = view.current
+      if (a !== 'back' || !el) return false
+      try {
+        if (!el.canGoBack()) return false
+        el.goBack()
+        return true
+      } catch {
+        return false
+      }
+    }, [])
+  )
+  useEffect(() => {
+    setGamepadScroll((dy) => {
+      const el = view.current
+      if (!el) return false
+      void el.executeJavaScript(`window.scrollBy(0, ${Math.round(dy)})`).catch(() => {})
+      return true
+    })
+    return () => setGamepadScroll(null)
   }, [])
 
   const go = (action: 'back' | 'forward' | 'reload' | 'home'): void => {

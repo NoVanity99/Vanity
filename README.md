@@ -141,6 +141,25 @@ While you're signed in:
 - **Stats:** your playtime syncs after each session and every 15 minutes.
 - **Quitting:** you're marked offline when you quit.
 
+## Controller
+
+Xbox, PlayStation and most other controllers work everywhere in the launcher. Press any button to wake one up; moving the mouse switches back to mouse mode. Turn it off under **Settings → Controller**, which also shows which controller is connected.
+
+| Input | Action |
+| --- | --- |
+| D-pad / left stick | Move between items |
+| A / Cross | Select |
+| B / Circle | Back, or close a menu or dialog |
+| X / Square | Options (the right-click menu) |
+| Y / Triangle | Search, with the on-screen keyboard |
+| LB / RB | Previous / next tab |
+| LT / RT | Page up / down |
+| Right stick | Scroll |
+| Start / Options | Play the selected game |
+| View / Share | Jump to the sidebar |
+
+On the on-screen keyboard: X is backspace, Y is space, LB/RB is shift, Start is done and B closes it. In the Steam store tab, B goes back a page and the right stick scrolls the store.
+
 ## Trending
 
 The **Trending** tab ranks the most popular PC games right now, across stores. There is no single cross-platform ranking API, so `src/main/trending/` aggregates one:

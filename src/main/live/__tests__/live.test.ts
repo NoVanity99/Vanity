@@ -22,7 +22,8 @@ const settings = (keys: boolean): Settings =>
     musicVolume: 0.5,
   accountServerUrl: '',
   accountToken: '',
-  accountUsername: ''
+  accountUsername: '',
+  controllerEnabled: true
   }) as Settings
 
 function apis() {

@@ -26,7 +26,8 @@ const baseSettings: Settings = {
   musicVolume: 0.5,
   accountServerUrl: '',
   accountToken: '',
-  accountUsername: ''
+  accountUsername: '',
+  controllerEnabled: true
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

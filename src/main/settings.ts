@@ -20,7 +20,8 @@ const DEFAULTS: Settings = {
   musicVolume: 0.5,
   accountServerUrl: '',
   accountToken: '',
-  accountUsername: ''
+  accountUsername: '',
+  controllerEnabled: true
 }
 
 let cache: Settings | null = null

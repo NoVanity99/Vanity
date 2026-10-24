@@ -57,6 +57,8 @@ export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: 
                   </p>
                 </div>
                 <button
+                  data-gamepad-play
+                  tabIndex={-1}
                   aria-label={`Play ${g.name}`}
                   disabled={!!session}
                   onClick={(e) => {

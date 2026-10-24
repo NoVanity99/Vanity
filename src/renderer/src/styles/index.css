@@ -368,3 +368,27 @@ h2,
   80% { transform: rotate(-3deg); }
 }
 .icon-wave { animation: icon-wave 650ms ease-in-out; }
+
+/* ---- Controller mode ----------------------------------------------------------
+   Set on <html> while a controller is being used; mouse movement clears it. */
+.gamepad-mode,
+.gamepad-mode * {
+  cursor: none !important;
+}
+.gamepad-mode :focus {
+  outline: 3px solid var(--color-accent) !important;
+  outline-offset: 3px;
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 25%, transparent), 0 0 28px -4px var(--color-accent);
+  transition:
+    outline-offset 150ms ease,
+    box-shadow 200ms ease;
+}
+/* Cards lift like on hover when selected with a controller. */
+.gamepad-mode [role='button']:focus .tilt,
+.gamepad-mode button:focus > .tilt {
+  transform: translateY(-6px) scale(1.04);
+}
+.gamepad-mode [role='button']:focus {
+  outline-offset: 6px;
+}

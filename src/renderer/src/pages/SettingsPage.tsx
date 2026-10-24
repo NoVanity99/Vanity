@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Eye, EyeOff, FolderPlus, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_THEMES } from '@shared/fonts'
@@ -96,6 +96,25 @@ function KeyStatus({ label, result }: { label: string; result: KeyCheck | undefi
       {ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
       {label} {text}
     </span>
+  )
+}
+
+/** Shows which controller is connected (reported by the GamepadLayer). */
+function ControllerStatus(): React.JSX.Element {
+  const [kind, setKind] = useState<string | null>(null)
+  useEffect(() => {
+    const on = (e: Event): void => setKind((e as CustomEvent<string | null>).detail)
+    window.addEventListener('vanity:controller', on)
+    // Ask for the current state.
+    const pads = [...(navigator.getGamepads?.() ?? [])].filter((p) => p?.connected)
+    setKind(pads[0] ? pads[0].id : null)
+    return () => window.removeEventListener('vanity:controller', on)
+  }, [])
+  const label = !kind ? 'No controller connected' : kind === 'playstation' ? 'PlayStation controller connected' : kind === 'xbox' ? 'Xbox controller connected' : kind === 'generic' ? 'Controller connected' : `Connected: ${kind}`
+  return (
+    <p className={cn('flex items-center gap-2 px-3 pb-1 text-sm', kind ? 'text-emerald-400' : 'text-muted')}>
+      <Gamepad className="size-4" /> {label}
+    </p>
   )
 }
 
@@ -226,6 +245,16 @@ export function SettingsPage(): React.JSX.Element {
               checked={!!settings.minimizeWhilePlaying}
               onChange={(v) => save({ minimizeWhilePlaying: v })}
             />
+          </div>
+        </Section>
+
+        <Section
+          title="Controller"
+          description="Use a gamepad anywhere in Vanity. D-pad or left stick moves, A selects, B goes back, X opens options, Y searches, LB/RB switch tabs, Start plays. Press a button on your controller to wake it."
+        >
+          <div className="-mx-3">
+            <ControllerStatus />
+            <Toggle label="Controller navigation" checked={settings.controllerEnabled !== false} onChange={(v) => save({ controllerEnabled: v })} />
           </div>
         </Section>
 

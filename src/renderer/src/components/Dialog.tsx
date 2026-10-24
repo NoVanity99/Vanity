@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -16,6 +16,17 @@ interface Props {
 }
 
 export function Dialog({ size = 'md', title, description, onClose, children, footer, className }: Props): React.JSX.Element {
+  const panel = useRef<HTMLDivElement>(null)
+
+  // With a controller, start on the first control inside the dialog (unless something already has focus there).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!document.documentElement.classList.contains('gamepad-mode') || panel.current?.contains(document.activeElement)) return
+      panel.current?.querySelector<HTMLElement>('input, button:not([aria-label="Close"]):not([disabled]), [role="button"]')?.focus()
+    }, 50)
+    return () => clearTimeout(t)
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
@@ -30,6 +41,7 @@ export function Dialog({ size = 'md', title, description, onClose, children, foo
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        ref={panel}
         role="dialog"
         aria-label={title}
         className={cn(
