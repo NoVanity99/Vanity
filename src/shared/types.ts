@@ -149,6 +149,16 @@ export interface Settings {
   ignoredExecutables: string[]
   /** Colour skin ID (see src/shared/themes.ts). */
   theme: string
+  /** Font theme ID (see src/shared/fonts.ts). */
+  font: string
+  /** Slowly drifting colour glow behind the interface. */
+  ambientBackground: boolean
+  /** Minimise Vanity's window while a game is running. */
+  minimizeWhilePlaying: boolean
+  /** Folder the mini music player plays from. */
+  musicFolder: string | null
+  /** Music volume, 0–1. */
+  musicVolume: number
 }
 
 /** Fields the user can change on a game. */

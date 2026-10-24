@@ -12,7 +12,12 @@ const settings: Settings = {
   customFolders: [],
   enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, custom: true },
   ignoredExecutables: [],
-  theme: 'midnight'
+  theme: 'midnight',
+  font: 'system',
+  ambientBackground: true,
+  minimizeWhilePlaying: false,
+  musicFolder: null,
+  musicVolume: 0.5
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

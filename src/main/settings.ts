@@ -1,6 +1,7 @@
 import { promises as fs, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { DEFAULT_FONT } from '@shared/fonts'
 import { DEFAULT_THEME } from '@shared/themes'
 import { SCAN_SOURCES, type Settings } from '@shared/types'
 
@@ -11,7 +12,12 @@ const DEFAULTS: Settings = {
   customFolders: [],
   enabledSources: Object.fromEntries(SCAN_SOURCES.map((s) => [s, true])) as Settings['enabledSources'],
   ignoredExecutables: [],
-  theme: DEFAULT_THEME
+  theme: DEFAULT_THEME,
+  font: DEFAULT_FONT,
+  ambientBackground: true,
+  minimizeWhilePlaying: false,
+  musicFolder: null,
+  musicVolume: 0.5
 }
 
 let cache: Settings | null = null

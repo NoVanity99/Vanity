@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, FolderPlus, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
-import { applyTheme } from '@/lib/theme'
+import { FONT_THEMES } from '@shared/fonts'
+import { applyFont, applyTheme } from '@/lib/theme'
+import { saveSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
@@ -121,7 +123,7 @@ export function SettingsPage(): React.JSX.Element {
 
   async function save(patch: Partial<Settings>, confirmation?: string): Promise<void> {
     try {
-      setSettings(await window.vanity.settings.update(patch))
+      setSettings(await saveSettings(patch))
       if (confirmation) toast(confirmation)
     } catch (err) {
       toast(`Could not save settings: ${err instanceof Error ? err.message : err}`, 'error')
@@ -143,11 +145,12 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl space-y-6 px-10 pb-16 pt-12">
+      <div className="stagger mx-auto max-w-3xl space-y-6 px-10 pb-16 pt-12">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
-        <Section title="Appearance" description="Choose a skin for the launcher.">
-          <div className="grid grid-cols-3 gap-3">
+        <Section title="Appearance" description="Make Vanity yours: a colour skin, a font, and a little ambience.">
+          <h3 className="mb-3 text-sm font-semibold text-muted">Skin</h3>
+          <div className="grid grid-cols-4 gap-3">
             {THEMES.map((t) => {
               const active = (settings.theme ?? 'midnight') === t.id
               return (
@@ -164,7 +167,7 @@ export function SettingsPage(): React.JSX.Element {
                   )}
                 >
                   {/* Mini preview: sidebar, a card and an accent button in the skin's colours. */}
-                  <div className="flex h-20 gap-2 p-2.5" style={{ background: t.colors.bg }}>
+                  <div className="flex h-16 gap-2 p-2" style={{ background: t.colors.bg }}>
                     <div className="w-6 space-y-1.5 rounded-md p-1" style={{ background: t.colors.surface }}>
                       <div className="h-1.5 rounded-full" style={{ background: t.colors.accent }} />
                       <div className="h-1.5 rounded-full" style={{ background: t.colors.border }} />
@@ -182,6 +185,47 @@ export function SettingsPage(): React.JSX.Element {
                 </button>
               )
             })}
+          </div>
+
+          <h3 className="mb-3 mt-7 text-sm font-semibold text-muted">Font</h3>
+          <div className="grid grid-cols-4 gap-3">
+            {FONT_THEMES.map((f) => {
+              const active = (settings.font ?? 'system') === f.id
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    applyFont(f.id)
+                    void save({ font: f.id })
+                  }}
+                  aria-pressed={active}
+                  className={cn(
+                    'rounded-xl border bg-surface-2 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5',
+                    active ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25'
+                  )}
+                >
+                  <span className="block text-2xl leading-none" style={{ fontFamily: f.display }}>
+                    Aa
+                  </span>
+                  <span className="mt-2 block truncate text-xs text-muted" style={{ fontFamily: f.body }}>
+                    {f.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="-mx-3 mt-6 border-t border-border pt-3">
+            <Toggle
+              label="Ambient background glow"
+              checked={settings.ambientBackground !== false}
+              onChange={(v) => save({ ambientBackground: v })}
+            />
+            <Toggle
+              label="Minimise Vanity while a game is running"
+              checked={!!settings.minimizeWhilePlaying}
+              onChange={(v) => save({ minimizeWhilePlaying: v })}
+            />
           </div>
         </Section>
 

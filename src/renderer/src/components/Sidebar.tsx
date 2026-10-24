@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, Star, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
@@ -33,18 +33,12 @@ function NavItem({
       className={({ isActive }) =>
         cn(
           'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-          isActive ? 'bg-white/8 text-text' : 'text-muted hover:bg-white/5 hover:text-text'
+          isActive ? 'text-text' : 'text-muted hover:bg-white/5 hover:text-text'
         )
       }
     >
       {({ isActive }) => (
         <>
-          <span
-            className={cn(
-              'absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent transition-all duration-300',
-              isActive ? 'opacity-100' : 'h-0 opacity-0'
-            )}
-          />
           <Icon
             key={played}
             className={cn(
@@ -61,7 +55,44 @@ function NavItem({
   )
 }
 
+/**
+ * One highlight that glides to the active item (instead of each item lighting up on its own).
+ * It measures the element marked aria-current="page" inside `container`.
+ */
+function useActiveIndicator(container: React.RefObject<HTMLElement | null>): { top: number; height: number; visible: boolean } {
+  const location = useLocation()
+  const [pos, setPos] = useState({ top: 0, height: 0, visible: false })
+  useLayoutEffect(() => {
+    const update = (): void => {
+      const active = container.current?.querySelector<HTMLElement>('[aria-current="page"]')
+      if (!active || !container.current) return setPos((p) => ({ ...p, visible: false }))
+      const c = container.current.getBoundingClientRect()
+      const a = active.getBoundingClientRect()
+      setPos({ top: a.top - c.top, height: a.height, visible: true })
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    if (container.current) observer.observe(container.current)
+    return () => observer.disconnect()
+  }, [location.pathname, container])
+  return pos
+}
+
+function Indicator({ top, height, visible }: { top: number; height: number; visible: boolean }): React.JSX.Element {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-3 rounded-lg bg-white/8 transition-[transform,height,opacity] duration-500 ease-[cubic-bezier(0.3,0.8,0.2,1)]"
+      style={{ transform: `translateY(${top}px)`, height, opacity: visible ? 1 : 0, top: 0 }}
+    >
+      <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent shadow-[0_0_10px_var(--color-accent)]" />
+    </div>
+  )
+}
+
 export function Sidebar(): React.JSX.Element {
+  const sidebarRef = useRef<HTMLElement>(null)
+  const indicator = useActiveIndicator(sidebarRef)
   const { games, scan, addManually, sessions, metadata } = useLibrary()
   const playing = games.filter((g) => sessions[g.id])
   const [addPlayed, playAdd] = useClickAnimation()
@@ -69,9 +100,10 @@ export function Sidebar(): React.JSX.Element {
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25">
+    <aside ref={sidebarRef} className="relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl">
+      <Indicator {...indicator} />
       <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-2 shadow-lg shadow-accent/20">
+        <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
         <span className="text-lg font-bold tracking-tight">Vanity</span>

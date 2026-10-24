@@ -14,7 +14,12 @@ const settings: Settings = {
   customFolders: ['/games'],
   enabledSources: { steam: true, epic: true, gog: true, ea: false, ubisoft: true, custom: true },
   ignoredExecutables: ['/games/Declined/declined.exe'],
-  theme: 'midnight'
+  theme: 'midnight',
+  font: 'system',
+  ambientBackground: true,
+  minimizeWhilePlaying: false,
+  musicFolder: null,
+  musicVolume: 0.5
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

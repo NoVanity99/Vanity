@@ -18,7 +18,12 @@ const baseSettings: Settings = {
   customFolders: [],
   enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, custom: true },
   ignoredExecutables: [],
-  theme: 'midnight'
+  theme: 'midnight',
+  font: 'system',
+  ambientBackground: true,
+  minimizeWhilePlaying: false,
+  musicFolder: null,
+  musicVolume: 0.5
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

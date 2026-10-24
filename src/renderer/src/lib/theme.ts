@@ -1,3 +1,4 @@
+import { fontById } from '@shared/fonts'
 import { themeById } from '@shared/themes'
 import { loadPref, savePref } from './storage'
 
@@ -25,4 +26,18 @@ export function applyTheme(id: string | undefined): void {
 /** Applies the last used skin immediately at startup. */
 export function applySavedTheme(): void {
   applyTheme(loadPref('theme', { id: undefined as string | undefined }).id)
+}
+
+/** Applies a font theme (body and heading faces). */
+export function applyFont(id: string | undefined): void {
+  const font = fontById(id)
+  const root = document.documentElement
+  root.style.setProperty('--font-sans', font.body)
+  root.style.setProperty('--font-display', font.display)
+  document.body.style.fontFamily = font.body
+  savePref('font', { id: font.id })
+}
+
+export function applySavedFont(): void {
+  applyFont(loadPref('font', { id: undefined as string | undefined }).id)
 }

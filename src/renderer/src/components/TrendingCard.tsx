@@ -4,6 +4,7 @@ import type { PopularityStat, TrendingGame } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { formatCompact } from '@/lib/format'
 import { nameHue } from '@/lib/media'
+import { useTilt } from '@/hooks/useTilt'
 import { StoreIcon } from './StoreIcon'
 
 /** Gold, silver and bronze for the top three; a neutral badge for the rest. */
@@ -38,6 +39,7 @@ export const TrendingCard = memo(function TrendingCard({ game, index, onSelect }
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
   const hue = nameHue(game.title)
+  const tilt = useTilt<HTMLDivElement>()
 
   return (
     <button
@@ -45,7 +47,10 @@ export const TrendingCard = memo(function TrendingCard({ game, index, onSelect }
       title={game.title}
       className="animate-card-in group text-left outline-none"
       style={{ '--i': Math.min(index, 24) } as React.CSSProperties}
+      onMouseMove={tilt.onMouseMove}
+      onMouseLeave={tilt.onMouseLeave}
     >
+      <div ref={tilt.ref} className="tilt">
       <div
         className={cn(
           'relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
@@ -78,6 +83,7 @@ export const TrendingCard = memo(function TrendingCard({ game, index, onSelect }
             />
           </>
         )}
+        <div className="tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/60 to-transparent" />
 
@@ -89,6 +95,7 @@ export const TrendingCard = memo(function TrendingCard({ game, index, onSelect }
         >
           {game.rank}
         </span>
+      </div>
       </div>
 
       <p className="mt-2.5 truncate text-sm font-semibold text-text/90 transition-colors group-hover:text-text">{game.title}</p>

@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Play, Star } from 'lucide-react'
 import type { Game, SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
+import { useTilt } from '@/hooks/useTilt'
 import { CoverArt } from './CoverArt'
 import { SourceBadge } from './SourceBadge'
 
@@ -17,6 +18,7 @@ interface Props {
 
 export const GameCard = memo(function GameCard({ game, index, session, onOpen, onPlay, onMenu }: Props): React.JSX.Element {
   const dimmed = (game.missing || game.hidden) && !session
+  const tilt = useTilt<HTMLDivElement>()
 
   return (
     // A div, not a button: it contains the Play button, and buttons can't nest.
@@ -32,7 +34,10 @@ export const GameCard = memo(function GameCard({ game, index, session, onOpen, o
         if (e.key === 'Enter') onOpen(game)
       }}
       onContextMenu={(e) => onMenu(e, game)}
+      onMouseMove={tilt.onMouseMove}
+      onMouseLeave={tilt.onMouseLeave}
     >
+      <div ref={tilt.ref} className="tilt">
       <div
         className={cn(
           'relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
@@ -44,6 +49,7 @@ export const GameCard = memo(function GameCard({ game, index, session, onOpen, o
       >
         <CoverArt game={game} className="transition-transform duration-700 ease-out group-hover:scale-[1.06]" />
 
+        <div className="tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         {/* Light sweep across the cover on hover. */}
         <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
@@ -78,6 +84,7 @@ export const GameCard = memo(function GameCard({ game, index, session, onOpen, o
             </button>
           </>
         )}
+      </div>
       </div>
       <p className="mt-2.5 truncate text-sm font-medium text-text/85 transition-colors group-hover:text-text">{game.name}</p>
     </div>

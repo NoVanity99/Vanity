@@ -11,6 +11,7 @@
   --color-accent-2: #be123c;
   /* Defaults (Midnight). Other skins override these at runtime: src/renderer/src/lib/theme.ts */
   --font-sans: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 }
 
 html,
@@ -42,13 +43,17 @@ body {
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px) scale(0.995);
+    filter: blur(6px);
   }
 }
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(14px) scale(0.96);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.005);
   }
 }
 @keyframes menu-in {
@@ -205,3 +210,138 @@ textarea,
     overflow-x: auto !important;
   }
 }
+
+/* Headings use the font theme's display face. */
+h1,
+h2,
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ---- Vanity logo: always gently alive ------------------------------------ */
+@keyframes logo-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes logo-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  25% {
+    transform: translateY(-1.5px) rotate(-6deg);
+  }
+  75% {
+    transform: translateY(1px) rotate(5deg);
+  }
+}
+@keyframes logo-glow {
+  0%,
+  100% {
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 6px 26px -4px color-mix(in srgb, var(--color-accent) 85%, transparent);
+  }
+}
+@keyframes logo-sheen {
+  0%,
+  70% {
+    transform: translateX(-120%) rotate(20deg);
+  }
+  100% {
+    transform: translateX(220%) rotate(20deg);
+  }
+}
+.vanity-logo {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(120deg, var(--color-accent), var(--color-accent-2), var(--color-accent));
+  background-size: 220% 220%;
+  animation:
+    logo-shift 6s ease-in-out infinite,
+    logo-glow 3.2s ease-in-out infinite;
+}
+.vanity-logo::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: logo-sheen 4.5s ease-in-out infinite;
+}
+.vanity-logo svg {
+  animation: logo-float 4s ease-in-out infinite;
+}
+
+/* ---- Ambient background: slow colour glow behind everything -------------- */
+@keyframes aurora-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8%, 6%) scale(1.15);
+  }
+}
+@keyframes aurora-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate(-10%, -4%) scale(0.95);
+  }
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.14;
+  will-change: transform;
+}
+
+/* ---- Card tilt (set by useTilt) ------------------------------------------- */
+.tilt {
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.tilt-glare {
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 0%), rgb(255 255 255 / 0.18), transparent 55%);
+}
+
+/* ---- Small shared micro-animations ---------------------------------------- */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.animate-pop-in {
+  animation: pop-in 260ms cubic-bezier(0.3, 0.7, 0.4, 1.3) both;
+}
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* Settings sections (and other stacks) rise in one after another. */
+.stagger > * {
+  animation: rise-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 50ms; }
+.stagger > *:nth-child(3) { animation-delay: 100ms; }
+.stagger > *:nth-child(4) { animation-delay: 150ms; }
+.stagger > *:nth-child(5) { animation-delay: 200ms; }
+.stagger > *:nth-child(6) { animation-delay: 250ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 300ms; }
