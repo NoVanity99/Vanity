@@ -17,6 +17,13 @@ import type {
   TrendingState
 } from './types'
 
+export interface MusicState {
+  folder: string | null
+  count: number
+  /** Changes on every rescan; part of track URLs so old ones aren't reused. */
+  version: number
+}
+
 /** For calls that can fail in ways the user should see: either data or a readable error. */
 export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
@@ -71,6 +78,12 @@ export interface VanityApi {
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
   }
+  music: {
+    /** The music folder and how many tracks it has. Track names are never exposed. */
+    state(): Promise<MusicState>
+    /** Opens a folder picker, then scans it. Resolves to the new state, or null if cancelled. */
+    pickFolder(): Promise<MusicState | null>
+  }
   status: {
     /** Latest known status of each launcher's services. */
     get(): Promise<LauncherStatus[]>
@@ -116,6 +129,8 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  musicState: 'music:state',
+  musicPickFolder: 'music:pick-folder',
   statusGet: 'status:get',
   statusRefresh: 'status:refresh',
   statusUpdated: 'status:updated',

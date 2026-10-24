@@ -5,6 +5,7 @@ import { IPC, type Result } from '@shared/ipc'
 import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
 import type { TrendingService } from '../trending/service'
 import type { StatusService } from '../status/service'
+import type { MusicLibrary } from '../music/library'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
@@ -39,11 +40,12 @@ export interface IpcDeps {
   media: MediaCache
   trending: TrendingService
   status: StatusService
+  music: MusicLibrary
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, music, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -218,6 +220,18 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
     wrap(() => metadata.resetArtwork(id, validKind(kind)))
   )
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
+
+  ipcMain.handle(IPC.musicState, () => music.state())
+  ipcMain.handle(IPC.musicPickFolder, async (e) => {
+    const options: Electron.OpenDialogOptions = { title: 'Choose your music folder', properties: ['openDirectory'] }
+    const win = windowOf(e)
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    const folder = result.filePaths[0]
+    if (result.canceled || !folder) return null
+    await updateSettings({ musicFolder: folder })
+    await music.load(folder)
+    return music.state()
+  })
 
   ipcMain.handle(IPC.statusGet, () => status.get())
   ipcMain.handle(IPC.statusRefresh, async () => {

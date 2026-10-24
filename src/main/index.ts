@@ -14,6 +14,7 @@ import { createMetadataRepo } from './metadata/repo'
 import { MetadataService } from './metadata/service'
 import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
+import { audioResponse, MusicLibrary } from './music/library'
 import { themeById } from '@shared/themes'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -46,7 +47,9 @@ function applyChrome(): void {
 
 // Cached artwork is served to the UI as vanity-media://media/<relative path>.
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  // Music for the mini player: vanity-music://track/<index>. Streams with Range support.
+  { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ])
 
 function broadcast(channel: string, payload: unknown): void {
@@ -154,7 +157,21 @@ app.whenReady().then(() => {
 
   status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
 
-  registerIpc({ store, tracker, metadata, media, trending, status, onSettingsChanged: applyChrome })
+  const music = new MusicLibrary()
+  void music.load(getSettings().musicFolder).catch((err) => console.warn('[music] scan failed:', err))
+  protocol.handle('vanity-music', async (request) => {
+    const url = new URL(request.url)
+    const index = url.hostname === 'track' ? Number(url.pathname.replace(/^\/+/, '')) : NaN
+    const file = music.track(index)
+    if (!file) return new Response('Not found', { status: 404 })
+    try {
+      return await audioResponse(file, request.headers.get('range'))
+    } catch {
+      return new Response('Unreadable', { status: 404 })
+    }
+  })
+
+  registerIpc({ store, tracker, metadata, media, trending, status, music, onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
