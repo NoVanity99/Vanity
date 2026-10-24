@@ -2,6 +2,21 @@
 
 export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual'
 
+/** Sources that have a scanner and can be toggled in settings. */
+export type ScanSource = Exclude<GameSource, 'manual'>
+
+export const SCAN_SOURCES: ScanSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'custom']
+
+export const SOURCE_LABELS: Record<GameSource, string> = {
+  steam: 'Steam',
+  epic: 'Epic Games',
+  gog: 'GOG Galaxy',
+  ea: 'EA app',
+  ubisoft: 'Ubisoft Connect',
+  custom: 'Custom folders',
+  manual: 'Added manually'
+}
+
 export interface Game {
   id: number
   source: GameSource
@@ -35,11 +50,25 @@ export interface DetectedGame {
   executablePath: string | null
 }
 
+/** A possible game found in a custom folder; the user confirms before it is added. */
+export interface GameCandidate extends DetectedGame {
+  /** Other executables in the same folder, in case the guess is wrong. */
+  alternatives: string[]
+}
+
 export interface ScanProgress {
-  source: GameSource
+  source: ScanSource
   status: 'pending' | 'scanning' | 'done' | 'skipped' | 'error'
   found: number
   message?: string
+}
+
+export interface ScanSummary {
+  progress: ScanProgress[]
+  added: number
+  updated: number
+  /** Custom-folder finds waiting for the user to confirm. */
+  candidates: GameCandidate[]
 }
 
 export interface Settings {
@@ -47,5 +76,7 @@ export interface Settings {
   igdbClientId: string
   igdbClientSecret: string
   customFolders: string[]
-  enabledSources: Record<Exclude<GameSource, 'manual'>, boolean>
+  enabledSources: Record<ScanSource, boolean>
+  /** Executables the user declined when reviewing custom-folder finds. */
+  ignoredExecutables: string[]
 }

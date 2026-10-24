@@ -1,6 +1,8 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { registerIpc } from './ipc'
+import { createMemoryStore } from './library/store'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -38,12 +40,17 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vanity.launcher')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
+  registerIpc(createMemoryStore())
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+// Log rather than crash on unexpected errors (a scanner bug must never take the app down).
+process.on('uncaughtException', (err) => console.error('[main] uncaught exception:', err))
+process.on('unhandledRejection', (err) => console.error('[main] unhandled rejection:', err))
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
