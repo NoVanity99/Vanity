@@ -72,6 +72,10 @@ interface RawGame {
   id: number
   name?: string
   slug?: string
+  first_release_date?: number
+  hypes?: number
+  artworks?: { image_id?: string }[]
+  screenshots?: { image_id?: string }[]
   cover?: { image_id?: string }
   version_parent?: number
   websites?: { url?: string }[]
@@ -163,4 +167,38 @@ export async function fetchTwitchViewers(helix: TwitchHelix, twitchIds: string[]
     }
   }
   return result
+}
+
+export interface IgdbUpcomingGame extends IgdbStoreGame {
+  releaseDate: string
+  hype: number
+  bannerImageId: string | null
+}
+
+/**
+ * Upcoming PC games, most anticipated first (IGDB "hypes" = people following
+ * a game before release). Only games with a known release date in the future.
+ */
+export async function fetchIgdbUpcoming(igdb: Igdb, nowMs: number, count = 60): Promise<IgdbUpcomingGame[]> {
+  const now = Math.floor(nowMs / 1000)
+  const rows = await igdb.queryWithSourceField<RawGame>(
+    'games',
+    (field) =>
+      `fields name,slug,first_release_date,hypes,cover.image_id,artworks.image_id,screenshots.image_id,version_parent,` +
+      `websites.url,external_games.uid,external_games.url,external_games.${field}; ` +
+      `where first_release_date > ${now} & platforms = (${PC_PLATFORM}) & hypes > 0 & version_parent = null; ` +
+      `sort hypes desc; limit ${Math.trunc(count)};`
+  )
+  return rows.flatMap((r) => {
+    const g = toStoreGame(r)
+    if (!g || !r.first_release_date) return []
+    return [
+      {
+        ...g,
+        releaseDate: new Date(r.first_release_date * 1000).toISOString().slice(0, 10),
+        hype: r.hypes ?? 0,
+        bannerImageId: r.artworks?.find((a) => a.image_id)?.image_id ?? r.screenshots?.find((a) => a.image_id)?.image_id ?? null
+      }
+    ]
+  })
 }

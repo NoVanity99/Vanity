@@ -147,6 +147,8 @@ export interface Settings {
   enabledSources: Record<ScanSource, boolean>
   /** Executables the user declined when reviewing custom-folder finds. */
   ignoredExecutables: string[]
+  /** Colour skin ID (see src/shared/themes.ts). */
+  theme: string
 }
 
 /** Fields the user can change on a game. */
@@ -212,8 +214,23 @@ export interface TrendingGame {
   stores: StoreLink[]
 }
 
+/** An upcoming PC game for the "Coming soon" banner. */
+export interface UpcomingGame {
+  id: number
+  title: string
+  /** Wide artwork or screenshot for the banner. */
+  bannerUrl: string | null
+  coverUrl: string | null
+  /** ISO date (YYYY-MM-DD). */
+  releaseDate: string
+  /** IGDB "hypes": people following it before release. Higher = more anticipated. */
+  hype: number
+  stores: StoreLink[]
+}
+
 export interface TrendingState {
   games: TrendingGame[]
+  upcoming: UpcomingGame[]
   /** When the cached list was fetched (ms), or null if never. */
   updatedAt: number | null
   refreshing: boolean
@@ -221,4 +238,14 @@ export interface TrendingState {
   error: string | null
   /** The error is about missing credentials (the user needs to add keys). */
   needsKeys: boolean
+}
+
+// ---- Launcher status -------------------------------------------------------
+
+export interface LauncherStatus {
+  launcher: StoreLauncher
+  state: 'online' | 'offline' | 'unknown'
+  /** Extra detail for the tooltip ("Minor service outage", "Couldn't connect"…). */
+  detail: string | null
+  checkedAt: number | null
 }

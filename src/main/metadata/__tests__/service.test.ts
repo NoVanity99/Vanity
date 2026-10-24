@@ -17,7 +17,8 @@ const baseSettings: Settings = {
   igdbClientSecret: 'SECRET',
   customFolders: [],
   enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, custom: true },
-  ignoredExecutables: []
+  ignoredExecutables: [],
+  theme: 'midnight'
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

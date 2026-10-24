@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Igdb } from '../../metadata/igdb'
 import { TwitchAppToken, TwitchHelix } from '../../metadata/twitch'
 import { fakeFetch, json } from '../../metadata/__tests__/fakeFetch'
-import { fetchIgdbGames, fetchIgdbPopularity, fetchSteamPlayers, fetchTwitchTop, fetchTwitchViewers } from '../sources'
+import { fetchIgdbGames, fetchIgdbPopularity, fetchIgdbUpcoming, fetchSteamPlayers, fetchTwitchTop, fetchTwitchViewers } from '../sources'
 
 const token = (c: { url: string }) => (c.url.includes('id.twitch.tv') ? json({ access_token: 'T', expires_in: 5_000_000 }) : undefined)
 
@@ -82,5 +82,35 @@ describe('Steam and Twitch sources', () => {
     const helixCall = calls.find((c) => c.url.includes('/helix/'))!
     expect(helixCall.headers['client-id']).toBe('CID')
     expect(helixCall.headers.authorization).toBe('Bearer T')
+  })
+})
+
+describe('upcoming games', () => {
+  it('asks for future PC releases by hype and keeps banner art', async () => {
+    const { fetch, calls } = fakeFetch([
+      token,
+      () =>
+        json([
+          {
+            id: 7,
+            name: 'Big Sequel',
+            slug: 'big-sequel',
+            first_release_date: 1830297600,
+            hypes: 950,
+            cover: { image_id: 'cov' },
+            artworks: [{ image_id: 'art' }],
+            websites: [{ url: 'https://store.steampowered.com/app/12345' }]
+          },
+          { id: 8, name: 'No Date', hypes: 5 }
+        ])
+    ])
+    const games = await fetchIgdbUpcoming(new Igdb('C', 'S', fetch), 1_800_000_000_000)
+    expect(games).toEqual([
+      expect.objectContaining({ id: 7, name: 'Big Sequel', releaseDate: '2028-01-01', hype: 950, bannerImageId: 'art' })
+    ])
+    const body = calls.at(-1)!.body!
+    expect(body).toContain('first_release_date > 1800000000')
+    expect(body).toContain('platforms = (6)')
+    expect(body).toContain('sort hypes desc')
   })
 })

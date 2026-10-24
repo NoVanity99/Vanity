@@ -12,7 +12,7 @@ function subtitle(link: StoreLink, installed: boolean): string {
 }
 
 interface Props {
-  game: TrendingGame
+  game: Pick<TrendingGame, 'title' | 'stores'>
   installed: Partial<Record<StoreLauncher, boolean>>
   onPick: (launcher: StoreLauncher) => void
   onClose: () => void

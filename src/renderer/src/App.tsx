@@ -1,5 +1,8 @@
+import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { applyTheme } from './lib/theme'
 import { CandidateReview } from './components/CandidateReview'
+import { LauncherStatusBar } from './components/LauncherStatusBar'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -13,12 +16,18 @@ function Shell(): React.JSX.Element {
   const location = useLocation()
   const toast = useToast()
 
+  useEffect(() => {
+    window.vanity.settings.get().then((s) => applyTheme(s.theme), () => {})
+  }, [])
+
   return (
     <div className="flex h-full">
       <Sidebar />
       <main className="relative min-w-0 flex-1">
-        {/* Draggable strip under the native title-bar buttons (the window is frameless). */}
-        <div className="absolute inset-x-0 top-0 z-20 h-9 [-webkit-app-region:drag]" />
+        {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
+        <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-40 [-webkit-app-region:drag]">
+          <LauncherStatusBar />
+        </div>
         <div key={location.pathname} className="h-full animate-[page-in_220ms_ease-out]">
           <Routes>
             <Route path="/library" element={<LibraryPage view="all" />} />

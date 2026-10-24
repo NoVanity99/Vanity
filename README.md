@@ -44,6 +44,8 @@ resources/           App icon and build resources
 - **Library:** search (Ctrl+F), sort, filter by source or genre, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Game page:** banner, logo, Play, playtime, details, install folder, Fix match and Change artwork.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
+- **Themes:** Settings → Appearance has six skins (Midnight, Ocean, Forest, Royal, Sunset, OLED Black). They're defined in `src/shared/themes.ts`; add one there and it appears in Settings.
+- **Launcher status:** the strip at the top of every page shows whether each store's services are reachable: green when online, red when not. They're checked every 5 minutes; click one to check again. Steam uses its Web API, Epic its public status page, and the others whether their store site answers (`src/main/status/checks.ts`).
 - Vanity remembers its window size and position, and opening it again brings the existing window to the front. Animations follow Windows' "Animation effects" setting (reduced motion).
 
 ## API keys
@@ -130,6 +132,8 @@ The **Trending** tab ranks the most popular PC games right now, across stores. T
 | `service.ts` | Caching in SQLite, refresh every 45 minutes and when the tab opens with an old list, error state, opening links |
 
 Ranking: 55% IGDB popularity (Playing, Steam 24h peak players, Visits and Twitch hours watched, weighted) plus 45% the stronger live signal for that game, Steam players or Twitch viewers. So games that aren't on Steam aren't penalised.
+
+A **Coming soon** banner at the top slowly scrolls through upcoming PC games. Each visit shows a random pick, weighted towards the most anticipated ones (IGDB "hypes"). Hover to pause; click to open the game's store page, just like the cards below.
 
 Clicking a game opens its only store directly, or a **Choose a launcher** popup when there are several. Launchers whose URI protocol is registered on this PC are marked installed and listed first.
 

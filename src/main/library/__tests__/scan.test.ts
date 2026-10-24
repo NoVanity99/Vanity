@@ -13,7 +13,8 @@ const settings: Settings = {
   igdbClientSecret: '',
   customFolders: ['/games'],
   enabledSources: { steam: true, epic: true, gog: true, ea: false, ubisoft: true, custom: true },
-  ignoredExecutables: ['/games/Declined/declined.exe']
+  ignoredExecutables: ['/games/Declined/declined.exe'],
+  theme: 'midnight'
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

@@ -1,6 +1,6 @@
-import type { PopularityStat, StoreLauncher, StoreLink, TrendingGame } from '@shared/types'
+import type { PopularityStat, StoreLauncher, StoreLink, TrendingGame, UpcomingGame } from '@shared/types'
 import { ALL_LAUNCHERS, buildStoreLink, storeFromUrl } from './launcherLinks'
-import type { IgdbStoreGame } from './sources'
+import type { IgdbStoreGame, IgdbUpcomingGame } from './sources'
 
 export interface Signals {
   /** IGDB popularity, game ID → 0–1. */
@@ -93,4 +93,25 @@ export function rankTrending(games: IgdbStoreGame[], s: Signals, limit = 40): Tr
       popularityStat: popularityStat(g.id, s),
       stores
     }))
+}
+
+export function bannerUrl(imageId: string | null): string | null {
+  return imageId ? `https://images.igdb.com/igdb/image/upload/t_1080p/${imageId}.jpg` : null
+}
+
+/** Upcoming games for the banner: the most anticipated ones that can be opened in at least one store. */
+export function toUpcoming(games: IgdbUpcomingGame[], limit = 40): UpcomingGame[] {
+  return games
+    .map((g) => ({
+      id: g.id,
+      title: g.name,
+      bannerUrl: bannerUrl(g.bannerImageId),
+      coverUrl: coverUrl(g.coverImageId),
+      releaseDate: g.releaseDate,
+      hype: g.hype,
+      stores: extractStores(g)
+    }))
+    .filter((g) => g.stores.length > 0 && (g.bannerUrl || g.coverUrl))
+    .sort((a, b) => b.hype - a.hype)
+    .slice(0, limit)
 }

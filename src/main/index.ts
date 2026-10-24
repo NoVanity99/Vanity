@@ -13,6 +13,8 @@ import { MediaCache } from './metadata/mediaCache'
 import { createMetadataRepo } from './metadata/repo'
 import { MetadataService } from './metadata/service'
 import { TrendingService } from './trending/service'
+import { StatusService } from './status/service'
+import { themeById } from '@shared/themes'
 import { getSettings } from './settings'
 import { loadWindowState, trackWindowState } from './windowState'
 import icon from '../../resources/icon.png?asset'
@@ -21,6 +23,26 @@ let db: Db | null = null
 let tracker: SessionTracker | null = null
 let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
+let status: StatusService | null = null
+
+/** Window chrome colours for the current theme. */
+function chromeColors(): { bg: string; symbol: string } {
+  const { colors } = themeById(getSettings().theme)
+  return { bg: colors.bg, symbol: colors.muted }
+}
+
+function applyChrome(): void {
+  const { bg, symbol } = chromeColors()
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.setBackgroundColor(bg)
+    try {
+      // Only on platforms with a title bar overlay (Windows).
+      win.setTitleBarOverlay({ color: bg, symbolColor: symbol, height: 36 })
+    } catch {
+      // Not supported here.
+    }
+  }
+}
 
 // Cached artwork is served to the UI as vanity-media://media/<relative path>.
 protocol.registerSchemesAsPrivileged([
@@ -49,15 +71,16 @@ nativeTheme.themeSource = 'dark'
 
 function createWindow(): void {
   const saved = loadWindowState()
+  const chrome = chromeColors()
   const win = new BrowserWindow({
     ...saved.bounds,
     minWidth: 1000,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0b0d12',
+    backgroundColor: chrome.bg,
     icon,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0b0d12', symbolColor: '#c9ced8', height: 36 },
+    titleBarOverlay: { color: chrome.bg, symbolColor: chrome.symbol, height: 36 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -129,13 +152,16 @@ app.whenReady().then(() => {
     onUpdate: (state) => broadcast(IPC.trendingUpdated, state)
   })
 
-  registerIpc({ store, tracker, metadata, media, trending })
+  status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
+
+  registerIpc({ store, tracker, metadata, media, trending, status, onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
   metadata.enqueuePending()
   // Keep the Trending list fresh in the background so the tab opens instantly.
   trending.start()
+  status.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -151,6 +177,7 @@ app.on('will-quit', () => {
   tracker?.stopAll()
   metadata?.dispose()
   trending?.dispose()
+  status?.dispose()
   db?.close()
   db = null
 })

@@ -1,12 +1,35 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, Star, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 
-function NavItem({ to, icon: Icon, label, count }: { to: string; icon: LucideIcon; label: string; count?: number }): React.JSX.Element {
+type IconAnimation = 'bounce' | 'flame' | 'rewind' | 'star' | 'gear' | 'plus'
+
+/** Replays an icon animation on each click: a new key remounts the icon with the animation class. */
+function useClickAnimation(): [number, () => void] {
+  const [n, setN] = useState(0)
+  return [n, () => setN((x) => x + 1)]
+}
+
+function NavItem({
+  to,
+  icon: Icon,
+  label,
+  count,
+  animation
+}: {
+  to: string
+  icon: LucideIcon
+  label: string
+  count?: number
+  animation: IconAnimation
+}): React.JSX.Element {
+  const [played, play] = useClickAnimation()
   return (
     <NavLink
       to={to}
+      onClick={play}
       className={({ isActive }) =>
         cn(
           'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -22,7 +45,14 @@ function NavItem({ to, icon: Icon, label, count }: { to: string; icon: LucideIco
               isActive ? 'opacity-100' : 'h-0 opacity-0'
             )}
           />
-          <Icon className={cn('size-[18px] transition-colors', isActive ? 'text-accent' : 'text-muted group-hover:text-text')} />
+          <Icon
+            key={played}
+            className={cn(
+              'size-[18px] transition-colors',
+              played > 0 && `icon-${animation}`,
+              isActive ? 'text-accent' : 'text-muted group-hover:text-text'
+            )}
+          />
           <span className="flex-1">{label}</span>
           {count !== undefined && count > 0 && <span className="text-xs tabular-nums text-muted">{count}</span>}
         </>
@@ -34,23 +64,24 @@ function NavItem({ to, icon: Icon, label, count }: { to: string; icon: LucideIco
 export function Sidebar(): React.JSX.Element {
   const { games, scan, addManually, sessions, metadata } = useLibrary()
   const playing = games.filter((g) => sessions[g.id])
+  const [addPlayed, playAdd] = useClickAnimation()
   const visible = games.filter((g) => !g.hidden)
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25">
       <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-rose-700 shadow-lg shadow-accent/20">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-2 shadow-lg shadow-accent/20">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
         <span className="text-lg font-bold tracking-tight">Vanity</span>
       </div>
 
       <nav className="space-y-1 px-3 pt-2">
-        <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} />
-        <NavItem to="/trending" icon={Flame} label="Trending" />
-        <NavItem to="/recent" icon={Clock} label="Recently Played" />
-        <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} />
+        <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
+        <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
+        <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
+        <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
       </nav>
 
       <div className="mt-auto space-y-1 px-3 pb-4">
@@ -98,13 +129,16 @@ export function Sidebar(): React.JSX.Element {
           </div>
         )}
         <button
-          onClick={addManually}
+          onClick={() => {
+            playAdd()
+            addManually()
+          }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-text"
         >
-          <Plus className="size-[18px]" />
+          <Plus key={addPlayed} className={cn('size-[18px]', addPlayed > 0 && 'icon-plus')} />
           Add a game
         </button>
-        <NavItem to="/settings" icon={Settings} label="Settings" />
+        <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
       </div>
     </aside>
   )

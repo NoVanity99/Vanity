@@ -4,6 +4,7 @@ import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from '
 import { IPC, type Result } from '@shared/ipc'
 import type { ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
 import type { TrendingService } from '../trending/service'
+import type { StatusService } from '../status/service'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
 import { launchGame, LaunchError } from '../launcher/launch'
@@ -37,9 +38,12 @@ export interface IpcDeps {
   metadata: MetadataService
   media: MediaCache
   trending: TrendingService
+  status: StatusService
+  /** Called after settings change (e.g. to recolour the window for a new theme). */
+  onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending }: IpcDeps): void {
+export function registerIpc({ store, tracker, metadata, media, trending, status, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -172,6 +176,7 @@ export function registerIpc({ store, tracker, metadata, media, trending }: IpcDe
       metadata.onKeysChanged()
       void trending.refresh()
     }
+    onSettingsChanged?.(after)
     return after
   })
 
@@ -213,6 +218,12 @@ export function registerIpc({ store, tracker, metadata, media, trending }: IpcDe
     wrap(() => metadata.resetArtwork(id, validKind(kind)))
   )
   ipcMain.handle(IPC.metadataCheckKeys, () => metadata.checkKeys())
+
+  ipcMain.handle(IPC.statusGet, () => status.get())
+  ipcMain.handle(IPC.statusRefresh, async () => {
+    await status.check()
+    return status.get()
+  })
 
   ipcMain.handle(IPC.trendingGet, () => trending.get())
   ipcMain.handle(IPC.trendingRefresh, async () => {

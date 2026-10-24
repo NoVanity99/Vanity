@@ -1,11 +1,11 @@
-import type { Settings, StoreLauncher, TrendingGame, TrendingState } from '@shared/types'
+import type { Settings, StoreLauncher, TrendingGame, TrendingState, UpcomingGame } from '@shared/types'
 import type { Db } from '../db/database'
 import { NetworkError, type FetchFn } from '../metadata/http'
 import { Igdb } from '../metadata/igdb'
 import { TwitchAppToken, TwitchHelix } from '../metadata/twitch'
-import { rankTrending, type Signals } from './aggregate'
+import { rankTrending, toUpcoming, type Signals } from './aggregate'
 import { ALL_LAUNCHERS, LAUNCHERS, openStore } from './launcherLinks'
-import { fetchIgdbGames, fetchIgdbPopularity, fetchSteamPlayers, fetchTwitchTop, fetchTwitchViewers } from './sources'
+import { fetchIgdbGames, fetchIgdbPopularity, fetchIgdbUpcoming, fetchSteamPlayers, fetchTwitchTop, fetchTwitchViewers } from './sources'
 
 /** Cached lists older than this are refreshed when the tab opens; the timer refreshes on the same cadence. */
 export const REFRESH_MS = 45 * 60_000
@@ -28,6 +28,8 @@ export interface TrendingDeps {
 
 interface Cached {
   games: TrendingGame[]
+  /** Missing in caches written before the Coming soon banner existed. */
+  upcoming?: UpcomingGame[]
   updatedAt: number
 }
 
@@ -64,6 +66,7 @@ export class TrendingService {
   state(): TrendingState {
     return {
       games: this.cache?.games ?? [],
+      upcoming: this.cache?.upcoming ?? [],
       updatedAt: this.cache?.updatedAt ?? null,
       refreshing: this.inFlight !== null,
       error: this.error,
@@ -98,8 +101,8 @@ export class TrendingService {
     // Let refresh() assign inFlight before this does any work.
     await Promise.resolve()
     try {
-      const games = await this.fetchTrending()
-      this.cache = { games, updatedAt: this.now() }
+      const { games, upcoming } = await this.fetchTrending()
+      this.cache = { games, upcoming, updatedAt: this.now() }
       this.writeCache(this.cache)
       this.error = null
       this.needsKeys = false
@@ -143,14 +146,15 @@ export class TrendingService {
    * and linkable, else the browser. Links come from our own cache, not the UI.
    */
   async open(gameId: number, launcher: StoreLauncher): Promise<'launcher' | 'browser'> {
-    const link = this.cache?.games.find((g) => g.id === gameId)?.stores.find((s) => s.launcher === launcher)
+    const game = this.cache?.games.find((g) => g.id === gameId) ?? this.cache?.upcoming?.find((g) => g.id === gameId)
+    const link = game?.stores.find((s) => s.launcher === launcher)
     if (!link) throw new Error('That store link is no longer available. Refresh Trending and try again.')
     return openStore(link, { isInstalled: (l) => this.isInstalled(l), openExternal: this.deps.openExternal })
   }
 
   // ---- the aggregation pipeline --------------------------------------------
 
-  private async fetchTrending(): Promise<TrendingGame[]> {
+  private async fetchTrending(): Promise<{ games: TrendingGame[]; upcoming: UpcomingGame[] }> {
     const s = this.deps.getSettings()
     if (!s.igdbClientId || !s.igdbClientSecret) throw new MissingKeysError()
     const { fetchFn } = this.deps
@@ -158,8 +162,15 @@ export class TrendingService {
     const igdb = new Igdb(s.igdbClientId, s.igdbClientSecret, fetchFn, this.now, auth)
     const helix = new TwitchHelix(auth, fetchFn)
 
-    // IGDB is required; Twitch only improves the ranking, so its failure is tolerated.
-    const [igdbScores, twitchTop] = await Promise.all([fetchIgdbPopularity(igdb), fetchTwitchTop(helix).catch(() => [])])
+    // IGDB is required; Twitch only improves the ranking and the banner is extra, so their failures are tolerated.
+    const [igdbScores, twitchTop, upcomingRaw] = await Promise.all([
+      fetchIgdbPopularity(igdb),
+      fetchTwitchTop(helix).catch(() => []),
+      fetchIgdbUpcoming(igdb, this.now()).catch((err) => {
+        console.warn('[trending] upcoming games failed:', err)
+        return []
+      })
+    ])
     if (igdbScores.size === 0 && twitchTop.length === 0) throw new Error('IGDB returned no popularity data.')
 
     const byIgdb = [...igdbScores.entries()].sort((a, b) => b[1] - a[1]).slice(0, CANDIDATES).map(([id]) => id)
@@ -181,7 +192,7 @@ export class TrendingService {
     }
     const ranked = rankTrending(games, signals)
     if (ranked.length === 0) throw new Error('No trending PC games found.')
-    return ranked
+    return { games: ranked, upcoming: toUpcoming(upcomingRaw) }
   }
 }
 

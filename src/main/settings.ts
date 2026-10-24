@@ -1,6 +1,7 @@
 import { promises as fs, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { DEFAULT_THEME } from '@shared/themes'
 import { SCAN_SOURCES, type Settings } from '@shared/types'
 
 const DEFAULTS: Settings = {
@@ -9,7 +10,8 @@ const DEFAULTS: Settings = {
   igdbClientSecret: '',
   customFolders: [],
   enabledSources: Object.fromEntries(SCAN_SOURCES.map((s) => [s, true])) as Settings['enabledSources'],
-  ignoredExecutables: []
+  ignoredExecutables: [],
+  theme: DEFAULT_THEME
 }
 
 let cache: Settings | null = null

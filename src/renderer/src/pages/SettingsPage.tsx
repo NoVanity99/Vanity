@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, FolderPlus, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
+import { applyTheme } from '@/lib/theme'
 import { Button } from '@/components/Dialog'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
@@ -143,6 +145,45 @@ export function SettingsPage(): React.JSX.Element {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 px-10 pb-16 pt-12">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+
+        <Section title="Appearance" description="Choose a skin for the launcher.">
+          <div className="grid grid-cols-3 gap-3">
+            {THEMES.map((t) => {
+              const active = (settings.theme ?? 'midnight') === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    applyTheme(t.id)
+                    void save({ theme: t.id })
+                  }}
+                  aria-pressed={active}
+                  className={cn(
+                    'group overflow-hidden rounded-xl border text-left transition duration-200 hover:-translate-y-0.5',
+                    active ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25'
+                  )}
+                >
+                  {/* Mini preview: sidebar, a card and an accent button in the skin's colours. */}
+                  <div className="flex h-20 gap-2 p-2.5" style={{ background: t.colors.bg }}>
+                    <div className="w-6 space-y-1.5 rounded-md p-1" style={{ background: t.colors.surface }}>
+                      <div className="h-1.5 rounded-full" style={{ background: t.colors.accent }} />
+                      <div className="h-1.5 rounded-full" style={{ background: t.colors.border }} />
+                      <div className="h-1.5 rounded-full" style={{ background: t.colors.border }} />
+                    </div>
+                    <div className="flex flex-1 flex-col justify-between rounded-md p-1.5" style={{ background: t.colors.surface2 }}>
+                      <div className="h-1.5 w-2/3 rounded-full" style={{ background: t.colors.muted }} />
+                      <div className="h-3.5 w-10 rounded" style={{ background: `linear-gradient(135deg, ${t.colors.accent}, ${t.colors.accent2})` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ background: t.colors.surface, color: t.colors.text }}>
+                    {t.name}
+                    {active && <span className="size-2 rounded-full" style={{ background: t.colors.accent }} />}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </Section>
 
         <Section
           title="Library scan"

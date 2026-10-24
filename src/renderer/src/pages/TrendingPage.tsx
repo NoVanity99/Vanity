@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, KeyRound, RefreshCw, WifiOff } from 'lucide-react'
-import type { StoreLauncher, TrendingGame, TrendingState } from '@shared/types'
+import type { StoreLauncher, TrendingGame, TrendingState, UpcomingGame } from '@shared/types'
+import { ComingSoonBanner } from '@/components/ComingSoonBanner'
 import { Button } from '@/components/Dialog'
 import { KeysDialog } from '@/components/KeysDialog'
 import { LauncherPicker } from '@/components/LauncherPicker'
@@ -11,11 +12,14 @@ import { useToast } from '@/state/toasts'
 
 const GRID = { gridTemplateColumns: 'repeat(auto-fill, minmax(176px, 1fr))' }
 
+/** Anything with stores that can be opened: a trending or an upcoming game. */
+type Openable = Pick<TrendingGame, 'id' | 'title' | 'stores'>
+
 export function TrendingPage(): React.JSX.Element {
   const toast = useToast()
   const [state, setState] = useState<TrendingState | null>(null)
   const [installed, setInstalled] = useState<Partial<Record<StoreLauncher, boolean>>>({})
-  const [picking, setPicking] = useState<TrendingGame | null>(null)
+  const [picking, setPicking] = useState<Openable | null>(null)
   const [enteringKeys, setEnteringKeys] = useState(false)
   const [, setTick] = useState(0)
 
@@ -37,7 +41,7 @@ export function TrendingPage(): React.JSX.Element {
   }, [])
 
   const open = useCallback(
-    async (game: TrendingGame, launcher: StoreLauncher) => {
+    async (game: Openable, launcher: StoreLauncher) => {
       setPicking(null)
       const res = await window.vanity.trending.open(game.id, launcher)
       if (res.error !== undefined) toast(res.error, 'error')
@@ -47,7 +51,7 @@ export function TrendingPage(): React.JSX.Element {
   )
 
   const select = useCallback(
-    (game: TrendingGame) => {
+    (game: Openable) => {
       if (game.stores.length === 1) void open(game, game.stores[0].launcher)
       else if (game.stores.length > 1) setPicking(game)
     },
@@ -93,11 +97,15 @@ export function TrendingPage(): React.JSX.Element {
         )}
 
         {games.length > 0 ? (
-          <div className="grid gap-x-6 gap-y-9" style={GRID}>
-            {games.map((g, i) => (
-              <TrendingCard key={g.id} game={g} index={i} onSelect={select} />
-            ))}
-          </div>
+          <>
+            <ComingSoonBanner games={state?.upcoming ?? []} onSelect={select as (g: UpcomingGame) => void} />
+            {(state?.upcoming.length ?? 0) > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">Top right now</h2>}
+            <div className="grid gap-x-6 gap-y-9" style={GRID}>
+              {games.map((g, i) => (
+                <TrendingCard key={g.id} game={g} index={i} onSelect={select} />
+              ))}
+            </div>
+          </>
         ) : state?.error && !refreshing ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="mb-5 flex size-16 items-center justify-center rounded-2xl bg-surface-2 ring-1 ring-border">

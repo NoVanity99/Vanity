@@ -5,6 +5,7 @@ import type {
   GameCandidate,
   GamePatch,
   KeyCheck,
+  LauncherStatus,
   MatchCandidate,
   MetadataProgress,
   ScanProgress,
@@ -70,6 +71,12 @@ export interface VanityApi {
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
   }
+  status: {
+    /** Latest known status of each launcher's services. */
+    get(): Promise<LauncherStatus[]>
+    refresh(): Promise<LauncherStatus[]>
+    onUpdate(callback: (statuses: LauncherStatus[]) => void): () => void
+  }
   scan: {
     start(): Promise<ScanSummary>
     onProgress(callback: (progress: ScanProgress[]) => void): () => void
@@ -109,6 +116,9 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  statusGet: 'status:get',
+  statusRefresh: 'status:refresh',
+  statusUpdated: 'status:updated',
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',

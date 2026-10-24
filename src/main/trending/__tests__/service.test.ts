@@ -11,7 +11,8 @@ const settings: Settings = {
   igdbClientSecret: 'SECRET',
   customFolders: [],
   enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, custom: true },
-  ignoredExecutables: []
+  ignoredExecutables: [],
+  theme: 'midnight'
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */
@@ -20,6 +21,10 @@ function apis() {
     (c) => (c.url.includes('id.twitch.tv') ? json({ access_token: 'T', expires_in: 5_000_000 }) : undefined),
     (c) => (c.url.endsWith('/popularity_types') ? json([{ id: 3, name: 'Playing' }]) : undefined),
     (c) => (c.url.endsWith('/popularity_primitives') ? json([{ game_id: 1, value: 9 }, { game_id: 2, value: 5 }]) : undefined),
+    (c) =>
+      c.url.endsWith('/v4/games') && c.body?.includes('sort hypes desc')
+        ? json([{ id: 99, name: 'Upcoming Hit', first_release_date: 1900000000, hypes: 500, cover: { image_id: 'up' }, websites: [{ url: 'https://store.steampowered.com/app/4242' }] }])
+        : undefined,
     (c) =>
       c.url.endsWith('/v4/games')
         ? json([
@@ -105,6 +110,24 @@ describe('TrendingService', () => {
     const { service } = setup(apis().fetch, { igdbClientId: '' })
     await service.refresh()
     expect(service.state()).toMatchObject({ needsKeys: true, error: expect.stringMatching(/MAIN_VITE_IGDB_CLIENT_ID/) })
+  })
+
+  it('includes upcoming games and can open them', async () => {
+    const { service, opened } = setup(apis().fetch)
+    await service.refresh()
+    expect(service.state().upcoming.map((g) => g.title)).toEqual(['Upcoming Hit'])
+    expect(await service.open(99, 'steam')).toBe('launcher')
+    expect(opened).toEqual(['steam://store/4242'])
+  })
+
+  it('still lists trending games when the upcoming query fails', async () => {
+    const ok = apis().fetch
+    const fetch: FetchFn = async (url, init) =>
+      typeof init?.body === 'string' && init.body.includes('sort hypes desc') ? new Response('boom', { status: 500 }) : ok(url, init)
+    const { service } = setup(fetch)
+    await service.refresh()
+    expect(service.state()).toMatchObject({ error: null, upcoming: [] })
+    expect(service.state().games).toHaveLength(2)
   })
 
   it('opens the launcher when installed and the browser otherwise', async () => {
