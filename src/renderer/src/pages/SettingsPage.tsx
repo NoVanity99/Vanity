@@ -16,9 +16,9 @@ import { formatAgo } from '@/lib/format'
 
 /**
  * Shows the "Metadata & artwork" section with the API key fields.
- * Set to false to hide it (e.g. when keys are built in from .env.local).
+ * Hidden: the API keys are built in (src/main/builtinKeys.ts). Set to true to show it again.
  */
-const SHOW_API_KEYS = true
+const SHOW_API_KEYS = false
 
 function Section({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -226,7 +226,7 @@ function UpdatesSection({
 
 const DISCORD_STATE: Record<DiscordStatus['state'], { dot: string; text: string }> = {
   off: { dot: 'bg-white/30', text: 'Off' },
-  'needs-id': { dot: 'bg-amber-400', text: 'Add your Discord application ID below' },
+  'needs-id': { dot: 'bg-amber-400', text: 'No Discord application ID in this build' },
   connecting: { dot: 'bg-amber-400 animate-pulse', text: 'Connecting to Discord…' },
   connected: { dot: 'bg-emerald-400', text: 'Connected' },
   unavailable: { dot: 'bg-red-400', text: "Can't reach Discord" }
@@ -241,18 +241,13 @@ function DiscordSection({
   save: (patch: Partial<Settings>, confirmation?: string) => Promise<void>
 }): React.JSX.Element {
   const [status, setStatus] = useState<DiscordStatus | null>(null)
-  const [id, setId] = useState(settings.discordClientId)
   useEffect(() => {
     window.vanity.discord.status().then(setStatus, () => {})
     return window.vanity.discord.onStatus(setStatus)
   }, [])
-  useEffect(() => setId(settings.discordClientId), [settings.discordClientId])
   const shown = DISCORD_STATE[status?.state ?? 'off']
-  const commitId = (): void => {
-    const v = id.trim()
-    if (v !== settings.discordClientId) void save({ discordClientId: v }, v ? 'Discord application ID saved' : 'Discord application ID removed')
-  }
 
+  // The Discord application ID is built in (src/main/builtinKeys.ts), so there's nothing to set up here.
   return (
     <Section
       title="Discord"
@@ -268,26 +263,8 @@ function DiscordSection({
           {status?.error && status.state !== 'connected' && <span className="text-xs">· {status.error}</span>}
         </p>
       )}
-      <label className="mt-5 block">
-        <span className="text-sm font-medium">Discord application ID</span>
-        <input
-          value={id}
-          onChange={(e) => setId(e.target.value.replace(/\D/g, ''))}
-          onBlur={commitId}
-          onKeyDown={(e) => e.key === 'Enter' && commitId()}
-          inputMode="numeric"
-          placeholder="e.g. 1234567890123456789"
-          className="mt-1.5 h-10 w-full rounded-lg border border-border bg-surface-2 px-3 text-sm tabular-nums outline-none transition placeholder:text-muted hover:border-white/20 focus:border-accent"
-        />
-      </label>
-      <p className="mt-2 text-xs leading-relaxed text-muted">
-        Discord shows the name of this application, so name it <b className="text-text/80">Vanity</b>: create it at{' '}
-        <a className="text-accent hover:underline" href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">
-          discord.com/developers/applications
-        </a>{' '}
-        (New Application → "Vanity"), then copy its Application ID here. For the logo, upload an image named{' '}
-        <code className="rounded bg-white/5 px-1">vanity</code> under Rich Presence → Art Assets. The Discord app must be running on this PC, with Settings →
-        Activity Privacy → "Share your detected activities" turned on.
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        The Discord app must be running on this PC, with Discord's Settings → Activity Privacy → "Share your detected activities" turned on.
       </p>
     </Section>
   )

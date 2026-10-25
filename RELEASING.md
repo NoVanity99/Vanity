@@ -57,7 +57,8 @@ That's it: every installed copy picks the update up within an hour (or on its ne
 - **The repo is public**, so installed copies download updates from its Releases without a token.
 - **API keys are built in** (`src/main/builtinKeys.ts`), so installers work out of the box.
   - The "Check the built-in API keys" step of each release run says whether they still work. If Twitch or SteamGridDB stops accepting them, update that file and release again.
-  - Optional repository secrets `MAIN_VITE_VANITY_API_URL` (account server) and `MAIN_VITE_DISCORD_CLIENT_ID` (Discord app) are baked in too when set.
+  - The Discord application ID is built in there too.
+  - The optional repository secret `MAIN_VITE_VANITY_API_URL` (account server) is baked in when set.
 - **Publishing needs no setup.** The workflow uses GitHub's built-in `GITHUB_TOKEN` (with `contents: write`) to create the release.
 
 ## App identity

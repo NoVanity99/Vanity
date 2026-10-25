@@ -8,5 +8,7 @@ const unscramble = (s: string): string => Buffer.from(s, 'base64').toString('utf
 export const BUILT_IN_KEYS = {
   steamGridDbApiKey: unscramble('MzA1ZjgxNzNhNzA1ZDkyNWQxMzViMzNiMTE0ZmU4ZjE='),
   igdbClientId: unscramble('cDE5MW1iNGs2cHlsZGltMTl5czNrYnFqMGE0aXNy'),
-  igdbClientSecret: unscramble('ZTZ4azY5cHRpNGZ6dTI5MWw2NXhjZGF1a3ZzcWNw')
+  igdbClientSecret: unscramble('ZTZ4azY5cHRpNGZ6dTI5MWw2NXhjZGF1a3ZzcWNw'),
+  // Discord application ("Vanity") for Rich Presence. Application IDs are public, so it's stored as is.
+  discordClientId: '1028852225298137169'
 }

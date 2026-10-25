@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.6.1 (2026-10-26)
+- Settings is simpler: the API keys and the Discord application ID are built in, so the "Metadata & artwork" section and the Discord ID field are gone. Discord Rich Presence works as soon as you turn it on.
+
 ## 0.6.0 (2026-10-25)
 - Vanity is now a real Windows app. Install it with Vanity-Setup.exe from GitHub Releases. You get a Start Menu entry, a desktop shortcut, and an uninstaller in Windows "Apps & features".
 - Automatic updates for the installed app. Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background without getting in your way.

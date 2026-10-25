@@ -100,7 +100,7 @@ Trending and game details need a Twitch client ID and secret (IGDB). Artwork use
 
 To use different keys, in order of priority:
 
-1. **In the app:** Settings → Metadata & artwork. These are saved encrypted, per PC.
+1. **In the app:** the Settings → Metadata & artwork section is hidden because the keys are built in. Set `SHOW_API_KEYS = true` in `src/renderer/src/pages/SettingsPage.tsx` to bring it back. Keys entered there are saved encrypted, per PC.
 2. **`.env.local` at build time:** run `npm run setup-keys`, or create it by hand:
    ```
    MAIN_VITE_STEAMGRIDDB_API_KEY=...
@@ -246,11 +246,7 @@ Turn it on in **Settings → Discord** to show what you're doing in Vanity on yo
 - **Music player:** **Listening to \<song>** by the artist, with how far into the song you are.
 - **Both:** the game on top, with **Listening to \<song>** underneath. Discord shows one timer, which counts the game's time.
 
-**One-time setup:** Discord shows the name of the application that sets the status, so you need your own free one:
-
-1. Go to [discord.com/developers/applications](https://discord.com/developers/applications), click **New Application** and name it **Vanity**.
-2. Copy its **Application ID** into Settings → Discord (or put it in `.env.local` as `MAIN_VITE_DISCORD_CLIENT_ID`).
-3. Optional: under **Rich Presence → Art Assets**, upload a logo named `vanity`.
+**No setup needed:** Vanity's Discord application ID is built in (`src/main/builtinKeys.ts`). Discord shows that application's name ("Vanity"). For a logo next to it, upload an image named `vanity` under **Rich Presence → Art Assets** in the application's page on [discord.com/developers/applications](https://discord.com/developers/applications).
 
 The Discord desktop app must be running on the same PC, with **Activity Privacy → Share your detected activities** turned on. Vanity talks to it locally (`src/main/discord/`), with no extra login, and clears your status when you turn the setting off or quit.
 

@@ -90,7 +90,7 @@ function withDefaults(stored: Partial<Settings>): Settings {
     enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources }
   }
   for (const field of SECRET_FIELDS) merged[field] ||= BUILT_IN[field]
-  merged.discordClientId ||= import.meta.env.MAIN_VITE_DISCORD_CLIENT_ID?.trim() ?? ''
+  merged.discordClientId ||= import.meta.env.MAIN_VITE_DISCORD_CLIENT_ID?.trim() || BUILT_IN_KEYS.discordClientId
   return merged
 }
 
