@@ -471,8 +471,11 @@ export interface UpdateState {
   available: boolean
   /** Patch notes for every version newer than this one, newest first. */
   notes: UpdateNote[]
-  /** Where updates come from: the Vanity server on Vercel, or (without one) git / GitHub; none for installed builds. */
-  mode: 'vercel' | 'git' | 'github' | 'unsupported'
+  /**
+   * Where updates come from. Installed copies: 'release' (GitHub Releases, installed by the Windows installer).
+   * Running from source: the Vanity server on Vercel, or (without one) git / GitHub.
+   */
+  mode: 'release' | 'vercel' | 'git' | 'github' | 'unsupported'
   branch: string
   /** Where updates come from, for Settings (server URL or GitHub repo). */
   source: string
@@ -483,6 +486,8 @@ export interface UpdateState {
   needsToken: boolean
   /** While installing: what it's doing now. */
   applying: string | null
+  /** Installed copies: download progress of a new version, 0–100, while it downloads in the background. */
+  progress?: number | null
 }
 
 /** What the mini player shows for the current song. */

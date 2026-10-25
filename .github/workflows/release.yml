@@ -1,0 +1,61 @@
+# Builds the Windows installer and publishes it to a GitHub Release when you push a tag like v1.0.1.
+# Installed copies of Vanity find the new release through latest.yml and update themselves.
+# See RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the tag matches package.json
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION. Bump the version or fix the tag."
+            exit 1
+          fi
+
+      - name: Release notes from CHANGELOG.md
+        run: node scripts/release-notes.mjs
+
+      - name: Build
+        run: npm run build
+        env:
+          # Optional built-in API keys (repository secrets). Without them, users enter keys in Settings.
+          MAIN_VITE_IGDB_CLIENT_ID: ${{ secrets.MAIN_VITE_IGDB_CLIENT_ID }}
+          MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
+          MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
+          MAIN_VITE_VANITY_API_URL: ${{ secrets.MAIN_VITE_VANITY_API_URL }}
+          MAIN_VITE_DISCORD_CLIENT_ID: ${{ secrets.MAIN_VITE_DISCORD_CLIENT_ID }}
+
+      - name: Package and publish the installer
+        run: npx electron-builder --win --publish always --config.releaseInfo.releaseNotesFile=build-notes/release-notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keep the installer as a workflow artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vanity-Setup-${{ github.ref_name }}
+          path: |
+            dist/*.exe
+            dist/latest.yml
+            dist/*.blockmap

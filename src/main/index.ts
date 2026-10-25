@@ -19,6 +19,8 @@ import { audioResponse, MusicLibrary } from './music/library'
 import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
 import { UpdateService } from './update/service'
+import { ReleaseUpdater, type Updater } from './update/release'
+import { autoUpdater } from 'electron-updater'
 import { DiscordPresence } from './discord/presence'
 import { BreakReminders } from './launcher/breaks'
 import { steamArtworkUrl } from './metadata/steamStore'
@@ -37,7 +39,7 @@ let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
 let status: StatusService | null = null
 let account: AccountService | null = null
-let update: UpdateService | null = null
+let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
 
@@ -268,7 +270,16 @@ app.whenReady().then(() => {
   account.start()
 
   const devServer = is.dev && !!process.env['ELECTRON_RENDERER_URL']
-  update = new UpdateService({
+  // Installed with the Windows installer: updates come from GitHub Releases (electron-updater).
+  // Running from source: the source updater (Vercel server, git or GitHub).
+  update = app.isPackaged
+    ? new ReleaseUpdater({
+        updater: autoUpdater,
+        currentVersion: app.getVersion(),
+        onUpdate: (s) => broadcast(IPC.updateChanged, s),
+        log: (m) => console.warn(m)
+      })
+    : new UpdateService({
     root: app.getAppPath(),
     fetchFn,
     serverUrl: () => accountServerUrl(),

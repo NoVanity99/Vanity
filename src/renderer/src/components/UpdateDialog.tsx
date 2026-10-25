@@ -18,7 +18,13 @@ export function UpdateDialog({ state, onClose }: { state: UpdateState; onClose: 
     <Dialog
       size="xl"
       title="Update available"
-      description={state.available || busy ? `A new version of Vanity is ready to install.` : "You're on the latest version."}
+      description={
+        state.available || busy
+          ? state.mode === 'release'
+            ? 'The new version has been downloaded. Restart Vanity to install it, or it installs by itself the next time you quit.'
+            : 'A new version of Vanity is ready to install.'
+          : "You're on the latest version."
+      }
       onClose={() => !busy && onClose()}
     >
       <div className="p-6">
@@ -31,7 +37,7 @@ export function UpdateDialog({ state, onClose }: { state: UpdateState; onClose: 
         <div className="mt-5 flex flex-wrap gap-3">
           <Button variant="primary" onClick={approve} disabled={busy || !state.available}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            {busy ? state.applying : 'Update and restart'}
+            {busy ? state.applying : state.mode === 'release' ? 'Restart to install' : 'Update and restart'}
           </Button>
           <Button onClick={onClose} disabled={busy}>
             <X className="size-4" /> Not now

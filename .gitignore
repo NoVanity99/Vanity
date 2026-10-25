@@ -8,3 +8,6 @@ dist/
 # Local secrets
 .env.local
 .env.*.local
+
+# Generated release notes
+build-notes/

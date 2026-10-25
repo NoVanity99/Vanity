@@ -92,8 +92,7 @@ function SecretField({ label, value, onSave, help }: { label: string; value: str
 function KeyStatus({ label, result }: { label: string; result: KeyCheck | undefined }): React.JSX.Element | null {
   if (!result) return null
   const ok = result === 'ok'
-  const text =
-    result === 'ok' ? 'working' : result === 'missing' ? 'not set' : result === 'invalid' ? 'rejected: check the key' : result.error
+  const text = result === 'ok' ? 'working' : result === 'missing' ? 'not set' : result === 'invalid' ? 'rejected: check the key' : result.error
   return (
     <span className={cn('flex items-center gap-1.5 text-sm', ok ? 'text-emerald-400' : result === 'missing' ? 'text-muted' : 'text-accent')}>
       {ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
@@ -113,7 +112,15 @@ function ControllerStatus(): React.JSX.Element {
     setKind(pads[0] ? pads[0].id : null)
     return () => window.removeEventListener('vanity:controller', on)
   }, [])
-  const label = !kind ? 'No controller connected' : kind === 'playstation' ? 'PlayStation controller connected' : kind === 'xbox' ? 'Xbox controller connected' : kind === 'generic' ? 'Controller connected' : `Connected: ${kind}`
+  const label = !kind
+    ? 'No controller connected'
+    : kind === 'playstation'
+      ? 'PlayStation controller connected'
+      : kind === 'xbox'
+        ? 'Xbox controller connected'
+        : kind === 'generic'
+          ? 'Controller connected'
+          : `Connected: ${kind}`
   return (
     <p className={cn('flex items-center gap-2 px-3 pb-1 text-sm', kind ? 'text-emerald-400' : 'text-muted')}>
       <Gamepad className="size-4" /> {label}
@@ -122,7 +129,13 @@ function ControllerStatus(): React.JSX.Element {
 }
 
 /** Version, update channel and "Check now". A downloaded copy (not a git clone) needs a GitHub token. */
-function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>, confirmation?: string) => Promise<void> }): React.JSX.Element | null {
+function UpdatesSection({
+  settings,
+  save
+}: {
+  settings: Settings
+  save: (patch: Partial<Settings>, confirmation?: string) => Promise<void>
+}): React.JSX.Element | null {
   const update = useUpdate()
   if (!update) return null
   const count = pendingCount(update)
@@ -132,9 +145,11 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
       description={
         update.mode === 'unsupported'
           ? 'This is an installed build. Install a newer build to update.'
-          : update.mode === 'vercel'
-            ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
-            : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
+          : update.mode === 'release'
+            ? 'Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background. When it is ready, the round button at the top right shows a red badge: restart to install, or it installs the next time you quit.'
+            : update.mode === 'vercel'
+              ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
+              : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
       }
     >
       <div className="flex flex-wrap items-center gap-4">
@@ -150,19 +165,25 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
         <span className="text-sm text-muted">
           {count > 0
             ? `v${update.latest} is ready to install.`
-            : update.needsToken
-              ? 'Add a GitHub token below to get updates.'
-              : update.error
-                ? update.error
-                : update.lastChecked
-                  ? `Up to date. Checked ${formatAgo(update.lastChecked)}.`
-                  : ''}
+            : update.progress != null
+              ? `Downloading v${update.latest} in the background… ${update.progress}%`
+              : update.needsToken
+                ? 'Add a GitHub token below to get updates.'
+                : update.error
+                  ? update.error
+                  : update.lastChecked
+                    ? `Up to date. Checked ${formatAgo(update.lastChecked)}.`
+                    : ''}
         </span>
       </div>
       {update.mode !== 'unsupported' && update.source && (
         <p className="mt-4 flex items-center gap-2 text-xs text-muted">
           <GitBranch className="size-3.5" />
-          {update.mode === 'vercel' ? 'Updates from' : update.mode === 'git' ? 'Updates with git from' : 'Downloads updates from'}{' '}
+          {update.mode === 'vercel' || update.mode === 'release'
+            ? 'Updates from'
+            : update.mode === 'git'
+              ? 'Updates with git from'
+              : 'Downloads updates from'}{' '}
           <code className="rounded bg-white/5 px-1.5 py-0.5">{update.source}</code>
         </p>
       )}
@@ -172,7 +193,12 @@ function UpdatesSection({ settings, save }: { settings: Settings; save: (patch: 
             label="Update key (optional)"
             value={settings.updateKey}
             onSave={(v) => void save({ updateKey: v }, v ? 'Update key saved' : 'Update key removed')}
-            help={<>Only needed if you set <code className="rounded bg-white/5 px-1">UPDATE_KEY</code> on your Vercel server, so that only you can download Vanity from it.</>}
+            help={
+              <>
+                Only needed if you set <code className="rounded bg-white/5 px-1">UPDATE_KEY</code> on your Vercel server, so that only you can download Vanity
+                from it.
+              </>
+            }
           />
         </div>
       )}
@@ -207,7 +233,13 @@ const DISCORD_STATE: Record<DiscordStatus['state'], { dot: string; text: string 
 }
 
 /** Discord Rich Presence: on/off, the application ID, and whether it's connected. */
-function DiscordSection({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>, confirmation?: string) => Promise<void> }): React.JSX.Element {
+function DiscordSection({
+  settings,
+  save
+}: {
+  settings: Settings
+  save: (patch: Partial<Settings>, confirmation?: string) => Promise<void>
+}): React.JSX.Element {
   const [status, setStatus] = useState<DiscordStatus | null>(null)
   const [id, setId] = useState(settings.discordClientId)
   useEffect(() => {
@@ -253,8 +285,9 @@ function DiscordSection({ settings, save }: { settings: Settings; save: (patch: 
         <a className="text-accent hover:underline" href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">
           discord.com/developers/applications
         </a>{' '}
-        (New Application → "Vanity"), then copy its Application ID here. For the logo, upload an image named <code className="rounded bg-white/5 px-1">vanity</code> under
-        Rich Presence → Art Assets. The Discord app must be running on this PC, with Settings → Activity Privacy → "Share your detected activities" turned on.
+        (New Application → "Vanity"), then copy its Application ID here. For the logo, upload an image named{' '}
+        <code className="rounded bg-white/5 px-1">vanity</code> under Rich Presence → Art Assets. The Discord app must be running on this PC, with Settings →
+        Activity Privacy → "Share your detected activities" turned on.
       </p>
     </Section>
   )
@@ -354,7 +387,9 @@ export function SettingsPage(): React.JSX.Element {
           </div>
 
           <h3 className="mb-1 mt-7 text-sm font-semibold text-muted">Font</h3>
-          <p className="mb-4 text-xs text-muted">Every font is built in, so it works offline. Mixed themes use the first font for headings and the second for everything else.</p>
+          <p className="mb-4 text-xs text-muted">
+            Every font is built in, so it works offline. Mixed themes use the first font for headings and the second for everything else.
+          </p>
           {FONT_GROUPS.map((group) => (
             <div key={group} className="mb-5 last:mb-0">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted/80">{group}</h4>
@@ -390,11 +425,7 @@ export function SettingsPage(): React.JSX.Element {
           ))}
 
           <div className="-mx-3 mt-6 border-t border-border pt-3">
-            <Toggle
-              label="Ambient background glow"
-              checked={settings.ambientBackground !== false}
-              onChange={(v) => save({ ambientBackground: v })}
-            />
+            <Toggle label="Ambient background glow" checked={settings.ambientBackground !== false} onChange={(v) => save({ ambientBackground: v })} />
             <Toggle
               label="Minimise Vanity while a game is running"
               checked={!!settings.minimizeWhilePlaying}
@@ -423,7 +454,12 @@ export function SettingsPage(): React.JSX.Element {
                   key={m}
                   role="radio"
                   aria-checked={active}
-                  onClick={() => save({ breakReminderMinutes: m }, m ? `Break reminders every ${m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`}` : 'Break reminders off')}
+                  onClick={() =>
+                    save(
+                      { breakReminderMinutes: m },
+                      m ? `Break reminders every ${m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`}` : 'Break reminders off'
+                    )
+                  }
                   className={cn(
                     'rounded-lg border px-3.5 py-2 text-sm transition',
                     active ? 'border-accent bg-accent/15 font-semibold text-text' : 'border-border text-muted hover:border-white/25 hover:text-text'

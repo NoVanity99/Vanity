@@ -4,7 +4,15 @@ A unified desktop game launcher for Windows 10/11. It finds your Steam, Epic, GO
 
 Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v4 and SQLite (better-sqlite3).
 
-## Getting started
+## Install (Windows)
+
+Download `Vanity-Setup-<version>.exe` from the repo's [Releases](https://github.com/NoVanity99/Vanity/releases) and run it.
+
+- **What you get:** a Start Menu entry, a desktop shortcut, and an uninstaller in Windows **Apps & features**.
+- **SmartScreen:** the installer isn't code-signed, so Windows may show "Windows protected your PC". Click **More info → Run anyway**.
+- **Updates:** the installed app keeps itself up to date from GitHub Releases. See [RELEASING.md](RELEASING.md) for how releases are made.
+
+## Getting started (from source)
 
 ```bash
 npm install        # no C++ build tools needed (see note below)
@@ -249,7 +257,7 @@ The Discord desktop app must be running on the same PC, with **Activity Privacy 
 
 ## Updates
 
-Vanity updates itself from your **Vanity server on Vercel**, so you never have to delete it and download everything again.
+When run from source, Vanity updates itself from your **Vanity server on Vercel**, so you never have to delete it and download everything again.
 
 - **Checking:** every minute, in the background. When a new version is out, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
 - **Where updates come from:** every Vercel deploy of the server runs `npm run build` in `server/`. That packs the app, the version from `package.json` and `CHANGELOG.md` into the deployment (`server/scripts/build-update-bundle.mjs`). The server hands them out at `/api/update` (version and notes) and `/api/update/download` (the files). So pushing a new version and letting Vercel deploy is all it takes.
@@ -258,7 +266,7 @@ Vanity updates itself from your **Vanity server on Vercel**, so you never have t
 - **Installing:** Vanity downloads the new files over its own, keeping `node_modules`, your `.env.local` and your data. It runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
 - **Without a server address:** Vanity falls back to GitHub. A git clone updates with git and your GitHub login; a downloaded copy needs a GitHub token in Settings → Updates. The branch is `vanity.updateBranch` in `package.json`.
 - **Patch notes:** come from [`CHANGELOG.md`](CHANGELOG.md). Each release bumps `version` in `package.json` and adds an entry there. The current version is at the bottom right of Settings.
-- Installed builds (`npm run dist:win`) don't update themselves. Build a new installer instead.
+- **Installed copies** (from `Vanity-Setup.exe`) don't use any of the above. They update from GitHub Releases: they check when they start and every hour, download in the background, then show "Update ready: restart to install". See [RELEASING.md](RELEASING.md).
 
 ## Native modules
 

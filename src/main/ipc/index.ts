@@ -8,7 +8,7 @@ import type { StatusService } from '../status/service'
 import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
 import type { DetailsService } from '../details/service'
-import type { UpdateService } from '../update/service'
+import type { Updater } from '../update/release'
 import type { DiscordPresence } from '../discord/presence'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
@@ -53,7 +53,7 @@ export interface IpcDeps {
   music: MusicLibrary
   live: LiveService
   details: DetailsService
-  update: UpdateService
+  update: Updater
   discord: DiscordPresence
   db: Db
   stats: () => unknown

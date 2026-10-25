@@ -20,6 +20,7 @@ export function UpdateButton(): React.JSX.Element | null {
     if (count > 0) return setOpen(true)
     const s = await checkForUpdate()
     if (s.available) setOpen(true)
+    else if (s.mode === 'release' && s.progress != null) toast(`Downloading v${s.latest} in the background (${s.progress}%)…`)
     else if (s.needsToken) toast('Updates need a GitHub token. Add one in Settings → Updates.', 'error')
     else if (s.error) toast(s.error, 'error')
     else toast(`You're up to date (v${s.current})`)
@@ -27,9 +28,13 @@ export function UpdateButton(): React.JSX.Element | null {
 
   const title =
     count > 0
-      ? `Update available: v${state.latest}`
-      : state.checking
-        ? 'Checking for updates…'
+      ? state.mode === 'release'
+        ? `Update ready: restart to install v${state.latest}`
+        : `Update available: v${state.latest}`
+      : state.progress != null
+        ? `Downloading v${state.latest} (${state.progress}%)…`
+        : state.checking
+          ? 'Checking for updates…'
         : `Check for updates (v${state.current}${state.lastChecked ? `, checked ${formatAgo(state.lastChecked)}` : ''})`
 
   return (
@@ -67,8 +72,17 @@ export function UpdateBanner(): React.JSX.Element | null {
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70" />
           <span className="relative inline-flex size-2 rounded-full bg-white" />
         </span>
-        Update software
-        <span className="font-normal text-white/80">v{state.latest} is ready</span>
+        {state.mode === 'release' ? (
+          <>
+            Update ready
+            <span className="font-normal text-white/80">restart to install v{state.latest}</span>
+          </>
+        ) : (
+          <>
+            Update software
+            <span className="font-normal text-white/80">v{state.latest} is ready</span>
+          </>
+        )}
       </button>
       <button onClick={() => setHidden(state.latest)} aria-label="Hide until the next update" title="Hide" className="border-l border-white/20 py-2 pl-2 pr-3 transition hover:bg-red-500">
         <X className="size-3.5" />
