@@ -28,11 +28,13 @@ When you say **"make a new release"**, this is the checklist:
    git commit -am "v1.2.4: <short summary>"
    git push
    ```
-6. **Tag and push the tag.** This starts the release:
-   ```bash
-   git tag v1.2.4
-   git push origin v1.2.4
-   ```
+6. **Start the release.** Either:
+   - **From GitHub:** go to **Actions → Release → Run workflow** on the branch. It releases the version in `package.json` and creates the `v1.2.4` tag itself. (This is also how Claude releases, since it can only push branches.)
+   - **Or tag and push the tag:**
+     ```bash
+     git tag v1.2.4
+     git push origin v1.2.4
+     ```
 7. **Watch it build** under the repo's **Actions** tab ("Release" workflow, about 5–10 minutes on a Windows runner). When it finishes, the release appears under **Releases** with:
    - `Vanity-Setup-1.2.4.exe`, the installer;
    - `latest.yml`, which installed copies read to find the update;

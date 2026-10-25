@@ -6,6 +6,9 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Or start it from the Actions tab ("Run workflow"): it releases the version in package.json,
+  # and the release creates the v<version> tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,6 +28,7 @@ jobs:
         run: npm ci
 
       - name: Check the tag matches package.json
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
@@ -62,7 +66,7 @@ jobs:
       - name: Keep the installer as a workflow artifact too
         uses: actions/upload-artifact@v4
         with:
-          name: Vanity-Setup-${{ github.ref_name }}
+          name: Vanity-Setup-${{ github.sha }}
           path: |
             dist/*.exe
             dist/latest.yml
