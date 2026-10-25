@@ -30,6 +30,10 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "better-sqlite3": "^13.0.3",
+    "electron-updater": "6.8.10"
+  },
+  "devDependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
     "@fontsource-variable/exo-2": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
@@ -55,12 +59,6 @@
     "@fontsource/press-start-2p": "^5.3.0",
     "@fontsource/rajdhani": "^5.3.0",
     "@fontsource/russo-one": "^5.3.0",
-    "better-sqlite3": "^13.0.3",
-    "electron-updater": "6.8.10",
-    "lucide-react": "1.55.0",
-    "music-metadata": "11.16.1"
-  },
-  "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",
@@ -70,6 +68,8 @@
     "electron": "^45.0.0",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
+    "lucide-react": "1.55.0",
+    "music-metadata": "11.16.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.4",
