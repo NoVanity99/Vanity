@@ -7,10 +7,11 @@ import { CandidateReview } from './components/CandidateReview'
 import { LauncherStatusBar } from './components/LauncherStatusBar'
 import { MusicPlayer } from './components/MusicPlayer'
 import { UpdateBanner, UpdateButton } from './components/UpdateButton'
+import { CommandPalette } from './components/CommandPalette'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
-import { LibraryPage } from './pages/LibraryPage'
+import { CollectionPage, LibraryPage } from './pages/LibraryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendingPage } from './pages/TrendingPage'
 import { SteamStorePage } from './pages/SteamStorePage'
@@ -52,6 +53,7 @@ function Shell(): React.JSX.Element {
             <Route path="/store" element={<SteamStorePage />} />
             <Route path="/recent" element={<LibraryPage view="recent" />} />
             <Route path="/favorites" element={<LibraryPage view="favorites" />} />
+            <Route path="/collection/:id" element={<CollectionPage />} />
             <Route path="/stats" element={<StatsPage />} />
             <Route path="/friends" element={<FriendsPage />} />
             <Route path="/account" element={<AccountPage />} />
@@ -63,6 +65,7 @@ function Shell(): React.JSX.Element {
       </main>
       <GamepadLayer />
       <UpdateBanner />
+      <CommandPalette />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

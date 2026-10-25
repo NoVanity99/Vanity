@@ -3,6 +3,13 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.4.0 (2026-10-25)
+- Collections: make your own game lists ("Co-op nights", "Backlog 2026"…) with the + next to Collections in the sidebar. Right-click any game → Add to collection. Each collection has its own page, which you can rename or delete.
+- Search everything with Ctrl+K (or the Search button at the top of the sidebar). Type a few letters, like "tw3" for The Witcher 3, to jump to a game, page, collection or action. Ctrl+Enter plays a game straight away.
+- Library list view: switch between covers and a compact list showing status, your rating, playtime and last played.
+- Break reminders: Settings → Wellbeing can nudge you to take a break every 30 minutes to 3 hours of play.
+- Stats: "Your year" shows a calendar of the last 12 months of play, with your total hours, active days, best day and longest streak. Hover a day to see its playtime.
+
 ## 0.3.1 (2026-10-24)
 - Updates now come from your Vanity server on Vercel instead of GitHub. Each deploy packs the newest Vanity, and the app downloads it from there, so no GitHub login or token is needed.
 - The server address is the one on the Account page. Without one, Vanity falls back to GitHub as before.

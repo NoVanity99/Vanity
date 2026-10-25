@@ -9,6 +9,7 @@ import { listProcessPaths } from './launcher/processes'
 import { SessionTracker } from './launcher/tracker'
 import { createPlaytimeStore } from './library/playtime'
 import { createSqliteStore } from './library/store'
+import { createCollectionsStore } from './library/collections'
 import { MediaCache } from './metadata/mediaCache'
 import { createMetadataRepo } from './metadata/repo'
 import { MetadataService } from './metadata/service'
@@ -19,6 +20,7 @@ import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
 import { UpdateService } from './update/service'
 import { DiscordPresence } from './discord/presence'
+import { BreakReminders } from './launcher/breaks'
 import { steamArtworkUrl } from './metadata/steamStore'
 import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
@@ -37,6 +39,7 @@ let status: StatusService | null = null
 let account: AccountService | null = null
 let update: UpdateService | null = null
 let discord: DiscordPresence | null = null
+let breaks: BreakReminders | null = null
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
@@ -181,6 +184,16 @@ app.whenReady().then(() => {
     )
   }
   discord.sync()
+
+  breaks = new BreakReminders({
+    running: () => tracker?.running() ?? null,
+    gameName: (id) => store.get(id)?.name ?? null,
+    intervalMinutes: () => getSettings().breakReminderMinutes,
+    notify: (title, body) => {
+      if (Notification.isSupported()) new Notification({ title, body, icon }).show()
+    }
+  })
+  breaks.start()
   // Electron's net.fetch uses Chromium's network stack, so system proxy settings apply.
   const fetchFn = (url: string, init?: RequestInit): Promise<Response> => net.fetch(url, init)
   const media = new MediaCache(join(app.getPath('userData'), 'media'), fetchFn)
@@ -279,7 +292,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, collections: createCollectionsStore(db), tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
@@ -314,6 +327,7 @@ app.on('will-quit', () => {
   status?.dispose()
   update?.dispose()
   discord?.dispose()
+  breaks?.dispose()
   db?.close()
   db = null
 })

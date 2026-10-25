@@ -38,6 +38,7 @@ const game = (over: Partial<Game>): Game => ({
   playStatus: null,
   userRating: null,
   notes: null,
+  collections: [],
   ...over
 })
 

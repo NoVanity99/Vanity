@@ -4,6 +4,7 @@ import { CalendarDays, Clock, Flame, Gamepad2, Trophy } from 'lucide-react'
 import type { PlayStats } from '@shared/ipc'
 import { formatHours as hours, formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { perDay, streak } from '@/lib/playtime'
+import { YearHeatmap } from '@/components/YearHeatmap'
 
 const DAYS = 14
 
@@ -99,6 +100,8 @@ export function StatsPage(): React.JSX.Element {
                 </tbody>
               </table>
             </section>
+
+            <YearHeatmap sessions={stats.recent} delay={270} />
 
             <section className="animate-rise-in rounded-2xl border border-border bg-surface p-6" style={{ '--delay': '300ms' } as React.CSSProperties}>
               <h2 className="flex items-center gap-2 text-base font-semibold">

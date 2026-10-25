@@ -27,7 +27,8 @@ const settings = (keys: boolean): Settings =>
   githubToken: '',
   discordPresence: false,
   discordClientId: '',
-  updateKey: ''
+  updateKey: '',
+  breakReminderMinutes: 0
   }) as Settings
 
 function apis() {

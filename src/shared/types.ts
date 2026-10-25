@@ -47,6 +47,15 @@ export interface Game {
   /** 1–5 stars. */
   userRating: number | null
   notes: string | null
+  /** IDs of the collections this game is in. */
+  collections: number[]
+}
+
+/** A list of games the user made ("Co-op nights", "Backlog 2026"…). */
+export interface Collection {
+  id: number
+  name: string
+  createdAt: number
 }
 
 /** Where the user is with a game (their backlog tracker). */
@@ -192,6 +201,8 @@ export interface Settings {
   discordClientId: string
   /** Sent to the update server when it has UPDATE_KEY set (encrypted at rest). */
   updateKey: string
+  /** Remind you to take a break every this many minutes of play; 0 = off. */
+  breakReminderMinutes: number
 }
 
 /** Fields the user can change on a game. */

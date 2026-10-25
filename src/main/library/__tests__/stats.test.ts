@@ -22,7 +22,7 @@ describe('playStats', () => {
     const old = pt.startSession(a.id, now - 90 * 86_400_000)
     pt.addTime(old, a.id, 600, now - 90 * 86_400_000)
 
-    const stats = playStats(db, now)
+    const stats = playStats(db, now, 60)
     expect(stats).toMatchObject({ totalSeconds: 11400, gamesPlayed: 2, sessions: 3 })
     expect(stats.longest).toMatchObject({ seconds: 7200, name: 'Beta' })
     expect(stats.top.map((t) => [t.name, t.seconds])).toEqual([

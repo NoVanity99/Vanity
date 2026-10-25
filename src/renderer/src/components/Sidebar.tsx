@@ -1,6 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { BarChart3, Clock, Flame, Gamepad2, LayoutGrid, Plus, Settings, ShoppingBag, Star, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { createCollection, useCollections } from '@/state/collections'
+import { openCommandPalette } from './CommandPalette'
+import { NameDialog } from './CollectionsDialog'
 import { useAccount } from '@/state/account'
 import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
@@ -49,7 +52,7 @@ function NavItem({
               isActive ? 'text-accent' : 'text-muted group-hover:text-text'
             )}
           />
-          <span className="flex-1">{label}</span>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
           {count !== undefined && count > 0 && <span className="text-xs tabular-nums text-muted">{count}</span>}
         </>
       )}
@@ -73,9 +76,15 @@ function useActiveIndicator(container: React.RefObject<HTMLElement | null>): { t
       setPos({ top: a.top - c.top, height: a.height, visible: true })
     }
     update()
+    // The nav scrolls when there are many collections.
+    const nav = container.current?.querySelector('nav')
+    nav?.addEventListener('scroll', update, { passive: true })
     const observer = new ResizeObserver(update)
     if (container.current) observer.observe(container.current)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      nav?.removeEventListener('scroll', update)
+    }
   }, [location.pathname, container])
   return pos
 }
@@ -130,6 +139,9 @@ export function Sidebar(): React.JSX.Element {
   const [addPlayed, playAdd] = useClickAnimation()
   const visible = games.filter((g) => !g.hidden)
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
+  const collections = useCollections()
+  const navigate = useNavigate()
+  const [creating, setCreating] = useState(false)
 
   return (
     <aside ref={sidebarRef} className="relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl">
@@ -141,7 +153,16 @@ export function Sidebar(): React.JSX.Element {
         <span className="text-lg font-bold tracking-tight">Vanity</span>
       </div>
 
-      <nav className="space-y-1 px-3 pt-2">
+      <button
+        onClick={openCommandPalette}
+        className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
+      >
+        <Search className="size-4" />
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide">Ctrl K</kbd>
+      </button>
+
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
         <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
         <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />
@@ -149,9 +170,25 @@ export function Sidebar(): React.JSX.Element {
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
         <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
+
+        <div className="flex items-center justify-between px-3 pb-1 pt-5">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>
+          <button onClick={() => setCreating(true)} title="New collection" aria-label="New collection" className="rounded p-0.5 text-muted transition hover:bg-white/10 hover:text-text">
+            <Plus className="size-3.5" />
+          </button>
+        </div>
+        {collections.length === 0 ? (
+          <button onClick={() => setCreating(true)} className="w-full rounded-lg px-3 py-2 text-left text-xs text-muted transition hover:bg-white/5 hover:text-text">
+            Group games your way: make a collection, then right-click games to add them.
+          </button>
+        ) : (
+          collections.map((c) => (
+            <NavItem key={c.id} to={`/collection/${c.id}`} icon={Layers} label={c.name} count={visible.filter((g) => g.collections.includes(c.id)).length} animation="bounce" />
+          ))
+        )}
       </nav>
 
-      <div className="mt-auto space-y-1 px-3 pb-4">
+      <div className="space-y-1 px-3 pb-4 pt-2">
         {playing.map((g) => (
           <NavLink
             key={g.id}
@@ -208,6 +245,17 @@ export function Sidebar(): React.JSX.Element {
         <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
         <AccountItem />
       </div>
+      {creating && (
+        <NameDialog
+          title="New collection"
+          confirm="Create"
+          onClose={() => setCreating(false)}
+          onSubmit={async (name) => {
+            const c = await createCollection(name)
+            navigate(`/collection/${c.id}`)
+          }}
+        />
+      )}
     </aside>
   )
 }

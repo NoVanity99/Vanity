@@ -73,5 +73,20 @@ export const migrations: string[] = [
   ALTER TABLE games ADD COLUMN play_status TEXT;
   ALTER TABLE games ADD COLUMN user_rating INTEGER;
   ALTER TABLE games ADD COLUMN notes TEXT;
+  `,
+  // 6: collections (your own game lists)
+  `
+  CREATE TABLE collections (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    created_at  INTEGER NOT NULL
+  );
+  CREATE TABLE collection_games (
+    collection_id  INTEGER NOT NULL REFERENCES collections (id) ON DELETE CASCADE,
+    game_id        INTEGER NOT NULL REFERENCES games (id) ON DELETE CASCADE,
+    added_at       INTEGER NOT NULL,
+    PRIMARY KEY (collection_id, game_id)
+  );
+  CREATE INDEX collection_games_game ON collection_games (game_id);
   `
 ]

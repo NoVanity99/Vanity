@@ -27,7 +27,8 @@ const settings: Settings = {
   githubToken: '',
   discordPresence: false,
   discordClientId: '',
-  updateKey: ''
+  updateKey: '',
+  breakReminderMinutes: 0
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

@@ -25,7 +25,8 @@ const settings: Settings = {
   githubToken: '',
   discordPresence: false,
   discordClientId: '',
-  updateKey: ''
+  updateKey: '',
+  breakReminderMinutes: 0
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

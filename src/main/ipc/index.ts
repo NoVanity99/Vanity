@@ -20,6 +20,7 @@ import { launchGame, LaunchError } from '../launcher/launch'
 import type { SessionTracker } from '../launcher/tracker'
 import { runScan } from '../library/scan'
 import type { LibraryStore } from '../library/store'
+import type { CollectionsStore } from '../library/collections'
 import { exeExternalId } from '../scanners/custom'
 import { getSettings, updateSettings } from '../settings'
 import { nameFromExecutable } from '../util/executables'
@@ -43,6 +44,7 @@ const validKind = (kind: ArtworkKind): ArtworkKind => {
 
 export interface IpcDeps {
   store: LibraryStore
+  collections: CollectionsStore
   tracker: SessionTracker
   metadata: MetadataService
   media: MediaCache
@@ -60,7 +62,7 @@ export interface IpcDeps {
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -112,6 +114,17 @@ export function registerIpc({ store, tracker, metadata, media, trending, status,
   ipcMain.handle(IPC.gamesPlayStats, (_e, id: number) => gamePlayStats(db, Number(id)))
   ipcMain.handle(IPC.gamesDetails, (_e, id: number, refresh: boolean) => details.forGame(Number(id), refresh === true).catch(() => null))
   ipcMain.handle(IPC.gamesDiskSize, (_e, id: number) => details.diskSize(Number(id)).catch(() => null))
+
+  ipcMain.handle(IPC.collectionsList, () => collections.list())
+  ipcMain.handle(IPC.collectionsCreate, (_e, name: string) => wrap(async () => collections.create(name)))
+  ipcMain.handle(IPC.collectionsRename, (_e, id: number, name: string) => wrap(async () => collections.rename(Number(id), name)))
+  ipcMain.handle(IPC.collectionsRemove, (_e, id: number) => collections.remove(Number(id)))
+  ipcMain.handle(IPC.collectionsSetMember, (_e, collectionId: number, gameId: number, member: boolean) =>
+    wrap(async () => {
+      collections.setMember(Number(collectionId), Number(gameId), member === true)
+      return store.get(Number(gameId))
+    })
+  )
 
   ipcMain.handle(IPC.sessionsStates, () => tracker.states())
 

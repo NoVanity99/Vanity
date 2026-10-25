@@ -25,7 +25,8 @@ const DEFAULTS: Settings = {
   githubToken: '',
   discordPresence: false,
   discordClientId: '',
-  updateKey: ''
+  updateKey: '',
+  breakReminderMinutes: 0
 }
 
 let cache: Settings | null = null

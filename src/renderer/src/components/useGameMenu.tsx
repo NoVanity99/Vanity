@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
-import { EyeOff, Eye, FolderOpen, Image, Pencil, Play, RefreshCw, Star, StarOff, Trash2 } from 'lucide-react'
+import { EyeOff, Eye, FolderOpen, Image, Layers, Pencil, Play, RefreshCw, Star, StarOff, Trash2 } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 import { ArtworkDialog } from './ArtworkDialog'
+import { CollectionsDialog } from './CollectionsDialog'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { EditGameDialog } from './EditGameDialog'
 
@@ -20,6 +21,7 @@ export function useGameMenu(): {
   const [state, setState] = useState<{ x: number; y: number; game: Game } | null>(null)
   const [editing, setEditing] = useState<Game | null>(null)
   const [artwork, setArtwork] = useState<Game | null>(null)
+  const [collecting, setCollecting] = useState<Game | null>(null)
 
   const refreshMetadata = useCallback(
     async (g: Game) => {
@@ -55,6 +57,7 @@ export function useGameMenu(): {
         icon: g.favorite ? StarOff : Star,
         onSelect: () => updateGame(g.id, { favorite: !g.favorite })
       },
+      { label: g.collections.length ? `Collections (${g.collections.length})…` : 'Add to collection…', icon: Layers, onSelect: () => setCollecting(g) },
       { label: 'Edit metadata', icon: Pencil, onSelect: () => setEditing(g) },
       { label: 'Change artwork', icon: Image, onSelect: () => setArtwork(g) },
       { label: 'Refresh metadata', icon: RefreshCw, onSelect: () => refreshMetadata(g) },
@@ -82,6 +85,7 @@ export function useGameMenu(): {
         {menu}
         {editing && <EditGameDialog game={editing} onClose={() => setEditing(null)} />}
         {artwork && <ArtworkDialog game={artwork} onClose={() => setArtwork(null)} />}
+        {collecting && <CollectionsDialog game={collecting} onClose={() => setCollecting(null)} />}
       </>
     )
   }

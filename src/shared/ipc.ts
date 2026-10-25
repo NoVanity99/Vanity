@@ -25,7 +25,8 @@ import type {
   UpdateState,
   TrackInfo,
   DiscordStatus,
-  NowListening
+  NowListening,
+  Collection
 } from './types'
 
 export interface PlayStats {
@@ -71,6 +72,14 @@ export interface VanityApi {
     details(id: number, refresh?: boolean): Promise<GameDetails | null>
     /** Size of the install folder in bytes, or null if unknown. */
     diskSize(id: number): Promise<number | null>
+  }
+  collections: {
+    list(): Promise<Collection[]>
+    create(name: string): Promise<Result<Collection>>
+    rename(id: number, name: string): Promise<Result<Collection | null>>
+    remove(id: number): Promise<void>
+    /** Adds a game to a collection or takes it out; resolves to the updated game. */
+    setMember(collectionId: number, gameId: number, member: boolean): Promise<Result<Game | null>>
   }
   sessions: {
     /** Games currently launching or running, by game ID. */
@@ -192,6 +201,11 @@ export const IPC = {
   gamesDetails: 'games:details',
   gamesDiskSize: 'games:disk-size',
   sessionsStates: 'sessions:states',
+  collectionsList: 'collections:list',
+  collectionsCreate: 'collections:create',
+  collectionsRename: 'collections:rename',
+  collectionsRemove: 'collections:remove',
+  collectionsSetMember: 'collections:set-member',
   metadataProgress: 'metadata:progress',
   metadataProgressChanged: 'metadata:progress-changed',
   metadataGameUpdated: 'metadata:game-updated',

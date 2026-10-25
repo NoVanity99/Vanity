@@ -50,6 +50,8 @@ interface GameRow {
   play_status: string | null
   user_rating: number | null
   notes: string | null
+  /** Comma-separated collection IDs. */
+  collection_ids: string | null
 }
 
 function parseGenres(json: string): string[] {
@@ -95,7 +97,8 @@ function toGame(r: GameRow): Game {
     },
     playStatus: PLAY_STATUSES.includes(r.play_status as PlayStatus) ? (r.play_status as PlayStatus) : null,
     userRating: r.user_rating && r.user_rating >= 1 && r.user_rating <= 5 ? r.user_rating : null,
-    notes: r.notes
+    notes: r.notes,
+    collections: (r.collection_ids ?? '').split(',').filter(Boolean).map(Number)
   }
 }
 
@@ -103,10 +106,12 @@ export function gameKey(g: Pick<DetectedGame, 'source' | 'externalId'>): string 
   return `${g.source}:${g.externalId}`
 }
 
+const COLLECTION_IDS = '(SELECT group_concat(collection_id) FROM collection_games WHERE game_id = g.id) AS collection_ids'
+
 export function createSqliteStore(db: Db, now: () => number = Date.now): LibraryStore {
   const q = {
-    list: db.prepare<[], GameRow>('SELECT * FROM games ORDER BY name COLLATE NOCASE'),
-    get: db.prepare<[number], GameRow>('SELECT * FROM games WHERE id = ?'),
+    list: db.prepare<[], GameRow>(`SELECT g.*, ${COLLECTION_IDS} FROM games g ORDER BY g.name COLLATE NOCASE`),
+    get: db.prepare<[number], GameRow>(`SELECT g.*, ${COLLECTION_IDS} FROM games g WHERE g.id = ?`),
     findKey: db.prepare<[string, string], { id: number }>('SELECT id FROM games WHERE source = ? AND external_id = ?'),
     insert: db.prepare(
       `INSERT INTO games (source, external_id, name, install_path, executable_path, added_at, last_seen_at)

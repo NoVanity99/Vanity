@@ -50,3 +50,18 @@ describe('playtime maths', () => {
     expect(formatBytes(150 * 1024 ** 3)).toBe('150 GB')
   })
 })
+
+describe('year heatmap', () => {
+  it('lays out 53 weeks from a Monday, with levels from your own play', async () => {
+    const { buildHeatmap } = await import('../../components/YearHeatmap')
+    const now = new Date(2026, 9, 25, 15).getTime() // a Sunday
+    const day = (d: number, h: number): { startedAt: number; seconds: number } => ({ startedAt: new Date(2026, 9, d, 20).getTime(), seconds: h * 3600 })
+    const { weeks, months } = buildHeatmap([day(20, 1), day(21, 2), day(22, 3), day(23, 4), day(23, 1)], now)
+    expect(weeks).toHaveLength(53)
+    expect(weeks[0][0].date.getDay()).toBe(1)
+    const last = weeks[52]
+    expect(last[6].date.getDate()).toBe(25) // this week ends today (Sunday)
+    expect(last.map((c) => c.level)).toEqual([0, 1, 2, 3, 4, 0, 0]) // 1 h, 2 h, 3 h, 5 h
+    expect(months.length).toBeGreaterThanOrEqual(12)
+  })
+})

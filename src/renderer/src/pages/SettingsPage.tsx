@@ -413,6 +413,29 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </Section>
 
+        <Section title="Wellbeing" description="While a game is running, Vanity can nudge you to take a break with a Windows notification.">
+          <p className="mb-2 text-sm font-medium">Remind me to take a break every</p>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Break reminders">
+            {[0, 30, 60, 90, 120, 180].map((m) => {
+              const active = (settings.breakReminderMinutes ?? 0) === m
+              return (
+                <button
+                  key={m}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => save({ breakReminderMinutes: m }, m ? `Break reminders every ${m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`}` : 'Break reminders off')}
+                  className={cn(
+                    'rounded-lg border px-3.5 py-2 text-sm transition',
+                    active ? 'border-accent bg-accent/15 font-semibold text-text' : 'border-border text-muted hover:border-white/25 hover:text-text'
+                  )}
+                >
+                  {m === 0 ? 'Off' : m < 60 ? `${m} min` : `${m / 60} h`}
+                </button>
+              )
+            })}
+          </div>
+        </Section>
+
         <DiscordSection settings={settings} save={save} />
 
         <UpdatesSection settings={settings} save={save} />

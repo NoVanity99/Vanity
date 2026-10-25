@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Plus, Search, Star, X } from 'lucide-react'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, LayoutGrid, Layers, List, Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
 import { PLAY_STATUS_LABELS, PLAY_STATUSES, SOURCE_LABELS, type Game, type GameSource, type PlayStatus } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
+import { GameRow, ROW_GRID } from '@/components/GameRow'
+import { NameDialog } from '@/components/CollectionsDialog'
+import { deleteCollection, renameCollection, useCollections } from '@/state/collections'
 import { RecentShelf } from '@/components/RecentShelf'
 import { useGameMenu } from '@/components/useGameMenu'
 import { cn } from '@/lib/cn'
@@ -12,7 +15,7 @@ import { searchKey } from '@/lib/format'
 import { loadPref, savePref } from '@/lib/storage'
 import { useLibrary } from '@/state/library'
 
-type View = 'all' | 'recent' | 'favorites'
+type View = 'all' | 'recent' | 'favorites' | 'collection'
 type Sort = 'name' | 'recent' | 'added' | 'playtime' | 'rating' | 'release'
 
 interface Prefs {
@@ -23,13 +26,14 @@ interface Prefs {
   showHidden: boolean
   /** Minimum card width in px (the size slider). */
   cardWidth: number
+  layout: 'grid' | 'list'
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168 }
+const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168, layout: 'grid' }
 const CARD_MIN = 128
 const CARD_MAX = 260
 
-const TITLES: Record<View, string> = { all: 'Library', recent: 'Recently Played', favorites: 'Favorites' }
+const TITLES: Record<View, string> = { all: 'Library', recent: 'Recently Played', favorites: 'Favorites', collection: 'Collection' }
 
 const byName = (a: Game, b: Game): number => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
 const SORTERS: Record<Sort, (a: Game, b: Game) => number> = {
@@ -71,7 +75,16 @@ function Select<T extends string>({
   )
 }
 
-export function LibraryPage({ view }: { view: View }): React.JSX.Element {
+/** /collection/:id: the library, showing one of your collections. */
+export function CollectionPage(): React.JSX.Element {
+  const { id } = useParams()
+  const collections = useCollections()
+  const collection = collections.find((c) => c.id === Number(id))
+  if (!collection) return collections.length || !id ? <Navigate to="/library" replace /> : <div />
+  return <LibraryPage key={collection.id} view="collection" collection={collection} />
+}
+
+export function LibraryPage({ view, collection }: { view: View; collection?: { id: number; name: string } }): React.JSX.Element {
   const { games, loading, scan, addManually, sessions, launch } = useLibrary()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
@@ -81,11 +94,15 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   const [prefs, setPrefs] = useState<Prefs>(() => ({ ...DEFAULT_PREFS, ...loadPref(`library-${view}`, DEFAULT_PREFS) }))
   const [players, setPlayers] = useState<Record<number, number>>({})
   const [surprise, setSurprise] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   // Live Steam player counts for the cards (cached in the main process for 10 minutes).
   useEffect(() => {
     let cancelled = false
-    window.vanity.live.library().then((p) => !cancelled && setPlayers(p), () => {})
+    window.vanity.live.library().then(
+      (p) => !cancelled && setPlayers(p),
+      () => {}
+    )
     return () => {
       cancelled = true
     }
@@ -111,8 +128,9 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
   const base = useMemo(() => {
     if (view === 'recent') return games.filter((g) => g.lastPlayedAt !== null)
     if (view === 'favorites') return games.filter((g) => g.favorite)
+    if (view === 'collection') return games.filter((g) => collection && g.collections.includes(collection.id))
     return games
-  }, [games, view])
+  }, [games, view, collection])
 
   const sources = useMemo(() => [...new Set(base.map((g) => g.source))].sort(), [base])
   const genres = useMemo(() => [...new Set(base.flatMap((g) => g.genres))].sort(), [base])
@@ -162,11 +180,28 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="sticky top-0 z-10 shrink-0 border-b border-white/5 bg-bg/80 px-10 pb-5 pt-12 backdrop-blur-xl">
         <div className="flex items-end gap-4">
-          <h1 className="text-3xl font-bold tracking-tight">{TITLES[view]}</h1>
+          {view === 'collection' && <Layers className="mb-1.5 size-6 text-accent" />}
+          <h1 className="text-3xl font-bold tracking-tight">{collection?.name ?? TITLES[view]}</h1>
           <span className="pb-1 text-sm tabular-nums text-muted">
             {shown.length}
             {shown.length !== base.length && ` of ${base.length}`} games
           </span>
+          {collection && (
+            <span className="ml-auto flex gap-2">
+              <Button onClick={() => setRenaming(true)}>
+                <Pencil className="size-4" /> Rename
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!window.confirm(`Delete the collection "${collection.name}"? The games stay in your library.`)) return
+                  await deleteCollection(collection.id)
+                  navigate('/library')
+                }}
+              >
+                <Trash2 className="size-4" /> Delete
+              </Button>
+            </span>
+          )}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -266,20 +301,49 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
             </button>
           )}
 
-          <label className={cn('flex items-center gap-2 text-muted', !(view === 'all' && games.length > 1) && 'ml-auto')} title="Card size">
-            <ImageIcon className="size-3.5" />
-            <input
-              type="range"
-              min={CARD_MIN}
-              max={CARD_MAX}
-              step={4}
-              value={prefs.cardWidth}
-              onChange={(e) => patch({ cardWidth: Number(e.target.value) })}
-              className="h-1 w-28 cursor-pointer rounded-full accent-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
-              aria-label="Card size"
-            />
-            <ImageIcon className="size-5" />
-          </label>
+          <div
+            className={cn('flex rounded-lg border border-border bg-surface-2 p-0.5', !(view === 'all' && games.length > 1) && 'ml-auto')}
+            role="radiogroup"
+            aria-label="Layout"
+          >
+            {(
+              [
+                ['grid', LayoutGrid, 'Grid'],
+                ['list', List, 'List']
+              ] as const
+            ).map(([value, Icon, label]) => (
+              <button
+                key={value}
+                role="radio"
+                aria-checked={prefs.layout === value}
+                title={`${label} view`}
+                onClick={() => patch({ layout: value })}
+                className={cn(
+                  'flex h-8 w-9 items-center justify-center rounded-md transition',
+                  prefs.layout === value ? 'bg-accent text-white shadow' : 'text-muted hover:text-text'
+                )}
+              >
+                <Icon className="size-4" />
+              </button>
+            ))}
+          </div>
+
+          {prefs.layout === 'grid' && (
+            <label className="flex items-center gap-2 text-muted" title="Card size">
+              <ImageIcon className="size-3.5" />
+              <input
+                type="range"
+                min={CARD_MIN}
+                max={CARD_MAX}
+                step={4}
+                value={prefs.cardWidth}
+                onChange={(e) => patch({ cardWidth: Number(e.target.value) })}
+                className="h-1 w-28 cursor-pointer rounded-full accent-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+                aria-label="Card size"
+              />
+              <ImageIcon className="size-5" />
+            </label>
+          )}
         </div>
       </header>
 
@@ -297,11 +361,48 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
           <>
             <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} />
             {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
-            <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
-              {shown.map((g, i) => (
-                <GameCard key={g.id} game={g} index={i} session={sessions[g.id]} players={players[g.id]} onOpen={openGame} onPlay={playGame} onMenu={openMenu} />
-              ))}
-            </div>
+            {prefs.layout === 'list' ? (
+              <div>
+                <div className={cn(ROW_GRID, 'border-b border-white/5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted')}>
+                  <span />
+                  <span>Game</span>
+                  <span>Status</span>
+                  <span>Rating</span>
+                  <span className="text-right">Playtime</span>
+                  <span className="text-right">Last played</span>
+                  <span />
+                </div>
+                <div className="mt-1 space-y-0.5">
+                  {shown.map((g, i) => (
+                    <GameRow
+                      key={g.id}
+                      game={g}
+                      index={i}
+                      session={sessions[g.id]}
+                      players={players[g.id]}
+                      onOpen={openGame}
+                      onPlay={playGame}
+                      onMenu={openMenu}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+                {shown.map((g, i) => (
+                  <GameCard
+                    key={g.id}
+                    game={g}
+                    index={i}
+                    session={sessions[g.id]}
+                    players={players[g.id]}
+                    onOpen={openGame}
+                    onPlay={playGame}
+                    onMenu={openMenu}
+                  />
+                ))}
+              </div>
+            )}
           </>
         ) : filtered ? (
           <EmptyState icon={Search} title="No games match" text="Try a different search or filter.">
@@ -311,14 +412,12 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
           <EmptyState icon={Clock} title="Nothing played yet" text="Games you launch from Vanity show up here." />
         ) : view === 'favorites' ? (
           <EmptyState icon={Star} title="No favorites yet" text="Right-click a game and choose Add to favorites." />
+        ) : view === 'collection' ? (
+          <EmptyState icon={Layers} title="This collection is empty" text="Right-click any game and choose Add to collection." />
         ) : scan.running ? (
           <EmptyState icon={FolderSearch} title="Looking for your games…" text="Checking Steam, Epic, GOG, EA, Ubisoft and your folders." />
         ) : (
-          <EmptyState
-            icon={FolderSearch}
-            title="No games yet"
-            text="Scan for installed games, or add one yourself."
-          >
+          <EmptyState icon={FolderSearch} title="No games yet" text="Scan for installed games, or add one yourself.">
             <Button variant="primary" onClick={scan.start}>
               Scan for games
             </Button>
@@ -330,6 +429,15 @@ export function LibraryPage({ view }: { view: View }): React.JSX.Element {
       </div>
       {menu}
       {surprise && <SurpriseDialog onClose={() => setSurprise(false)} />}
+      {renaming && collection && (
+        <NameDialog
+          title="Rename collection"
+          initial={collection.name}
+          confirm="Rename"
+          onClose={() => setRenaming(false)}
+          onSubmit={(name) => renameCollection(collection.id, name)}
+        />
+      )}
     </div>
   )
 }

@@ -12,7 +12,7 @@ export interface PlayStats {
 }
 
 /** Playtime summary from the library and recorded play sessions. */
-export function playStats(db: Db, now = Date.now(), days = 60): PlayStats {
+export function playStats(db: Db, now = Date.now(), days = 371): PlayStats {
   const totals = db
     .prepare('SELECT COALESCE(SUM(playtime_seconds), 0) AS total, SUM(playtime_seconds > 0) AS played FROM games')
     .get() as { total: number; played: number | null }

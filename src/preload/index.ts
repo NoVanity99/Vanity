@@ -17,6 +17,13 @@ const api: VanityApi = {
     details: (id, refresh) => ipcRenderer.invoke(IPC.gamesDetails, id, refresh === true),
     diskSize: (id) => ipcRenderer.invoke(IPC.gamesDiskSize, id)
   },
+  collections: {
+    list: () => ipcRenderer.invoke(IPC.collectionsList),
+    create: (name) => ipcRenderer.invoke(IPC.collectionsCreate, name),
+    rename: (id, name) => ipcRenderer.invoke(IPC.collectionsRename, id, name),
+    remove: (id) => ipcRenderer.invoke(IPC.collectionsRemove, id),
+    setMember: (collectionId, gameId, member) => ipcRenderer.invoke(IPC.collectionsSetMember, collectionId, gameId, member)
+  },
   sessions: {
     states: () => ipcRenderer.invoke(IPC.sessionsStates),
     onChange(callback) {
