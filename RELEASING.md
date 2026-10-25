@@ -52,15 +52,10 @@ That's it: every installed copy picks the update up within an hour (or on its ne
 
 ## One-time setup
 
-- **The repo must be public** (`NoVanity99/Vanity` → Settings → General → Danger Zone → Change visibility → Public). Installed copies download updates from its Releases without a token. Your keys stay private: `.env.local` is git-ignored and never pushed.
-- **Optional built-in API keys.** The release build can bake in API keys from repository secrets (Settings → Secrets and variables → Actions → New repository secret):
-  - `MAIN_VITE_IGDB_CLIENT_ID`
-  - `MAIN_VITE_IGDB_CLIENT_SECRET`
-  - `MAIN_VITE_STEAMGRIDDB_API_KEY`
-  - `MAIN_VITE_VANITY_API_URL`
-  - `MAIN_VITE_DISCORD_CLIENT_ID`
-
-  Anything built into a public installer can be dug out of it, so only add keys you're fine sharing. Without them, users enter keys in Settings.
+- **The repo is public**, so installed copies download updates from its Releases without a token.
+- **API keys are built in** (`src/main/builtinKeys.ts`), so installers work out of the box.
+  - The "Check the built-in API keys" step of each release run says whether they still work. If Twitch or SteamGridDB stops accepting them, update that file and release again.
+  - Optional repository secrets `MAIN_VITE_VANITY_API_URL` (account server) and `MAIN_VITE_DISCORD_CLIENT_ID` (Discord app) are baked in too when set.
 - **Publishing needs no setup.** The workflow uses GitHub's built-in `GITHUB_TOKEN` (with `contents: write`) to create the release.
 
 ## App identity

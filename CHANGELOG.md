@@ -8,6 +8,7 @@ Format: one `## <version> (<date>)` heading per release, then one `- ` bullet pe
 - Automatic updates for the installed app. Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background without getting in your way.
 - When an update is ready, a small "Update ready: restart to install" notice appears. If you don't restart, it installs the next time you quit.
 - If you're offline or GitHub is down, Vanity says nothing and tries again later.
+- The API keys for Trending, game details and artwork are built in, so nobody has to enter any.
 
 ## 0.5.0 (2026-10-25)
 - Big Picture mode: a full-screen, couch-friendly view. Open it with the TV button next to the Vanity logo, or "Big Picture" in Ctrl+K search.

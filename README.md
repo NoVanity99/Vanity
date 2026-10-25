@@ -94,24 +94,23 @@ resources/           App icon and build resources
 
 ## API keys
 
-Trending and game details need a Twitch client ID and secret (IGDB). Artwork uses a SteamGridDB key. There are two ways to provide them:
+Trending and game details need a Twitch client ID and secret (IGDB). Artwork uses a SteamGridDB key.
 
-1. **In the app:** on the Trending tab, click **Enter keys**. They're saved encrypted in Vanity's settings.
-2. **Built in:** run `npm run setup-keys` in the project folder and answer the prompts. It writes `.env.local` for you, and renames `.env.local.txt` if Notepad created that. Then restart `npm run dev`.
+**They're built in.** `src/main/builtinKeys.ts` holds keys that ship inside every build and installer, so nobody has to enter anything. They're lightly scrambled only so automated secret scanners don't flag and revoke them; anyone can read them, and that's intended.
 
-`npm run dev` prints a warning if `.env.local` is missing or misnamed.
+To use different keys, in order of priority:
 
-### Built-in keys (.env.local)
+1. **In the app:** Settings → Metadata & artwork. These are saved encrypted, per PC.
+2. **`.env.local` at build time:** run `npm run setup-keys`, or create it by hand:
+   ```
+   MAIN_VITE_STEAMGRIDDB_API_KEY=...
+   MAIN_VITE_IGDB_CLIENT_ID=...
+   MAIN_VITE_IGDB_CLIENT_SECRET=...
+   ```
+   For release builds, add repository secrets with these names instead.
+3. **Change the built-in ones:** edit `src/main/builtinKeys.ts`. Each value is the key reversed, then base64-encoded.
 
-Or create `.env.local` by hand (copy `.env.example`) in the project folder, next to `package.json`:
-
-```
-MAIN_VITE_STEAMGRIDDB_API_KEY=...
-MAIN_VITE_IGDB_CLIENT_ID=...
-MAIN_VITE_IGDB_CLIENT_SECRET=...
-```
-
-`.env.local` is ignored by git, so the keys never reach GitHub. They are built into the main process when you run `npm run dev` or `npm run build` (restart `npm run dev` after editing the file), and are used whenever the matching Settings field is empty. A key typed into Settings takes priority. Since they end up inside the built app, don't share builds or installers made with your keys.
+Each release build tests the built-in keys and warns in the Actions log if Twitch or SteamGridDB rejects them.
 
 ## Game sources
 

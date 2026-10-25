@@ -4,6 +4,7 @@ import { app, safeStorage } from 'electron'
 import { DEFAULT_FONT } from '@shared/fonts'
 import { DEFAULT_THEME } from '@shared/themes'
 import { SCAN_SOURCES, type Settings } from '@shared/types'
+import { BUILT_IN_KEYS } from './builtinKeys'
 
 const DEFAULTS: Settings = {
   steamGridDbApiKey: '',
@@ -70,9 +71,9 @@ function settingsPath(): string {
 
 /** Credentials built in at build time from .env.local, used when the Settings field is empty. */
 const BUILT_IN: Pick<Settings, (typeof SECRET_FIELDS)[number]> = {
-  steamGridDbApiKey: import.meta.env.MAIN_VITE_STEAMGRIDDB_API_KEY?.trim() ?? '',
-  igdbClientId: import.meta.env.MAIN_VITE_IGDB_CLIENT_ID?.trim() ?? '',
-  igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() ?? '',
+  steamGridDbApiKey: import.meta.env.MAIN_VITE_STEAMGRIDDB_API_KEY?.trim() || BUILT_IN_KEYS.steamGridDbApiKey,
+  igdbClientId: import.meta.env.MAIN_VITE_IGDB_CLIENT_ID?.trim() || BUILT_IN_KEYS.igdbClientId,
+  igdbClientSecret: import.meta.env.MAIN_VITE_IGDB_CLIENT_SECRET?.trim() || BUILT_IN_KEYS.igdbClientSecret,
   // Never built in: a session belongs to whoever signs in.
   accountToken: '',
   // Lets the updater read the (private) GitHub repo when Vanity isn't a git checkout.

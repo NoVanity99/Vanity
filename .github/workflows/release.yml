@@ -36,10 +36,18 @@ jobs:
       - name: Release notes from CHANGELOG.md
         run: node scripts/release-notes.mjs
 
+      # The IGDB/Twitch and SteamGridDB keys are built in (src/main/builtinKeys.ts). Repository secrets with
+      # these names override them; the others are optional extras (account server, Discord app).
+      - name: Check the built-in API keys (warns, never fails)
+        run: node scripts/check-keys.mjs
+        env:
+          MAIN_VITE_IGDB_CLIENT_ID: ${{ secrets.MAIN_VITE_IGDB_CLIENT_ID }}
+          MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
+          MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
+
       - name: Build
         run: npm run build
         env:
-          # Optional built-in API keys (repository secrets). Without them, users enter keys in Settings.
           MAIN_VITE_IGDB_CLIENT_ID: ${{ secrets.MAIN_VITE_IGDB_CLIENT_ID }}
           MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
           MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
