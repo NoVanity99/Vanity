@@ -58,18 +58,19 @@ jobs:
           MAIN_VITE_VANITY_API_URL: ${{ secrets.MAIN_VITE_VANITY_API_URL }}
           MAIN_VITE_DISCORD_CLIENT_ID: ${{ secrets.MAIN_VITE_DISCORD_CLIENT_ID }}
 
-      # GitHub only publishes a release for an existing tag. Runs started with "Run workflow" create it here.
-      # (Tags pushed with GITHUB_TOKEN don't trigger this workflow again.)
-      - name: Create the version tag
-        if: github.ref_type != 'tag'
+      # Create the release (and its v<version> tag) once, up front. electron-builder then only uploads files:
+      # left to itself it uploads in parallel and each upload races to create the release.
+      # Tags created with GITHUB_TOKEN don't trigger this workflow again.
+      - name: Create the GitHub release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v$(node -p "require('./package.json').version")"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
-            echo "Tag $TAG already exists."
+          VERSION=$(node -p "require('./package.json').version")
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists: uploading to it."
           else
-            git tag "$TAG"
-            git push origin "$TAG"
+            gh release create "v$VERSION" --title "$VERSION" --notes-file build-notes/release-notes.md --target "$GITHUB_SHA"
           fi
 
       - name: Package and publish the installer
