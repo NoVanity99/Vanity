@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
+import { LevelBadge } from './LevelBadge'
 import { useAccount } from '@/state/account'
 import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
@@ -150,8 +151,18 @@ export function Sidebar(): React.JSX.Element {
         <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
-        <span className="text-lg font-bold tracking-tight">Vanity</span>
+        <span className="flex-1 text-lg font-bold tracking-tight">Vanity</span>
+        <NavLink
+          to="/big"
+          title="Big Picture mode: full screen, for the couch"
+          aria-label="Big Picture mode"
+          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text [-webkit-app-region:no-drag]"
+        >
+          <Tv className="size-[18px]" />
+        </NavLink>
       </div>
+
+      <LevelBadge />
 
       <button
         onClick={openCommandPalette}

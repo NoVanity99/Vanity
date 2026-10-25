@@ -35,7 +35,10 @@ export interface PlayStats {
   sessions: number
   longest: { seconds: number; gameId: number; name: string; startedAt: number } | null
   top: { id: number; name: string; seconds: number; coverPath: string | null }[]
-  recent: { startedAt: number; seconds: number }[]
+  /** Sessions from the last year, oldest first. */
+  recent: { startedAt: number; seconds: number; gameId: number }[]
+  /** Each game's first-ever session (ms), by game ID. */
+  firstPlayed: Record<number, number>
 }
 
 export interface MusicState {
@@ -162,6 +165,10 @@ export interface VanityApi {
     refresh(): Promise<LauncherStatus[]>
     onUpdate(callback: (statuses: LauncherStatus[]) => void): () => void
   }
+  window: {
+    /** Big Picture mode: fill the screen. */
+    setFullScreen(on: boolean): Promise<void>
+  }
   discord: {
     status(): Promise<DiscordStatus>
     onStatus(callback: (status: DiscordStatus) => void): () => void
@@ -251,6 +258,7 @@ export const IPC = {
   sessionsChanged: 'sessions:changed',
   gamesConfirmCandidates: 'games:confirm-candidates',
   gamesAddManually: 'games:add-manually',
+  windowFullScreen: 'window:full-screen',
   discordStatus: 'discord:status',
   discordStatusChanged: 'discord:status-changed',
   discordListening: 'discord:listening',

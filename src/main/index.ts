@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, dialog, nativeTheme, net, Notification, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, net, Notification, protocol, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -294,6 +294,16 @@ app.whenReady().then(() => {
 
   registerIpc({ store, collections: createCollectionsStore(db), tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
+
+  // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
+  globalShortcut.register('CommandOrControl+Alt+V', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    if (win.isFocused() && !win.isMinimized()) return win.minimize()
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  })
   if (opened.warning) dialog.showMessageBox({ type: 'warning', title: 'Vanity', message: opened.warning })
   // Fetch artwork for games that don't have it yet (or failed last time), in the background.
   metadata.enqueuePending()
@@ -320,6 +330,7 @@ app.on('before-quit', (event) => {
 })
 
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
   metadata?.dispose()

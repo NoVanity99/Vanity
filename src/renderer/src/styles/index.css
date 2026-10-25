@@ -392,3 +392,21 @@ h2,
 .gamepad-mode [role='button']:focus {
   outline-offset: 6px;
 }
+
+/* Countdown bars (session recap, Wrapped). */
+@keyframes shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

@@ -110,6 +110,9 @@ const api: VanityApi = {
       return () => ipcRenderer.removeListener(IPC.statusUpdated, listener)
     }
   },
+  window: {
+    setFullScreen: (on) => ipcRenderer.invoke(IPC.windowFullScreen, on)
+  },
   discord: {
     status: () => ipcRenderer.invoke(IPC.discordStatus),
     onStatus(callback) {

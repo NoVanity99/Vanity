@@ -71,6 +71,10 @@ resources/           App icon and build resources
 - **Collections:** your own game lists in the sidebar. Click + to make one; right-click a game → **Add to collection**. Each collection's page has Rename and Delete.
 - **Break reminders:** Settings → Wellbeing sends a Windows notification every 30 min to 3 h of play.
 - **Stats:** totals, streaks, a 14-day chart, the most played games, and **Your year**, a calendar of the last 12 months.
+- **Vanity Wrapped:** "Play your Wrapped" on the Stats page turns your last 12 months into story slides. Use the arrows or click to move, Space to pause, Esc to close.
+- **Gamer level:** XP comes from minutes played (1 per minute), beating (150) or completing (300) a game, and rating it (20). Your level is under the logo; a recap card after each session shows what you earned.
+- **Big Picture mode:** the TV button next to the logo. A full-screen couch view for a controller or keyboard.
+- **Ctrl+Alt+V:** brings Vanity to the front from anywhere. Press it again to minimise it.
 
 - **Library:** grid or list view, search (Ctrl+F), sort (name, recently played or added, most played, your rating, release date), filter by source, genre or status, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.

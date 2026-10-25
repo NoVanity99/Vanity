@@ -15,6 +15,8 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  Sparkles,
+  Tv,
   Star,
   UserCircle2,
   Users,
@@ -129,6 +131,8 @@ function Palette({ onClose }: { onClose: () => void }): React.JSX.Element {
       { id: 'p-recent', group: 'Go to', label: 'Recently Played', icon: Clock, run: go('/recent') },
       { id: 'p-favorites', group: 'Go to', label: 'Favorites', icon: Star, run: go('/favorites') },
       { id: 'p-stats', group: 'Go to', label: 'Stats', icon: BarChart3, run: go('/stats') },
+      { id: 'p-wrapped', group: 'Go to', label: 'Vanity Wrapped', sub: 'Your year in games', icon: Sparkles, run: go('/wrapped') },
+      { id: 'p-big', group: 'Go to', label: 'Big Picture mode', sub: 'Full screen, for the couch', icon: Tv, run: go('/big') },
       { id: 'p-settings', group: 'Go to', label: 'Settings', icon: Settings, run: go('/settings') },
       { id: 'p-account', group: 'Go to', label: 'Account', icon: UserCircle2, run: go('/account') },
       ...collections.map((c): Item => ({ id: `c-${c.id}`, group: 'Go to', label: c.name, sub: 'Collection', icon: Layers, run: go(`/collection/${c.id}`) }))

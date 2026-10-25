@@ -8,7 +8,9 @@ export interface PlayStats {
   longest: { seconds: number; gameId: number; name: string; startedAt: number } | null
   top: { id: number; name: string; seconds: number; coverPath: string | null }[]
   /** Sessions started in the last `days` days, for per-day charts and streaks (bucketed in local time by the UI). */
-  recent: { startedAt: number; seconds: number }[]
+  recent: { startedAt: number; seconds: number; gameId: number }[]
+  /** Each game's first-ever session (ms), by game ID. */
+  firstPlayed: Record<number, number>
 }
 
 /** Playtime summary from the library and recorded play sessions. */
@@ -27,15 +29,19 @@ export function playStats(db: Db, now = Date.now(), days = 371): PlayStats {
     .prepare('SELECT id, name, playtime_seconds AS seconds, cover_path AS coverPath FROM games WHERE playtime_seconds > 0 ORDER BY playtime_seconds DESC LIMIT 8')
     .all() as PlayStats['top']
   const recent = db
-    .prepare('SELECT started_at AS startedAt, duration_seconds AS seconds FROM play_sessions WHERE started_at >= ? AND duration_seconds > 0 ORDER BY started_at')
+    .prepare('SELECT started_at AS startedAt, duration_seconds AS seconds, game_id AS gameId FROM play_sessions WHERE started_at >= ? AND duration_seconds > 0 ORDER BY started_at')
     .all(now - days * 86_400_000) as PlayStats['recent']
+  const firstPlayed = Object.fromEntries(
+    (db.prepare('SELECT game_id AS id, MIN(started_at) AS first FROM play_sessions WHERE duration_seconds > 0 GROUP BY game_id').all() as { id: number; first: number }[]).map((r) => [r.id, r.first])
+  )
   return {
     totalSeconds: totals.total,
     gamesPlayed: totals.played ?? 0,
     sessions,
     longest: longest && longest.seconds > 0 ? longest : null,
     top,
-    recent
+    recent,
+    firstPlayed
   }
 }
 

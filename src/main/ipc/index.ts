@@ -301,6 +301,7 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
     return music.state()
   })
 
+  ipcMain.handle(IPC.windowFullScreen, (e, on: boolean) => windowOf(e)?.setFullScreen(on === true))
   ipcMain.handle(IPC.discordStatus, () => discord.getStatus())
   ipcMain.on(IPC.discordListening, (_e, now: NowListening | null) => {
     const ok = now && typeof now.title === 'string' && Number.isFinite(now.startedAt)

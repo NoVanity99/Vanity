@@ -31,10 +31,11 @@ describe('playStats', () => {
     ])
     expect(stats.recent).toHaveLength(2) // the 90-day-old session is outside the window
     expect(stats.top.some((t) => t.id === c.id)).toBe(false)
+    expect(stats.firstPlayed).toEqual({ [a.id]: now - 90 * 86_400_000, [b.id]: now - 3600_000 })
   })
 
   it('is empty for a new library', () => {
-    expect(playStats(openDatabase(':memory:').db)).toEqual({ totalSeconds: 0, gamesPlayed: 0, sessions: 0, longest: null, top: [], recent: [] })
+    expect(playStats(openDatabase(':memory:').db)).toEqual({ totalSeconds: 0, gamesPlayed: 0, sessions: 0, longest: null, top: [], recent: [], firstPlayed: {} })
   })
 })
 

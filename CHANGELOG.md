@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.5.0 (2026-10-25)
+- Big Picture mode: a full-screen, couch-friendly view. Open it with the TV button next to the Vanity logo, or "Big Picture" in Ctrl+K search.
+  - It shows big cover rows for Continue playing, Favorites, your backlog, each collection and all games, with the selected game's art filling the screen.
+  - Controls: arrows or a controller to move, Enter or A to play, Esc or B to exit.
+- Vanity Wrapped: your last 12 months of gaming as animated story slides.
+  - The slides cover total hours, your game of the year, top 5, top genre, night owl or early bird, longest session and streak, and your level.
+  - Start it from "Play your Wrapped" on the Stats page.
+- Gamer level and XP: earn XP for every minute played, for beating or completing games, and for rating them.
+  - Your level, title (Rookie to Mythic) and progress show under the logo.
+- Session recap: when you close a game, a card shows how long you played, your total time and the XP you earned. It also shows any level-up or milestone you unlocked.
+- Ctrl+Alt+V from anywhere, even mid-game, brings Vanity to the front. Press it again to tuck Vanity away.
+
 ## 0.4.0 (2026-10-25)
 - Collections: make your own game lists ("Co-op nights", "Backlog 2026"…) with the + next to Collections in the sidebar. Right-click any game → Add to collection. Each collection has its own page, which you can rename or delete.
 - Search everything with Ctrl+K (or the Search button at the top of the sidebar). Type a few letters, like "tw3" for The Witcher 3, to jump to a game, page, collection or action. Ctrl+Enter plays a game straight away.

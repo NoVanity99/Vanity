@@ -8,6 +8,7 @@ import { LauncherStatusBar } from './components/LauncherStatusBar'
 import { MusicPlayer } from './components/MusicPlayer'
 import { UpdateBanner, UpdateButton } from './components/UpdateButton'
 import { CommandPalette } from './components/CommandPalette'
+import { SessionRecap } from './components/SessionRecap'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
@@ -16,6 +17,8 @@ import { SettingsPage } from './pages/SettingsPage'
 import { TrendingPage } from './pages/TrendingPage'
 import { SteamStorePage } from './pages/SteamStorePage'
 import { StatsPage } from './pages/StatsPage'
+import { WrappedPage } from './pages/WrappedPage'
+import { BigPicturePage } from './pages/BigPicturePage'
 import { FriendsPage } from './pages/FriendsPage'
 import { AccountPage } from './pages/AccountPage'
 import { LibraryProvider, useLibrary } from './state/library'
@@ -55,6 +58,8 @@ function Shell(): React.JSX.Element {
             <Route path="/favorites" element={<LibraryPage view="favorites" />} />
             <Route path="/collection/:id" element={<CollectionPage />} />
             <Route path="/stats" element={<StatsPage />} />
+            <Route path="/wrapped" element={<WrappedPage />} />
+            <Route path="/big" element={<BigPicturePage />} />
             <Route path="/friends" element={<FriendsPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
@@ -66,6 +71,7 @@ function Shell(): React.JSX.Element {
       <GamepadLayer />
       <UpdateBanner />
       <CommandPalette />
+      <SessionRecap />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

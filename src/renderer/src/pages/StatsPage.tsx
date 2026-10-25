@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Clock, Flame, Gamepad2, Trophy } from 'lucide-react'
+import { CalendarDays, Clock, Flame, Gamepad2, Sparkles, Trophy } from 'lucide-react'
 import type { PlayStats } from '@shared/ipc'
 import { formatHours as hours, formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { perDay, streak } from '@/lib/playtime'
@@ -38,8 +38,20 @@ export function StatsPage(): React.JSX.Element {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl space-y-8 px-10 pb-16 pt-12">
         <header>
-          <h1 className="text-3xl font-bold tracking-tight">Your stats</h1>
-          <p className="mt-1 text-sm text-muted">Everything you've played through Vanity.</p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Your stats</h1>
+              <p className="mt-1 text-sm text-muted">Everything you've played through Vanity.</p>
+            </div>
+            {stats && stats.totalSeconds > 0 && (
+              <button
+                onClick={() => navigate('/wrapped')}
+                className="group ml-auto flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent to-accent-2 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent/30 transition hover:-translate-y-0.5 hover:brightness-110"
+              >
+                <Sparkles className="size-4 transition-transform duration-500 group-hover:rotate-180" /> Play your Wrapped
+              </button>
+            )}
+          </div>
         </header>
 
         {!stats ? null : stats.totalSeconds === 0 ? (
