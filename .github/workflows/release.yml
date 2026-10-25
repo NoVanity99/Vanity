@@ -58,6 +58,20 @@ jobs:
           MAIN_VITE_VANITY_API_URL: ${{ secrets.MAIN_VITE_VANITY_API_URL }}
           MAIN_VITE_DISCORD_CLIENT_ID: ${{ secrets.MAIN_VITE_DISCORD_CLIENT_ID }}
 
+      # GitHub only publishes a release for an existing tag. Runs started with "Run workflow" create it here.
+      # (Tags pushed with GITHUB_TOKEN don't trigger this workflow again.)
+      - name: Create the version tag
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "Tag $TAG already exists."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
       - name: Package and publish the installer
         run: npx electron-builder --win --publish always --config.releaseInfo.releaseNotesFile=build-notes/release-notes.md
         env:
