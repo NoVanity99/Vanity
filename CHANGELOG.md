@@ -3,6 +3,13 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.7.0 (2026-10-26)
+- New: **Vibe Check**, for when you can't decide what to play. Click Vibe Check at the top of your Library, or search "vibe" with Ctrl+K.
+- Pick how much time you have (15 minutes up to all night) and your mood: Chill, Intense, Story, Quick fix, Social or Something new.
+- Vanity picks three games from your library, with a match score and the reasons for each. For example: "Your sessions usually run 45 min, which fits 1 hour", "You're in the middle of it", or "You haven't played it in 10 months".
+- It learns from how you actually play: how long your sessions usually run for each game, what you're in the middle of, your backlog, your ratings, and what you haven't touched in a while. It never suggests games you dropped.
+- Hit Play straight from the card, or "Show me others" for the next best matches.
+
 ## 0.6.1 (2026-10-26)
 - Settings is simpler: the API keys and the Discord application ID are built in, so the "Metadata & artwork" section and the Discord ID field are gone. Discord Rich Presence works as soon as you turn it on.
 

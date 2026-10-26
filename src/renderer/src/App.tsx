@@ -9,6 +9,7 @@ import { MusicPlayer } from './components/MusicPlayer'
 import { UpdateBanner, UpdateButton } from './components/UpdateButton'
 import { CommandPalette } from './components/CommandPalette'
 import { SessionRecap } from './components/SessionRecap'
+import { VibeCheck } from './components/VibeCheck'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { GameDetailPage } from './pages/GameDetailPage'
@@ -72,6 +73,7 @@ function Shell(): React.JSX.Element {
       <UpdateBanner />
       <CommandPalette />
       <SessionRecap />
+      <VibeCheck />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

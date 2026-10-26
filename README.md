@@ -74,6 +74,7 @@ resources/           App icon and build resources
   - **Your journal:** a status (Backlog, Playing, Beaten, 100% completed, Dropped), a 1–5 star rating and private notes. Status shows on library cards, and the Library can filter by status and sort by your rating.
   - **Friends who played:** shown when you're signed in.
   - Online details come from IGDB (needs the keys) and Steam (no key), are cached for 12 hours, and **Refresh** at the bottom of the page fetches them again.
+- **Vibe Check** (Library, or Ctrl+K → "vibe"): pick how much time you have and your mood. Vanity suggests three games from your library with reasons. It weighs how long your sessions usually last for each game, genres, what you're in the middle of, your backlog and ratings, and what you haven't played in a while. The logic is in `src/renderer/src/lib/vibe.ts`.
 - **Surprise me** (Library): rolls a random game, favouring ones you haven't played in a while.
 - **Search (Ctrl+K):** jump to any game, page, collection or action by typing a few letters. Enter opens; Ctrl+Enter plays a game.
 - **Collections:** your own game lists in the sidebar. Click + to make one; right-click a game → **Add to collection**. Each collection's page has Rename and Delete.

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, LayoutGrid, Layers, List, Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Layers, LayoutGrid, List, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
+import { openVibeCheck } from '@/components/VibeCheck'
 import { PLAY_STATUS_LABELS, PLAY_STATUSES, SOURCE_LABELS, type Game, type GameSource, type PlayStatus } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
@@ -293,8 +294,19 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
 
           {view === 'all' && games.length > 1 && (
             <button
+              onClick={openVibeCheck}
+              title="What should I play right now? Pick your time and mood."
+              className="group/vibe ml-auto flex h-9 items-center gap-2 rounded-lg bg-gradient-to-r from-accent to-accent-2 px-3 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:brightness-110"
+            >
+              <Sparkles className="size-4 transition-transform duration-500 group-hover/vibe:rotate-180" />
+              Vibe Check
+            </button>
+          )}
+
+          {view === 'all' && games.length > 1 && (
+            <button
               onClick={() => setSurprise(true)}
-              className="group/dice ml-auto flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
+              className="group/dice flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
             >
               <Dices className="size-4 text-accent transition-transform duration-500 group-hover/dice:rotate-[360deg]" />
               Surprise me
