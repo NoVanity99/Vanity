@@ -158,4 +158,20 @@ describe('SessionTracker', () => {
     t.tracker.stopAll()
     expect(t.get().playtimeSeconds).toBe(7)
   })
+
+  it('ends a web game the moment its window closes, ignoring other processes in its folder', async () => {
+    const t = setup({ source: 'manual', externalId: '/games/tiny/index.html', name: 'Tiny', installPath: '/games/tiny', executablePath: '/games/tiny/index.html' })
+    const win = new EventEmitter()
+    t.tracker.begin(t.get(), 'html', win)
+    expect(t.changes).toEqual(['running'])
+    t.setProcesses(['/games/tiny/some-other-tool.exe']) // not the game
+    t.advance(90)
+    await t.tracker.tick()
+    win.emit('exit')
+    t.advance(1)
+    await t.tracker.tick()
+    expect(t.changes).toEqual(['running', 'stopped'])
+    expect(t.get().playtimeSeconds).toBe(90)
+  })
 })
+

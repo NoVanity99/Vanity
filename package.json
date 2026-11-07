@@ -1,7 +1,7 @@
 {
   "name": "vanity",
   "productName": "Vanity",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A unified desktop game launcher for Steam, Epic, GOG, EA, Ubisoft and custom games.",
   "author": {
     "name": "NoVanity99"
@@ -30,6 +30,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@ffmpeg-installer/ffmpeg": "1.1.0",
     "better-sqlite3": "^13.0.3",
     "electron-updater": "6.8.10"
   },

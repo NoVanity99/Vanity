@@ -447,7 +447,7 @@ export function GameDetailPage(): React.JSX.Element {
                 ) : (
                   <div>
                     <dt className="flex items-center justify-between text-muted">
-                      Executable
+                      {/\.html?$/i.test(game.executablePath ?? '') ? 'Web game (opens in a Vanity window)' : 'Executable'}
                       <button className="text-xs text-accent hover:underline" onClick={() => pickExecutable(game.id)}>
                         Change
                       </button>

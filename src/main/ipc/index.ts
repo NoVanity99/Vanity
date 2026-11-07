@@ -9,6 +9,8 @@ import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
 import type { DetailsService } from '../details/service'
 import type { Updater } from '../update/release'
+import type { GameWindows } from '../launcher/gameWindows'
+import { isHtmlGame, nameFromHtml } from '../launcher/htmlGame'
 import type { DiscordPresence } from '../discord/presence'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
@@ -23,8 +25,15 @@ import type { LibraryStore } from '../library/store'
 import type { CollectionsStore } from '../library/collections'
 import { exeExternalId } from '../scanners/custom'
 import { getSettings, updateSettings } from '../settings'
-import { nameFromExecutable } from '../util/executables'
+import { nameFromExecutable, prettifyName } from '../util/executables'
 import { isDirectory, pathExists } from '../util/fs'
+
+/** File types "Add a game" and "Change" accept: programs, and web games played in a Vanity window. */
+const GAME_FILE_FILTERS: Electron.FileFilter[] = [
+  { name: 'Games (.exe, .html)', extensions: ['exe', 'html', 'htm'] },
+  { name: 'Programs (.exe)', extensions: ['exe'] },
+  { name: 'Web games (.html)', extensions: ['html', 'htm'] }
+]
 
 /** Runs a handler and turns any failure into a message the UI can show. */
 async function wrap<T>(fn: () => Promise<T>): Promise<Result<T>> {
@@ -54,6 +63,7 @@ export interface IpcDeps {
   live: LiveService
   details: DetailsService
   update: Updater
+  gameWindows: GameWindows
   discord: DiscordPresence
   db: Db
   stats: () => unknown
@@ -62,7 +72,7 @@ export interface IpcDeps {
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, collections, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -84,7 +94,8 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
         openExternal: (url) => shell.openExternal(url),
         openPath: (p) => shell.openPath(p),
         spawn,
-        exists: pathExists
+        exists: pathExists,
+        openHtml: (g, html) => gameWindows.open(g, html)
       })
       tracker.begin(game, result.method, result.child)
       return null
@@ -102,7 +113,7 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       title: `Choose the program that starts ${game.name}`,
       defaultPath: game.installPath ?? undefined,
       properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe'] }]
+      filters: GAME_FILE_FILTERS
     }
     const win = windowOf(e)
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -177,9 +188,9 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
 
   ipcMain.handle(IPC.gamesAddManually, async (e) => {
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose a game executable',
+      title: 'Choose a game: a program (.exe) or a web game (.html)',
       properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe'] }]
+      filters: GAME_FILE_FILTERS
     }
     const win = windowOf(e)
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -189,7 +200,7 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       {
         source: 'manual',
         externalId: exeExternalId(exe),
-        name: nameFromExecutable(exe),
+        name: isHtmlGame(exe) ? nameFromHtml(exe, prettifyName) : nameFromExecutable(exe),
         installPath: dirname(exe),
         executablePath: exe
       }

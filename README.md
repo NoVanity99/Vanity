@@ -57,6 +57,9 @@ resources/           App icon and build resources
 - **Title bar:**
   - **Launcher status** on the left.
   - **Music player** on the right: click the artwork circle to choose a music folder, then press play to shuffle it. It shows the album art, the title and artist (from the file's tags, or its name), previous / play-pause / next and volume. Keyboard media keys work too. Artwork comes from the file, or from a `cover.jpg` / `folder.jpg` next to it.
+    - **Formats:** MP3, AAC/M4A, FLAC, WAV, OGG/Opus, WebM and MKA play directly. WMA, Apple Lossless, AIFF, WavPack, APE, CAF, AC3, DTS, MP2, AMR and others are converted to FLAC by the bundled ffmpeg (`@ffmpeg-installer`) the first time they play.
+    - **Cache:** converted songs are kept in `%APPDATA%\Vanity\music-cache` (the 400 most recently played).
+    - **Fallback:** a song the player can't decode is also retried through the converter (`src/main/music/convert.ts`).
   - **Update button:** the small round button beside the player.
 - **Game pages:**
   - **Cover tint:** the page takes on the colour of the game's cover.
@@ -85,6 +88,10 @@ resources/           App icon and build resources
 - **Big Picture mode:** the TV button next to the logo. A full-screen couch view for a controller or keyboard.
 - **Ctrl+Alt+V:** brings Vanity to the front from anywhere. Press it again to minimise it.
 
+- **Web games:** "Add a game" accepts an `.html` file as well as an `.exe`.
+  - The game opens in its own sandboxed Vanity window (F11 for full screen), served from its folder over `vanity-game://`, so engines that load files with `fetch` work.
+  - Each game keeps its own saves (localStorage, IndexedDB). It can't reach Vanity or files outside its folder, and links to websites open in your browser.
+  - Playtime counts while the window is open (`src/main/launcher/gameWindows.ts`).
 - **Library:** grid or list view, search (Ctrl+F), sort (name, recently played or added, most played, your rating, release date), filter by source, genre or status, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
 - **Themes:** Settings → Appearance has 15 colour skins, defined in `src/shared/themes.ts`. Add one there and it appears in Settings.

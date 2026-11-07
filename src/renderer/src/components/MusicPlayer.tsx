@@ -133,7 +133,16 @@ export function MusicPlayer(): React.JSX.Element {
       playNext()
     }
     const onError = (): void => {
-      if (!el.getAttribute('src')) return
+      const src = el.getAttribute('src')
+      if (!src) return
+      // A format the player can't decode: ask Vanity to convert it (with ffmpeg) and try once more.
+      if (el.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || el.error?.code === MediaError.MEDIA_ERR_DECODE) {
+        if (!src.includes('convert=1')) {
+          el.src = `${src}&convert=1`
+          void el.play().catch(() => {})
+          return
+        }
+      }
       failures.current += 1
       if (failures.current >= MAX_FAILURES) {
         el.pause()

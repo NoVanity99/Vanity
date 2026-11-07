@@ -2,13 +2,20 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { dirname } from 'node:path'
 import type { Game } from '@shared/types'
 import { pathExists } from '../util/fs'
+import { isHtmlGame } from './htmlGame'
 
-export type LaunchMethod = 'uri' | 'exe'
+/** uri: through Steam/Epic; exe: a program; html: a web game in a Vanity window. */
+export type LaunchMethod = 'uri' | 'exe' | 'html'
+
+/** Something whose 'exit' Vanity can watch: its own game process, or a web game's window. */
+export interface Exitable {
+  once(event: 'exit', cb: () => void): unknown
+}
 
 export interface LaunchResult {
   method: LaunchMethod
-  /** Present when Vanity started the exe itself, so its exit can be watched. */
-  child?: ChildProcess
+  /** Present when Vanity started the game itself, so its exit can be watched. */
+  child?: ChildProcess | Exitable
 }
 
 /** A failure with a message that can be shown to the user as-is. */
@@ -20,6 +27,8 @@ export interface LaunchDeps {
   openPath(path: string): Promise<string>
   spawn: typeof spawn
   exists(path: string): Promise<boolean>
+  /** Opens a web game (.html) in a Vanity window. */
+  openHtml(game: Game, htmlPath: string): Exitable
 }
 
 export function launchUri(game: Game): string | null {
@@ -68,6 +77,8 @@ export async function launchGame(game: Game, deps: LaunchDeps): Promise<LaunchRe
   if (!(await deps.exists(exe))) {
     throw new LaunchError(`Couldn't find ${exe}. The game may have been moved or uninstalled.`)
   }
+
+  if (isHtmlGame(exe)) return { method: 'html', child: deps.openHtml(game, exe) }
 
   try {
     return { method: 'exe', child: await spawnDetached(exe, deps) }

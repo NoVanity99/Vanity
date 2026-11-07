@@ -4,7 +4,7 @@ import type { PlaytimeStore } from '../library/playtime'
 import type { LaunchMethod } from './launch'
 
 /** How long to wait for a game to show up after launching (Steam may update it first). */
-const GRACE_MS: Record<LaunchMethod, number> = { uri: 10 * 60_000, exe: 2 * 60_000 }
+const GRACE_MS: Record<LaunchMethod, number> = { uri: 10 * 60_000, exe: 2 * 60_000, html: 2 * 60_000 }
 /** Consecutive polls without the game before the session is over. */
 const MISSES_TO_END = 2
 const FAST_POLL_MS = 4_000
@@ -138,7 +138,8 @@ export class SessionTracker {
       for (const [gameId, s] of this.sessions) {
         // If the process list can't be read, only trust our own child process,
         // so playtime is never over-counted.
-        const alive = s.childAlive || (processes ?? []).some((p) => processBelongsTo(p, s.game))
+        // A web game lives exactly as long as its window; other processes in its folder aren't it.
+        const alive = s.childAlive || (s.method !== 'html' && (processes ?? []).some((p) => processBelongsTo(p, s.game)))
         if (alive) {
           s.misses = 0
           if (s.state === 'launching') {
@@ -153,7 +154,7 @@ export class SessionTracker {
           // Our own process exited between polls: we know exactly when, so credit up to then.
           this.flush(s, s.childExitedAt)
           s.childExitedAt = null
-          if (++s.misses >= MISSES_TO_END) this.end(gameId)
+          if (++s.misses >= MISSES_TO_END || s.method === 'html') this.end(gameId)
         } else if (s.state === 'launching') {
           if (now - s.launchedAt > GRACE_MS[s.method]) this.end(gameId)
         } else if (++s.misses >= MISSES_TO_END) {

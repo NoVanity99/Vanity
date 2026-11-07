@@ -54,6 +54,7 @@ function deps(over: Partial<LaunchDeps> = {}): LaunchDeps {
     openPath: vi.fn(async () => ''),
     spawn: vi.fn(() => fakeChild('spawn')) as unknown as LaunchDeps['spawn'],
     exists: vi.fn(async () => true),
+    openHtml: vi.fn(() => new EventEmitter()),
     ...over
   }
 }
@@ -116,5 +117,16 @@ describe('launchGame', () => {
 
   it('explains when no exe is known', async () => {
     await expect(launchGame(game({ source: 'ubisoft', executablePath: null }), deps())).rejects.toThrow(/Edit metadata/)
+  })
+
+  it('opens web games (.html) in a Vanity window instead of running them', async () => {
+    const d = deps()
+    const g = game({ source: 'manual', executablePath: 'C:\\Games\\Tiny\\index.html' })
+    const r = await launchGame(g, d)
+    expect(r.method).toBe('html')
+    expect(d.openHtml).toHaveBeenCalledWith(g, 'C:\\Games\\Tiny\\index.html')
+    expect(r.child).toBeDefined()
+    expect(d.spawn).not.toHaveBeenCalled()
+    expect(d.openPath).not.toHaveBeenCalled()
   })
 })

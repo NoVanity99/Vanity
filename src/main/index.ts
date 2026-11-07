@@ -16,6 +16,7 @@ import { MetadataService } from './metadata/service'
 import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
+import { AudioConverter, bundledFfmpeg, needsConversion } from './music/convert'
 import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
 import { UpdateService } from './update/service'
@@ -23,6 +24,8 @@ import { ReleaseUpdater, type Updater } from './update/release'
 import { autoUpdater } from 'electron-updater'
 import { DiscordPresence } from './discord/presence'
 import { BreakReminders } from './launcher/breaks'
+import { GameWindows } from './launcher/gameWindows'
+import { GAME_SCHEME } from './launcher/htmlGame'
 import { steamArtworkUrl } from './metadata/steamStore'
 import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
@@ -42,12 +45,19 @@ let account: AccountService | null = null
 let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
+let gameWindows: GameWindows | null = null
+/** Vanity's own window (game windows for web games are separate). */
+let mainWindow: BrowserWindow | null = null
+
+function getMainWindow(): BrowserWindow | null {
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+}
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
 
 function minimizeWhilePlaying(state: 'launching' | 'running' | 'stopped'): void {
-  const win = BrowserWindow.getAllWindows()[0]
+  const win = getMainWindow()
   if (!win) return
   if (state === 'running' && getSettings().minimizeWhilePlaying && !win.isMinimized()) {
     win.minimize()
@@ -66,7 +76,8 @@ function chromeColors(): { bg: string; symbol: string } {
 
 function applyChrome(): void {
   const { bg, symbol } = chromeColors()
-  for (const win of BrowserWindow.getAllWindows()) {
+  const win = getMainWindow()
+  if (win) {
     win.setBackgroundColor(bg)
     try {
       // Only on platforms with a title bar overlay (Windows).
@@ -81,11 +92,14 @@ function applyChrome(): void {
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   // Music for the mini player: vanity-music://track/<index> (streams with Range support) and vanity-music://art/<index>.
-  { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  // Web games added with "Add a game": vanity-game://game-<id>/… serves the game's folder (see launcher/gameWindows.ts).
+  { scheme: GAME_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
 
+/** Sends to Vanity's own window only (never to a web game's window). */
 function broadcast(channel: string, payload: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
+  getMainWindow()?.webContents.send(channel, payload)
 }
 
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
@@ -94,7 +108,7 @@ if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USE
 // One instance only: launching Vanity again brings the open window to the front.
 if (!app.requestSingleInstanceLock()) app.quit()
 app.on('second-instance', () => {
-  const win = BrowserWindow.getAllWindows()[0]
+  const win = getMainWindow()
   if (!win) return
   if (win.isMinimized()) win.restore()
   win.show()
@@ -127,6 +141,10 @@ function createWindow(): void {
     }
   })
 
+  mainWindow = win
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
   trackWindowState(win)
   win.on('ready-to-show', () => {
     if (saved.maximized) win.maximize()
@@ -165,6 +183,8 @@ app.whenReady().then(() => {
   })
 
   const store = createSqliteStore(db)
+  gameWindows = new GameWindows(icon)
+  gameWindows.register()
 
   discord = new DiscordPresence({
     enabled: () => getSettings().discordPresence,
@@ -237,7 +257,9 @@ app.whenReady().then(() => {
 
   status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
 
-  const music = new MusicLibrary()
+  // Formats the player can't decode (WMA, Apple Lossless, AIFF…) are converted with the bundled ffmpeg.
+  const converter = new AudioConverter(bundledFfmpeg(), join(app.getPath('userData'), 'music-cache'))
+  const music = new MusicLibrary(converter.available)
   void music.load(getSettings().musicFolder).catch((err) => console.warn('[music] scan failed:', err))
   protocol.handle('vanity-music', async (request) => {
     const url = new URL(request.url)
@@ -249,7 +271,9 @@ app.whenReady().then(() => {
     const file = url.hostname === 'track' ? music.track(index) : null
     if (!file) return new Response('Not found', { status: 404 })
     try {
-      return await audioResponse(file, request.headers.get('range'))
+      // ?convert=1: the player couldn't decode the file as it is, so convert it (see MusicPlayer).
+      const convert = converter.available && (needsConversion(file) || url.searchParams.get('convert') === '1')
+      return await audioResponse(convert ? await converter.convert(file) : file, request.headers.get('range'))
     } catch {
       return new Response('Unreadable', { status: 404 })
     }
@@ -294,7 +318,7 @@ app.whenReady().then(() => {
     restart: () => {
       if (devServer) {
         // electron-vite restarts the app when main-process code changed; reload in case only the UI did.
-        setTimeout(() => BrowserWindow.getAllWindows().forEach((w) => w.webContents.reloadIgnoringCache()), 2500)
+        setTimeout(() => getMainWindow()?.webContents.reloadIgnoringCache(), 2500)
       } else {
         app.relaunch()
         app.quit()
@@ -303,12 +327,12 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, collections: createCollectionsStore(db), tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, collections: createCollectionsStore(db), gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
   globalShortcut.register('CommandOrControl+Alt+V', () => {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = getMainWindow()
     if (!win) return
     if (win.isFocused() && !win.isMinimized()) return win.minimize()
     if (win.isMinimized()) win.restore()
@@ -323,7 +347,7 @@ app.whenReady().then(() => {
   status.start()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!getMainWindow()) createWindow()
   })
 })
 
@@ -344,6 +368,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
+  gameWindows?.closeAll()
   metadata?.dispose()
   trending?.dispose()
   status?.dispose()

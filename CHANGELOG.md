@@ -3,6 +3,17 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.8.0 (2026-11-07)
+- Music player: plays almost any audio format, not just MP3 and the common ones.
+  - Newly supported: WMA, Apple Lossless (ALAC) .m4a, AIFF, WavPack, APE, CAF, AC3/E-AC3, DTS, MP2, W64, AMR and more.
+  - Vanity converts them to lossless FLAC with its built-in converter the first time they play, and keeps the result, so they start instantly and seek properly after that.
+  - Any song the player can't decode is automatically retried through the converter before it's skipped.
+- Web games: "Add a game" now accepts .html files as well as .exe.
+  - Web games open in their own Vanity window. Press F11 for full screen.
+  - Saves are kept between plays, and games that load their own files (Phaser, Godot, Unity WebGL, Construct and similar) work.
+  - Playtime, session recaps, break reminders and Discord all work just like any other game.
+  - The game window can't touch the rest of your PC, and links to websites open in your browser.
+
 ## 0.7.0 (2026-10-26)
 - New: **Vibe Check**, for when you can't decide what to play. Click Vibe Check at the top of your Library, or search "vibe" with Ctrl+K.
 - Pick how much time you have (15 minutes up to all night) and your mood: Chill, Intense, Story, Quick fix, Social or Something new.
