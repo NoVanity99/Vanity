@@ -48,6 +48,8 @@ export interface VanityNative {
   /** A small secret kept encrypted with a key from the Android Keystore. */
   secureSet?(opts: { key: string; value: string | null }): Promise<void>
   secureGet?(opts: { key: string }): Promise<{ value: string | null }>
+  /** Asks Android to close an app that is in the background. Android decides; some games stay open. */
+  closeApp?(opts: { packageName: string }): Promise<{ closed: boolean }>
   /** Opens a web address (or a file download) outside Vanity. */
   openUrl(opts: { url: string }): Promise<void>
 }

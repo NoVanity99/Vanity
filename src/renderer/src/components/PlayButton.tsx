@@ -2,13 +2,15 @@ import { Play } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
+import { StopBubble } from './StopBubble'
 
-/** The big Play button. Shows "Launching…" until the game is seen running, then "Playing". */
+/** The big Play button. Shows "Starting…" until the game is seen running, then "Playing". A red bubble beside it cancels the start, or closes the game. */
 export function PlayButton({ game }: { game: Game }): React.JSX.Element {
   const { sessions, launch } = useLibrary()
   const state = sessions[game.id]
 
   return (
+    <span className="flex items-center gap-3">
     <button
       data-gamepad-play-main
       onClick={() => launch(game.id)}
@@ -23,7 +25,7 @@ export function PlayButton({ game }: { game: Game }): React.JSX.Element {
       {state === 'launching' ? (
         <>
           <span className="size-5 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
-          Launching…
+          Starting…
         </>
       ) : state === 'running' ? (
         <>
@@ -41,5 +43,7 @@ export function PlayButton({ game }: { game: Game }): React.JSX.Element {
         </>
       )}
     </button>
+    <StopBubble gameId={game.id} name={game.name} size="lg" />
+    </span>
   )
 }

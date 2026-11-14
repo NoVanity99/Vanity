@@ -228,7 +228,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
               <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
             </span>
             <span className="min-w-0">
-              <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Launching'}</span>
+              <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Starting'}</span>
               <span className="block truncate text-sm font-medium text-text">{g.name}</span>
             </span>
           </NavLink>

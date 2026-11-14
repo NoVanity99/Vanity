@@ -33,6 +33,12 @@ export class GameWindows {
     ses.setPermissionCheckHandler((_wc, permission) => ALLOWED.has(permission))
   }
 
+  /** Closes the game's window, if it is open. */
+  close(gameId: number): void {
+    const entry = this.windows.get(gameId)
+    if (entry && !entry.win.isDestroyed()) entry.win.destroy()
+  }
+
   /** Opens the game (or brings its window to the front if it's already open). The handle emits 'exit' when it closes. */
   open(game: Game, htmlPath: string): GameWindowHandle {
     const existing = this.windows.get(game.id)

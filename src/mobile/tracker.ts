@@ -78,6 +78,20 @@ export class MobileTracker {
       .run(key, String(value), this.now())
   }
 
+  /**
+   * The user ended the game from Vanity: records the time since it was opened and stops showing it
+   * as running. Returns its package name (so Android can be asked to close it), or null.
+   */
+  stop(gameId: number): string | null {
+    const startedAt = this.launched.get(gameId)
+    if (startedAt === undefined) return null
+    const game = this.deps.games().find((g) => g.id === gameId)
+    this.launched.delete(gameId)
+    this.record(gameId, startedAt, Math.min(this.now(), startedAt + MAX_FALLBACK_MS))
+    this.deps.onChange(gameId, 'stopped')
+    return game?.externalId ?? null
+  }
+
   /** Call when Vanity comes back to the front (and at start): records what was played meanwhile. */
   sync(): Promise<void> {
     this.syncing ??= this.run().finally(() => (this.syncing = null))

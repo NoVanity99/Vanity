@@ -1,3 +1,4 @@
+import { StopBubble } from './StopBubble'
 import { memo } from 'react'
 import { Play, Star } from 'lucide-react'
 import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
@@ -61,6 +62,7 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
           <SourceBadge source={game.source} className="bg-black/55 opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100" />
           <span className="flex flex-col items-end gap-1.5">
+            {session === 'running' && <StopBubble gameId={game.id} name={game.name} />}
             {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
             {game.playStatus && (
               <span className={cn('rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold ring-1 backdrop-blur', STATUS_TONE[game.playStatus])}>
@@ -71,9 +73,12 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
         </div>
 
         {session ? (
-          <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1.5 text-[11px] font-semibold text-white backdrop-blur">
-            <span className="size-1.5 animate-pulse rounded-full bg-white" />
-            {session === 'running' ? 'Playing' : 'Launching…'}
+          <span className="absolute inset-x-2 bottom-2 flex items-center gap-1.5">
+            <span className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1.5 text-[11px] font-semibold text-white backdrop-blur">
+              <span className="size-1.5 animate-pulse rounded-full bg-white" />
+              {session === 'running' ? 'Playing' : 'Starting…'}
+            </span>
+            {session === 'launching' && <StopBubble gameId={game.id} name={game.name} size="sm" />}
           </span>
         ) : (
           <>

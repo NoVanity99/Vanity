@@ -17,6 +17,8 @@ interface LibraryState {
   /** Launch state per game ID; absent means not running. */
   sessions: Record<number, Exclude<SessionState, 'stopped'>>
   launch(id: number): Promise<void>
+  /** Cancels a game that is starting, or force-closes one that is running. */
+  stop(id: number): Promise<void>
   pickExecutable(id: number): Promise<void>
   scan: {
     running: boolean
@@ -183,6 +185,24 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     return () => clearInterval(timer)
   }, [runningIds, reloadGame])
 
+  /** Cancels a game that is starting, or force-closes one that is running. */
+  const stop = useCallback(
+    async (id: number) => {
+      const res = await window.vanity.sessions.stop(id).catch((err) => ({ error: message(err), data: undefined }))
+      if (res.error !== undefined) return toast(res.error, 'error')
+      setSessions((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      const { wasRunning, closed } = res.data
+      if (!wasRunning) toast(closed ? 'Cancelled, and closed the game' : 'Cancelled')
+      else toast(closed ? 'Game closed' : "Vanity stopped tracking it, but couldn't find the game's process to close", closed ? undefined : 'error')
+      void reloadGame(id)
+    },
+    [toast, reloadGame]
+  )
+
   const launch = useCallback(
     async (id: number) => {
       setSessions((prev) => ({ ...prev, [id]: prev[id] ?? 'launching' }))
@@ -223,6 +243,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       openFolder,
       sessions,
       launch,
+      stop,
       pickExecutable,
       scan: { running, progress, last, start },
       metadata,
@@ -241,6 +262,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       openFolder,
       sessions,
       launch,
+      stop,
       pickExecutable,
       running,
       progress,

@@ -50,7 +50,7 @@ export function useGameMenu(): {
     const g = state.game
     const items: MenuItem[] = [
       sessions[g.id]
-        ? { label: sessions[g.id] === 'running' ? 'Playing' : 'Launching…', icon: Play, onSelect: () => {}, disabled: true }
+        ? { label: sessions[g.id] === 'running' ? 'Playing' : 'Starting…', icon: Play, onSelect: () => {}, disabled: true }
         : { label: 'Play', icon: Play, onSelect: () => launch(g.id) },
       {
         label: g.favorite ? 'Remove from favorites' : 'Add to favorites',

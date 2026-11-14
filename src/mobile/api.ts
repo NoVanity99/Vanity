@@ -290,6 +290,14 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     },
     sessions: {
       states: async () => tracker.states(),
+      stop: (gameId) =>
+        wrap(async () => {
+          const packageName = tracker.stop(Number(gameId))
+          if (!packageName) return { wasRunning: false, closed: 0 }
+          // Android only lets an app close others that are in the background, and may refuse.
+          const res = await native.closeApp?.({ packageName }).catch(() => ({ closed: false }))
+          return { wasRunning: true, closed: res?.closed ? 1 : 0 }
+        }),
       onChange: (cb) => sessionsChanged.on(cb)
     },
     metadata: {

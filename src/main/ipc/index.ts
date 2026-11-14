@@ -16,6 +16,8 @@ import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
 import type { SyncService } from '../sync/service'
+import { killProcesses, listProcesses } from '../launcher/processes'
+import { stopGame } from '../launcher/stop'
 import { gameKey } from '../account/gameKey'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
@@ -147,6 +149,17 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   )
 
   ipcMain.handle(IPC.sessionsStates, () => tracker.states())
+  ipcMain.handle(IPC.sessionsStop, (_e, id: number) =>
+    wrap(() =>
+      stopGame(Number(id), {
+        stopTracking: (gameId) => tracker.stop(gameId),
+        listProcesses,
+        kill: killProcesses,
+        closeWindow: (gameId) => gameWindows.close(gameId),
+        ownPid: process.pid
+      })
+    )
+  )
 
   ipcMain.handle(IPC.gamesOpenFolder, async (_e, id: number) => {
     const game = store.get(id)

@@ -36,6 +36,7 @@ const api: VanityApi = {
   },
   sessions: {
     states: () => ipcRenderer.invoke(IPC.sessionsStates),
+    stop: (gameId) => ipcRenderer.invoke(IPC.sessionsStop, gameId),
     onChange(callback) {
       const listener = (_: Electron.IpcRendererEvent, c: SessionChange): void => callback(c)
       ipcRenderer.on(IPC.sessionsChanged, listener)

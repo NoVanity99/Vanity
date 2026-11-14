@@ -115,6 +115,11 @@ export interface VanityApi {
   sessions: {
     /** Games currently launching or running, by game ID. */
     states(): Promise<Record<number, Exclude<SessionState, 'stopped'>>>
+    /**
+     * Cancels a game that is starting, or force-closes one that is running (like "End task").
+     * Unsaved progress in the game is lost. Resolves to how many of its processes were closed.
+     */
+    stop(gameId: number): Promise<Result<{ wasRunning: boolean; closed: number }>>
     onChange(callback: (change: SessionChange) => void): () => void
   }
   metadata: {
@@ -285,6 +290,7 @@ export const IPC = {
   progressChanged: 'progress:changed',
   progressSyncNow: 'progress:sync-now',
   settingsChanged: 'settings:changed',
+  sessionsStop: 'sessions:stop',
   accountState: 'account:state',
   accountChanged: 'account:changed',
   accountSignUp: 'account:sign-up',

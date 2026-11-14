@@ -178,6 +178,29 @@ public class VanityNativePlugin extends Plugin {
         }
     }
 
+    /**
+     * Asks Android to close a game that is in the background (it is, while the user is in Vanity).
+     * Android only allows this for background apps and may keep some running.
+     */
+    @PluginMethod
+    public void closeApp(PluginCall call) {
+        String pkg = call.getString("packageName");
+        JSObject res = new JSObject();
+        res.put("closed", false);
+        if (pkg == null || pkg.isEmpty() || pkg.equals(getContext().getPackageName())) {
+            call.resolve(res);
+            return;
+        }
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+            am.killBackgroundProcesses(pkg);
+            res.put("closed", true);
+        } catch (Exception e) {
+            // Not allowed on this phone: the game simply stays open.
+        }
+        call.resolve(res);
+    }
+
     // ---- playtime (Android's "Usage access") ----
 
     private boolean hasUsageAccess() {

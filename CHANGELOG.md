@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.11.1 (2026-11-14)
+- New: a red **cancel** bubble next to "Starting…" when a game is starting. Click it to stop waiting; if the game had already opened, it is closed too.
+- New: a red **close game** bubble at the top right of a game's cover while it is running (also next to the Playing button on the game page, in Jump back in, the list view and Big Picture). It ends the game the way "End task" in Task Manager does.
+  - It asks once first ("Close game?"), because unsaved progress in the game is lost. Click again to confirm.
+  - Only the game's own program and anything running from its install folder is closed. Time played up to that moment is kept.
+  - Web games close their window. On Android, Vanity asks the system to close the game (Android decides).
+- "Launching…" now reads "Starting…".
+
 ## 0.11.0 (2026-11-14)
 - New: **cloud-saved progress** (stage 2 of the accounts and cloud update). Sign in and your progress follows you to every PC and phone.
   - Synced: playtime and launch counts per game, last played, favourites, play status, ratings and notes, collections, badges, your level and XP, and your look-and-feel settings (theme, font and similar).

@@ -1,3 +1,4 @@
+import { StopBubble } from '@/components/StopBubble'
 import { Play } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { formatPlaytime, formatRelativeDate } from '@/lib/format'
@@ -68,13 +69,14 @@ export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: 
                   className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white/95 px-4 text-sm font-semibold text-black shadow-lg transition hover:scale-105 hover:bg-white disabled:bg-emerald-500 disabled:text-white"
                 >
                   {session ? (
-                    session === 'running' ? 'Playing' : 'Launching…'
+                    session === 'running' ? 'Playing' : 'Starting…'
                   ) : (
                     <>
                       <Play className="size-4 fill-current" /> Play
                     </>
                   )}
                 </button>
+                <StopBubble gameId={g.id} name={g.name} />
               </div>
             </div>
           )

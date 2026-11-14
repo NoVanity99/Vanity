@@ -1,3 +1,4 @@
+import { StopBubble } from './StopBubble'
 import { memo } from 'react'
 import { Play, Star } from 'lucide-react'
 import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
@@ -65,9 +66,10 @@ export const GameRow = memo(function GameRow({
           {session && (
             <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
               <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
-              {session === 'running' ? 'Playing' : 'Launching'}
+              {session === 'running' ? 'Playing' : 'Starting'}
             </span>
           )}
+          <StopBubble gameId={game.id} name={game.name} size="sm" />
         </span>
         <span className="mt-1 flex items-center gap-2 text-xs text-muted">
           <SourceBadge source={game.source} />
