@@ -12,6 +12,7 @@
   /* Defaults (Midnight). Other skins override these at runtime: src/renderer/src/lib/theme.ts */
   --font-sans: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   --font-display: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-reading: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 }
 
 html,
@@ -211,11 +212,30 @@ textarea,
   }
 }
 
-/* Headings use the font theme's display face. */
+/* The font theme applies to all text. Form controls and headings don't always inherit, so say it outright. */
 h1,
 h2,
-.font-display {
-  font-family: var(--font-display);
+h3,
+h4,
+h5,
+h6,
+button,
+input,
+select,
+option,
+optgroup,
+textarea,
+kbd,
+label,
+.font-display,
+.font-sans {
+  font-family: var(--font-sans);
+}
+/* Long passages (descriptions, notes) use the theme's reading face: the same font, except in themes that pair two. */
+.leading-relaxed,
+textarea,
+.font-reading {
+  font-family: var(--font-reading, var(--font-sans));
 }
 
 /* ---- Vanity logo: always gently alive ------------------------------------ */

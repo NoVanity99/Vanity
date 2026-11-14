@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Game, GameCandidate, GamePatch, MetadataProgress, ScanProgress, ScanSummary, SessionState } from '@shared/types'
+import { dedupeByName } from '@shared/dedupe'
 import { useToast } from './toasts'
 
 interface LibraryState {
+  /** Your library, one entry per game name (the same game found twice is shown once). */
   games: Game[]
+  /** Every stored game, including duplicate copies that aren't shown. For looking a game up by ID. */
+  allGames: Game[]
   loading: boolean
   refresh(): Promise<Game[]>
   updateGame(id: number, patch: GamePatch): Promise<void>
@@ -40,7 +44,8 @@ const message = (err: unknown): string => (err instanceof Error ? err.message : 
 
 export function LibraryProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const toast = useToast()
-  const [games, setGames] = useState<Game[]>([])
+  const [allGames, setGames] = useState<Game[]>([])
+  const games = useMemo(() => dedupeByName(allGames), [allGames])
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<ScanProgress[]>([])
@@ -114,13 +119,12 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     }
   }, [refresh, toast])
 
-  // Load the library; on a first run (empty library) scan straight away.
+  // Load the library, then look for new games: every time Vanity opens.
   useEffect(() => {
-    refresh().then((list) => {
-      if (list.length === 0 && !autoScanned.current) {
-        autoScanned.current = true
-        start()
-      }
+    refresh().then(() => {
+      if (autoScanned.current) return
+      autoScanned.current = true
+      start()
     })
   }, [refresh, start])
 
@@ -210,6 +214,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
   const value = useMemo<LibraryState>(
     () => ({
       games,
+      allGames,
       loading,
       refresh,
       updateGame,
@@ -227,6 +232,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     }),
     [
       games,
+      allGames,
       loading,
       refresh,
       updateGame,

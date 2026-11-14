@@ -1,9 +1,10 @@
 // Types shared between the main process, preload and renderer.
 
-export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual'
+/** 'android': an app installed on the phone (the Android version of Vanity). */
+export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual' | 'android'
 
 /** Sources that have a scanner and can be toggled in settings. */
-export type ScanSource = Exclude<GameSource, 'manual'>
+export type ScanSource = Exclude<GameSource, 'manual' | 'android'>
 
 export const SCAN_SOURCES: ScanSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'custom']
 
@@ -14,7 +15,8 @@ export const SOURCE_LABELS: Record<GameSource, string> = {
   ea: 'EA app',
   ubisoft: 'Ubisoft Connect',
   custom: 'Custom folders',
-  manual: 'Added manually'
+  manual: 'Added manually',
+  android: 'Android'
 }
 
 export interface Game {

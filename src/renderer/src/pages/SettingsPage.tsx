@@ -365,7 +365,7 @@ export function SettingsPage(): React.JSX.Element {
 
           <h3 className="mb-1 mt-7 text-sm font-semibold text-muted">Font</h3>
           <p className="mb-4 text-xs text-muted">
-            Every font is built in, so it works offline. Mixed themes use the first font for headings and the second for everything else.
+            Every font is built in, so it works offline. A font changes all the text in Vanity. Themes that pair two fonts use the second only for long descriptions and notes.
           </p>
           {FONT_GROUPS.map((group) => (
             <div key={group} className="mb-5 last:mb-0">

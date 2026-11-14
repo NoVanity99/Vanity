@@ -85,10 +85,11 @@ function Storyline({ text }: { text: string }): React.JSX.Element {
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { games, loading, updateGame, openFolder, pickExecutable, metadata } = useLibrary()
+  const { allGames, loading, updateGame, openFolder, pickExecutable, metadata } = useLibrary()
   const { openMenu, menu } = useGameMenu()
   const [dialog, setDialog] = useState<'match' | 'artwork' | null>(null)
-  const game = games.find((g) => g.id === Number(id))
+  // Look in every stored game, so a link to a duplicate copy still opens.
+  const game = allGames.find((g) => g.id === Number(id))
   const toast = useToast()
   const [live, setLive] = useState<GameLive | null>(null)
   const tint = useCoverTint(game ? mediaUrl(game.coverPath) : null)

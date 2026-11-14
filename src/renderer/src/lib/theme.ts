@@ -28,13 +28,19 @@ export function applySavedTheme(): void {
   applyTheme(loadPref('theme', { id: undefined as string | undefined }).id)
 }
 
-/** Applies a font theme (body and heading faces). */
+/**
+ * Applies a font theme to all text in the app: titles, menus, buttons, labels and numbers
+ * use the theme's main face. Themes that pair two fonts keep the second one only for long
+ * passages (descriptions, notes), where a display face would be hard to read.
+ */
 export function applyFont(id: string | undefined): void {
   const font = fontById(id)
   const root = document.documentElement
-  root.style.setProperty('--font-sans', font.body)
+  root.style.setProperty('--font-sans', font.display)
   root.style.setProperty('--font-display', font.display)
-  document.body.style.fontFamily = font.body
+  root.style.setProperty('--font-reading', font.body)
+  root.dataset.font = font.id
+  document.body.style.fontFamily = font.display
   savePref('font', { id: font.id })
 }
 
