@@ -2,6 +2,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
 import type { Sql } from './db'
+import { SyncError, syncUser } from './sync'
 import { keyMatches, type UpdateBundle } from './updates'
 
 export interface AppOptions {
@@ -12,6 +13,8 @@ export interface AppOptions {
   migrate?: () => Promise<void>
   /** Max username look-ups per IP per 10 minutes. */
   lookupRateLimit?: number
+  /** Max syncs per account per minute. */
+  syncRateLimit?: number
   /** The Vanity app update bundle built into this deployment, if any. */
   updates?: () => Promise<UpdateBundle | null>
   /** When set, /update needs this in the X-Update-Key header. */
@@ -55,7 +58,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, updates, updateKey }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -209,6 +212,24 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, upd
     return c.json({ synced: byKey.size })
   })
 
+  // ---- cloud-saved progress --------------------------------------------------
+
+  // Each account may sync this often (per server instance). The app syncs every few minutes and after changes.
+  const syncs = new Map<string, { count: number; reset: number }>()
+  app.post('/sync', requireAuth, requireUser, async (c) => {
+    const me = c.get('userId')
+    const now = Date.now()
+    const s = syncs.get(me)
+    if (!s || s.reset < now) syncs.set(me, { count: 1, reset: now + 60_000 })
+    else if (++s.count > syncRateLimit) fail(429, 'Syncing too often. Vanity will try again shortly.')
+    try {
+      return c.json(await syncUser(sql, me, await body(c)))
+    } catch (err) {
+      if (err instanceof SyncError) fail(400, err.message)
+      throw err
+    }
+  })
+
   // ---- friends -------------------------------------------------------------
 
   app.get('/friends', requireAuth, requireUser, async (c) => {
@@ -223,16 +244,20 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, upd
       total: number
       games: number
       top_game: string | null
+      level: number | null
+      xp: number | null
     }>`
       SELECT u.id, u.username,
         COALESCE(NOT p.signed_off AND p.updated_at > now() - ${ONLINE_WINDOW}::interval, false) AS online,
         p.game_name, p.started_at, p.updated_at,
         COALESCE((SELECT SUM(playtime_seconds) FROM vanity.game_stats s WHERE s.user_id = u.id), 0)::int AS total,
         (SELECT COUNT(*) FROM vanity.game_stats s WHERE s.user_id = u.id AND s.playtime_seconds > 0)::int AS games,
-        (SELECT game_name FROM vanity.game_stats s WHERE s.user_id = u.id ORDER BY playtime_seconds DESC LIMIT 1) AS top_game
+        (SELECT game_name FROM vanity.game_stats s WHERE s.user_id = u.id ORDER BY playtime_seconds DESC LIMIT 1) AS top_game,
+        st.level, st.xp
       FROM vanity.friendships f
       JOIN vanity.profiles u ON u.id = CASE WHEN f.requester_id = ${me} THEN f.addressee_id ELSE f.requester_id END
       LEFT JOIN vanity.presence p ON p.user_id = u.id
+      LEFT JOIN vanity.user_state st ON st.user_id = u.id
       WHERE f.status = 'accepted' AND (f.requester_id = ${me} OR f.addressee_id = ${me})
       ORDER BY lower(u.username)`
     const incoming = await sql<{ id: string; username: string; created_at: unknown }>`
@@ -248,7 +273,9 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, upd
         status: status(f),
         totalPlaytimeSeconds: f.total,
         gamesPlayed: f.games,
-        topGame: f.top_game
+        topGame: f.top_game,
+        level: f.level ?? 1,
+        xp: f.xp ?? 0
       })),
       incoming: incoming.map((r) => ({ id: r.id, username: r.username, createdAt: toMs(r.created_at) })),
       outgoing: outgoing.map((r) => ({ id: r.id, username: r.username, createdAt: toMs(r.created_at) }))
@@ -302,12 +329,17 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, upd
     const id = c.req.param('id')
     if (!(await areFriends(c.get('userId'), id))) fail(403, 'You can only see stats of your friends.')
     const [user] = await sql<{ username: string }>`SELECT username FROM vanity.profiles WHERE id = ${id}`
+    const [st] = await sql<{ level: number; xp: number; badges: unknown }>`SELECT level, xp, badges FROM vanity.user_state WHERE user_id = ${id}`
+    const badges = typeof st?.badges === 'string' ? (JSON.parse(st.badges) as Record<string, number>) : ((st?.badges as Record<string, number> | undefined) ?? {})
     const games = await sql<{ game_key: string; game_name: string; playtime_seconds: number; last_played_at: unknown }>`
       SELECT game_key, game_name, playtime_seconds, last_played_at FROM vanity.game_stats
       WHERE user_id = ${id} AND playtime_seconds > 0 ORDER BY playtime_seconds DESC`
     const shape = (g: (typeof games)[number]) => ({ gameKey: g.game_key, gameName: g.game_name, playtimeSeconds: g.playtime_seconds, lastPlayedAt: toMs(g.last_played_at) })
     return c.json({
       username: user?.username ?? '',
+      level: st?.level ?? 1,
+      xp: st?.xp ?? 0,
+      badges: Object.keys(badges),
       totalPlaytimeSeconds: games.reduce((sum, g) => sum + g.playtime_seconds, 0),
       gamesPlayed: games.length,
       top: games.slice(0, 10).map(shape),

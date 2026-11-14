@@ -24,6 +24,9 @@ import { WrappedPage } from './pages/WrappedPage'
 import { BigPicturePage } from './pages/BigPicturePage'
 import { FriendsPage } from './pages/FriendsPage'
 import { AccountPage } from './pages/AccountPage'
+import { ProfilePage } from './pages/ProfilePage'
+import { useProgress } from './state/progress'
+import { reloadCollections } from './state/collections'
 import { LibraryProvider, useLibrary } from './state/library'
 import { ToastProvider, useToast } from './state/toasts'
 
@@ -38,6 +41,14 @@ function Shell(): React.JSX.Element {
     applyTheme(settings.theme)
     applyFont(settings.font)
   }, [settings?.theme, settings?.font]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cloud sync brought something in from another device: show it.
+  const appliedAt = useProgress()?.sync.appliedAt ?? 0
+  useEffect(() => {
+    if (!appliedAt) return
+    void refresh()
+    void reloadCollections().catch(() => {})
+  }, [appliedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Phones: the sidebar is a slide-out menu, closed again whenever you go somewhere.
   const [menuOpen, setMenuOpen] = useState(false)
@@ -71,6 +82,7 @@ function Shell(): React.JSX.Element {
             <Route path="/big" element={<BigPicturePage />} />
             <Route path="/friends" element={<FriendsPage />} />
             <Route path="/account" element={<AccountPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/library" replace />} />

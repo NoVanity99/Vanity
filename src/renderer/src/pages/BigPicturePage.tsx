@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { STATUS_STYLES } from '@/lib/status'
-import { levelFor, totalXp } from '@/lib/xp'
+import { useProgress } from '@/state/progress'
 import { useCollections } from '@/state/collections'
 import { useLibrary } from '@/state/library'
 
@@ -139,7 +139,7 @@ export function BigPicturePage(): React.JSX.Element {
     )
   )
 
-  const lvl = levelFor(totalXp(games))
+  const lvl = useProgress()?.level ?? { level: 1, into: 0, span: 100, title: 'Rookie' }
   const hero = game ? (mediaUrl(game.heroPath) ?? mediaUrl(game.coverPath)) : null
   const logo = game ? mediaUrl(game.logoPath) : null
 

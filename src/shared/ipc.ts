@@ -1,5 +1,6 @@
 import type {
   AccountState,
+  Progress,
   FriendsList,
   FriendStats,
   GameFriend,
@@ -161,6 +162,13 @@ export interface VanityApi {
     /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
   }
+  /** XP, level, badges and totals, and the state of cloud sync. Works signed out too (this device only). */
+  progress: {
+    get(): Promise<Progress>
+    onChange(callback: (progress: Progress) => void): () => void
+    /** Syncs with the cloud now. Resolves with the result (never rejects). */
+    syncNow(): Promise<Progress>
+  }
   friends: {
     list(): Promise<Result<FriendsList>>
     add(username: string): Promise<Result<'pending' | 'accepted'>>
@@ -225,6 +233,8 @@ export interface VanityApi {
     onProgress(callback: (progress: ScanProgress[]) => void): () => void
   }
   settings: {
+    /** Settings changed without the user doing it here (cloud sync brought them from another device). */
+    onChange(callback: (settings: Settings) => void): () => void
     get(): Promise<Settings>
     update(patch: Partial<Settings>): Promise<Settings>
     /** Opens a folder picker. Resolves to null if cancelled. */
@@ -271,6 +281,10 @@ export const IPC = {
   trendingOpen: 'trending:open',
   trendingFollow: 'trending:follow',
   statsGet: 'stats:get',
+  progressGet: 'progress:get',
+  progressChanged: 'progress:changed',
+  progressSyncNow: 'progress:sync-now',
+  settingsChanged: 'settings:changed',
   accountState: 'account:state',
   accountChanged: 'account:changed',
   accountSignUp: 'account:sign-up',

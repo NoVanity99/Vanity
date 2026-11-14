@@ -362,6 +362,8 @@ export interface Friend {
   totalPlaytimeSeconds: number
   gamesPlayed: number
   topGame: string | null
+  level: number
+  xp: number
 }
 
 export interface FriendRequest {
@@ -385,6 +387,10 @@ export interface FriendGameStat {
 
 export interface FriendStats {
   username: string
+  level: number
+  xp: number
+  /** Ids of the badges they've earned (see src/shared/progress.ts). */
+  badges: string[]
   totalPlaytimeSeconds: number
   gamesPlayed: number
   top: FriendGameStat[]
@@ -524,4 +530,73 @@ export interface NowListening {
   /** When the song started (ms), adjusted for where playback is. */
   startedAt: number
   durationMs: number | null
+}
+
+// ---- Progress (XP, level, badges) and cloud sync ---------------------------------
+
+export interface ProgressBadge {
+  id: string
+  name: string
+  description: string
+  icon: string
+  /** When it was unlocked (ms), or null while it's still locked. */
+  unlockedAt: number | null
+  current: number
+  target: number
+}
+
+export interface ProgressGame {
+  /** Vanity's game key. */
+  key: string
+  name: string
+  /** Across all your devices. */
+  playtimeSeconds: number
+  launches: number
+  lastPlayedAt: number | null
+  /** The game in this device's library, or null if you only have it elsewhere. */
+  gameId: number | null
+  coverPath: string | null
+  iconPath: string | null
+}
+
+export type SyncStatus =
+  /** Not signed in (or no username yet): progress is kept on this device only. */
+  | 'local'
+  | 'syncing'
+  | 'synced'
+  /** Couldn't reach the server: changes are kept here and sent when it's back. */
+  | 'offline'
+  | 'error'
+
+export interface SyncState {
+  status: SyncStatus
+  /** When this device last synced successfully (ms). */
+  lastSyncedAt: number | null
+  /** A plain-words explanation for 'offline' and 'error'. */
+  message: string | null
+  /** Changes when a sync brought in something new, so screens know to reload. */
+  appliedAt: number
+}
+
+export interface Progress {
+  xp: number
+  level: { level: number; into: number; span: number; title: string }
+  /** Where the XP comes from. */
+  breakdown: { playtime: number; firstLaunches: number; daysPlayed: number; streaks: number; steamAchievements: number; journal: number }
+  totals: {
+    playtimeSeconds: number
+    gamesPlayed: number
+    launches: number
+    daysPlayed: number
+    currentStreak: number
+    bestStreak: number
+    favorites: number
+    steamAchievements: number
+  }
+  /** Most played first. */
+  topGames: ProgressGame[]
+  /** Last played first. */
+  recentGames: ProgressGame[]
+  badges: ProgressBadge[]
+  sync: SyncState
 }

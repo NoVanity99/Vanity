@@ -15,6 +15,7 @@ import type { DiscordPresence } from '../discord/presence'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
+import type { SyncService } from '../sync/service'
 import { gameKey } from '../account/gameKey'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
@@ -68,11 +69,12 @@ export interface IpcDeps {
   db: Db
   stats: () => unknown
   account: AccountService
+  sync: SyncService
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -80,7 +82,11 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
 
   ipcMain.handle(IPC.gamesList, () => store.list())
   ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
-  ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => store.update(id, patch))
+  ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => {
+    const game = store.update(id, patch)
+    sync.touch()
+    return game
+  })
   ipcMain.handle(IPC.gamesRemove, async (_e, id: number) => {
     store.remove(id)
     await media.removeGame(id)
@@ -226,6 +232,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
     }
     if (before.githubToken !== after.githubToken || before.updateKey !== after.updateKey || before.accountServerUrl !== after.accountServerUrl) void update.check()
     if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
+    sync.settingsChanged(before, after)
     onSettingsChanged?.(after)
     return after
   })
@@ -272,6 +279,11 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.statsGet, () => stats())
 
   const text = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(0, max) : '')
+  ipcMain.handle(IPC.progressGet, () => sync.progress())
+  ipcMain.handle(IPC.progressSyncNow, async () => {
+    await sync.syncNow()
+    return sync.progress()
+  })
   ipcMain.handle(IPC.accountState, () => account.state())
   ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))
   ipcMain.handle(IPC.accountSignIn, (_e, email: string, p: string, remember: boolean) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)))

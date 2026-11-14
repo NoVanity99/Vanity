@@ -1,3 +1,4 @@
+import type { SyncRequest, SyncResponse } from '@shared/sync'
 import type { FriendsList, FriendStats, GameFriend } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
 import { AccountError } from './errors'
@@ -66,6 +67,9 @@ export class AccountClient {
   signOff = () => this.call<void>('DELETE', '/presence')
   syncStats = (games: { gameKey: string; gameName: string; playtimeSeconds: number; lastPlayedAt: number | null }[]) =>
     this.call<{ synced: number }>('PUT', '/stats', { games })
+
+  /** Cloud-saved progress: sends what this device knows, gets the merged result back. */
+  sync = (request: SyncRequest) => this.call<SyncResponse>('POST', '/sync', request)
 
   friends = () => this.call<FriendsList>('GET', '/friends')
   addFriend = (username: string) => this.call<{ status: 'pending' | 'accepted' }>('POST', '/friends/requests', { username })

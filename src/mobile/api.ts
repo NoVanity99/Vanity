@@ -1,7 +1,9 @@
 import type { Result, VanityApi } from '@shared/ipc'
-import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, ScanSummary, SessionState, Settings } from '@shared/types'
+import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
 import { AccountService } from '../main/account/service'
+import { SyncService } from '../main/sync/service'
+import { tracked } from '../main/sync/track'
 import { backendConfig } from '@shared/backend'
 import { mobileAuthHttp, mobileSessionVault } from './account'
 import type { Db } from '../main/db/database'
@@ -61,7 +63,9 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   const openUrl = (url: string): Promise<void> => native.openUrl({ url })
 
   const store = createSqliteStore(db)
-  const collections = createCollectionsStore(db)
+  // `sync` is created further down; collections tell it when the user changes them.
+  let sync: SyncService | null = null
+  const collections = tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged())
   const playtime = createPlaytimeStore(db)
 
   const sessionsChanged = emitter<{ gameId: number; state: SessionState }>()
@@ -69,6 +73,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   const gameUpdated = emitter<number>()
   const trendingUpdated = emitter<ReturnType<TrendingService['state']>>()
   const accountChanged = emitter<ReturnType<AccountService['state']>>()
+  const progressChanged = emitter<Progress>()
+  const settingsChanged = emitter<Settings>()
   const statusUpdated = emitter<ReturnType<StatusService['get']>>()
   const updateChanged = emitter<ReturnType<MobileUpdater['state']>>()
   const scanProgress = emitter<ScanSummary['progress']>()
@@ -116,6 +122,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     onChange: (gameId, state) => {
       sessionsChanged.emit({ gameId, state })
       account.onSessionChange(state)
+      if (state === 'stopped') sync?.touch()
     }
   })
 
@@ -126,8 +133,20 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     backend: () => backendConfig(),
     vault: mobileSessionVault,
     runningGame: () => tracker.running(),
-    onChange: (s) => accountChanged.emit(s)
+    onChange: (s) => {
+      accountChanged.emit(s)
+      sync?.accountChanged()
+    }
   })
+  sync = new SyncService({
+    db,
+    account,
+    getSettings,
+    applySettings: async (patch) => settingsChanged.emit(await updateSettings(patch)),
+    deviceName: 'Android phone',
+    onChange: (p) => progressChanged.emit(p)
+  })
+  const progress = sync
 
   const updater = new MobileUpdater({
     currentVersion: appVersion,
@@ -185,6 +204,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   if (localStorage.getItem('vanity-music-on')) void loadMusic()
 
   // ---- start background work ----
+  progress.start()
   void account.load()
   trending.start()
   status.start()
@@ -196,6 +216,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     if (document.visibilityState !== 'visible') return
     void tracker.sync()
     updater.checkIfStale()
+    // Pick up what was played on other devices while Vanity was in the background.
+    void progress.syncNow()
   })
   // Links that would open a new window (news, trailers, store pages) open outside the app.
   document.addEventListener(
@@ -217,7 +239,11 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     games: {
       list: async () => store.list(),
       get: async (id) => store.get(id),
-      update: async (id, patch: GamePatch) => store.update(id, patch),
+      update: async (id, patch: GamePatch) => {
+        const game = store.update(id, patch)
+        progress.touch()
+        return game
+      },
       remove: async (id) => store.remove(id),
       removed: async () => store.removed().map((g) => g.name),
       restoreRemoved: async () => store.restoreRemoved(),
@@ -299,6 +325,14 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       open: (gameId, launcher) => wrap(() => trending.open(Number(gameId), launcher)),
       follow: async (gameId, on) => trending.follow(Number(gameId), on === true)
     },
+    progress: {
+      get: async () => progress.progress(),
+      onChange: (cb) => progressChanged.on(cb),
+      syncNow: async () => {
+        await progress.syncNow()
+        return progress.progress()
+      }
+    },
     account: {
       state: async () => account.state(),
       onChange: (cb) => accountChanged.on(cb),
@@ -374,6 +408,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       onProgress: (cb) => scanProgress.on(cb)
     },
     settings: {
+      onChange: (cb) => settingsChanged.on(cb),
       get: async () => getSettings(),
       update: async (patch: Partial<Settings>) => {
         const before = getSettings()
@@ -382,6 +417,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
           metadata.onKeysChanged()
           void trending.refresh()
         }
+        progress.settingsChanged(before, after)
         return after
       },
       pickFolder: async () => null

@@ -81,6 +81,22 @@ try {
   const named = await api('PUT', '/me/username', jwt, { username })
   step('a username can be picked (the database works)', named.status === 200 && named.json?.user?.username === username, `HTTP ${named.status} ${named.text.slice(0, 200)}`)
   step('friends list loads', (await api('GET', '/friends', jwt)).status === 200)
+  const synced = await api('POST', '/sync', jwt, {
+    deviceId: `smoke-${tag}`,
+    deviceName: 'Deploy check',
+    games: [{ key: 'g:smoke-test', name: 'Smoke Test', playtimeSeconds: 120, launches: 2, lastPlayedAt: Date.now(), firstPlayedAt: Date.now() }],
+    prefs: [{ key: 'g:smoke-test', favorite: true, playStatus: 'playing', userRating: 5, notes: null, updatedAt: Date.now() - 1000 }],
+    days: [new Date().toISOString().slice(0, 10)],
+    badges: { 'first-launch': Date.now() },
+    collections: { updatedAt: Date.now() - 1000, items: [{ name: 'Smoke', games: ['g:smoke-test'] }] },
+    settings: { updatedAt: Date.now() - 1000, values: { theme: 'default' } },
+    summary: { xp: 37, level: 1 }
+  })
+  step(
+    'cloud sync saves and returns progress',
+    synced.status === 200 && synced.json?.games?.[0]?.playtimeSeconds === 120 && synced.json?.prefs?.[0]?.favorite === true && synced.json?.days?.length === 1 && synced.json?.collections?.items?.length === 1,
+    `HTTP ${synced.status} ${synced.status === 200 ? '' : synced.text.slice(0, 200)}`
+  )
   step('the Vanity profile is removed again', (await api('DELETE', '/me', jwt)).status === 204)
 
   const wrong = await auth('POST', '/sign-in/email', { body: { email, password: 'definitely-wrong' } })

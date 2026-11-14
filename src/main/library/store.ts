@@ -37,6 +37,7 @@ interface GameRow {
   added_at: number
   last_played_at: number | null
   playtime_seconds: number
+  cloud_playtime_seconds: number
   description: string | null
   genres: string
   release_date: string | null
@@ -82,7 +83,8 @@ function toGame(r: GameRow): Game {
     missing: r.missing === 1,
     addedAt: r.added_at,
     lastPlayedAt: r.last_played_at,
-    playtimeSeconds: r.playtime_seconds,
+    // Shown everywhere as one number: this device plus your other devices (cloud sync).
+    playtimeSeconds: r.playtime_seconds + (r.cloud_playtime_seconds ?? 0),
     description: r.description,
     genres: parseGenres(r.genres),
     releaseDate: r.release_date,
@@ -208,9 +210,12 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
         sets.push('name = @name', 'name_locked = 1')
         params.name = patch.name.trim()
       }
+      // The user's own choices are time-stamped, so cloud sync knows which device changed them last.
+      let choices = false
       if (typeof patch.favorite === 'boolean') {
         sets.push('favorite = @favorite')
         params.favorite = patch.favorite ? 1 : 0
+        choices = true
       }
       if (typeof patch.executablePath === 'string' && patch.executablePath.trim()) {
         sets.push('executable_path = @executablePath', 'executable_locked = 1')
@@ -245,15 +250,22 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       if (patch.playStatus !== undefined) {
         sets.push('play_status = @playStatus')
         params.playStatus = patch.playStatus && PLAY_STATUSES.includes(patch.playStatus) ? patch.playStatus : null
+        choices = true
       }
       if (patch.userRating !== undefined) {
         const r = Math.round(Number(patch.userRating))
         sets.push('user_rating = @userRating')
         params.userRating = r >= 1 && r <= 5 ? r : null
+        choices = true
       }
       if (patch.notes !== undefined) {
         sets.push('notes = @notes')
         params.notes = typeof patch.notes === 'string' && patch.notes.trim() ? patch.notes.slice(0, 20_000) : null
+        choices = true
+      }
+      if (choices) {
+        sets.push('user_updated_at = @userUpdatedAt')
+        params.userUpdatedAt = now()
       }
       if (sets.length) db.prepare(`UPDATE games SET ${sets.join(', ')} WHERE id = @id`).run(params)
       return get(id)

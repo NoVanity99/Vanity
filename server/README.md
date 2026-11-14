@@ -53,6 +53,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
+| POST | `/sync` | Cloud-saved progress: the device sends what it knows (per-device counters, choices with timestamps, days, badges, collections, settings) and gets the merged result back. Rules are in `src/sync.ts`. Rate-limited per account |
 | PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing |
 | DELETE | `/presence` | Signed out / closed: shows as offline |
 | PUT | `/stats` | `{ games: [{ gameKey, gameName, playtimeSeconds, lastPlayedAt }] }` (up to 5000) |
@@ -70,7 +71,8 @@ Routes after `/me` answer `409` with `code: "needs_username"` until the account 
 
 **Security notes**
 - **Tokens:** verified against Neon Auth's published keys (`NEON_AUTH_JWKS_URL`, injected by Neon), EdDSA only, with the expiry enforced.
-- **Database:** every query is parameterised, and the tables hold no passwords or emails (`src/schema.ts`). The server creates its tables by itself on first use.
+- **Database:** every query is parameterised, and the tables hold no passwords or emails (`src/schema.ts`).
+- **Sync can't take progress away:** a device can never lower a counter or remove a day or badge, and a clock set in the future can't make its changes win forever (timestamps are capped at the server's time). The server creates its tables by itself on first use.
 - **Deleting an account** removes what Vanity stores. The sign-in record at Neon Auth stays until you remove it in the Neon console (Auth → Users).
 
 ## Working on it

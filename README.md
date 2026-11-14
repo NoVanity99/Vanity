@@ -193,6 +193,21 @@ Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the 
 - **Friends, presence ("Playing X · 23 min") and shared stats** use the Vanity server, a Neon Function. The app only talks to that server, never to the database, and nothing secret ships with the app.
 - **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
 
+## Cloud-saved progress, XP and badges
+
+Sign in and your progress is saved to your account and kept the same on every device. Signed out, it all still works and stays on the device.
+
+- **What syncs:** playtime and launch counts per game, last played, favourites, play status, ratings, notes, collections, badges, level and XP, and look-and-feel settings (theme, font, background, controller, break reminder, Discord status, minimise while playing). Folders and paths never sync.
+- **How conflicts are settled:**
+  - *Counters* (playtime, launches) are kept per device and added up, so two devices used offline never overwrite each other.
+  - *Days played and badges* are merged: nothing earned is lost.
+  - *Choices* (favourites, status, rating, notes, collections, settings) carry the time they changed. The server's copy wins unless the device's change is newer.
+- **Offline:** the local database is always the working copy. Vanity syncs at start, after each play session, a few seconds after you change something, and every 10 minutes; when it can't reach the server it says so on the Profile page and catches up later.
+- **Games are matched by name** across devices and stores, so your Steam copy on the PC and the Android version on your phone count as one game.
+- **Tuning XP:** every number is in [`src/shared/xpConfig.ts`](src/shared/xpConfig.ts): XP per minute, for the first launch of a game, per day played, the streak bonus and its cap, per Steam achievement, for finishing and rating games, and how much each level takes. XP is always re-worked from what you've actually done, so changing a value re-scores everyone on the next build.
+- **Badges** are defined in [`src/shared/progress.ts`](src/shared/progress.ts) (`BADGES`). Add one by adding a line; never rename an existing id.
+- **Code:** `src/main/sync/` (the sync engine and progress), `server/src/sync.ts` (the merge rules on the server), `src/shared/sync.ts` (what the two exchange).
+
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
 - **Stats:** your playtime syncs after each session and every 15 minutes.

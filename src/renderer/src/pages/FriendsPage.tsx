@@ -34,7 +34,12 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
     >
       <Avatar name={friend.username} status={friend.status.state} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold">{friend.username}</span>
+        <span className="flex items-center gap-2">
+          <span className="truncate font-semibold">{friend.username}</span>
+          <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent" title={`Level ${friend.level} (${friend.xp.toLocaleString()} XP)`}>
+            Lv {friend.level}
+          </span>
+        </span>
         <span className={cn('flex items-center gap-1.5 truncate text-xs', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
           {playing && <Gamepad2 className="size-3.5 shrink-0" />}
           <span className="truncate">{statusLine(friend)}</span>
@@ -68,6 +73,13 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
         <div className="min-w-0">
           <p className="truncate font-display text-2xl font-bold">{friend.username}</p>
           <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
+          <p className="mt-1 text-xs font-semibold text-accent">
+            Level {stats?.level ?? friend.level}
+            <span className="font-normal text-muted">
+              {' '}
+              · {(stats?.xp ?? friend.xp).toLocaleString()} XP{stats ? ` · ${stats.badges.length} badge${stats.badges.length === 1 ? '' : 's'}` : ''}
+            </span>
+          </p>
         </div>
       </div>
 

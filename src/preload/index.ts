@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
+import type { AccountState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
   platform: 'desktop',
@@ -79,6 +79,15 @@ const api: VanityApi = {
   stats: {
     get: () => ipcRenderer.invoke(IPC.statsGet)
   },
+  progress: {
+    get: () => ipcRenderer.invoke(IPC.progressGet),
+    onChange: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, p: Progress): void => callback(p)
+      ipcRenderer.on(IPC.progressChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.progressChanged, listener)
+    },
+    syncNow: () => ipcRenderer.invoke(IPC.progressSyncNow)
+  },
   account: {
     state: () => ipcRenderer.invoke(IPC.accountState),
     onChange(callback) {
@@ -155,6 +164,11 @@ const api: VanityApi = {
     }
   },
   settings: {
+    onChange: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, s: Settings): void => callback(s)
+      ipcRenderer.on(IPC.settingsChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.settingsChanged, listener)
+    },
     get: () => ipcRenderer.invoke(IPC.settingsGet),
     update: (patch) => ipcRenderer.invoke(IPC.settingsUpdate, patch),
     pickFolder: () => ipcRenderer.invoke(IPC.settingsPickFolder)

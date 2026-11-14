@@ -98,5 +98,17 @@ export const migrations: string[] = [
     removed_at   INTEGER NOT NULL,
     PRIMARY KEY (source, external_id)
   );
+  `,
+  // 8: cloud-saved progress (see src/main/sync)
+  `
+  -- When the user last changed their own choices for a game (favourite, status, rating, notes).
+  ALTER TABLE games ADD COLUMN user_updated_at INTEGER NOT NULL DEFAULT 0;
+  -- What your other devices have added for this game. playtime_seconds stays "this device only".
+  ALTER TABLE games ADD COLUMN cloud_playtime_seconds INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE games ADD COLUMN cloud_launches INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE badges (
+    id           TEXT PRIMARY KEY,
+    unlocked_at  INTEGER NOT NULL
+  );
   `
 ]

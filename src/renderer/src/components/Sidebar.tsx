@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { Award, BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -197,6 +197,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
         <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
+        <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />
 
         <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>

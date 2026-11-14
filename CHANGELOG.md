@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.11.0 (2026-11-14)
+- New: **cloud-saved progress** (stage 2 of the accounts and cloud update). Sign in and your progress follows you to every PC and phone.
+  - Synced: playtime and launch counts per game, last played, favourites, play status, ratings and notes, collections, badges, your level and XP, and your look-and-feel settings (theme, font and similar).
+  - Play on two devices and the time adds up; nothing overwrites anything. For choices like favourites, the newest change wins.
+  - Works offline: everything is saved on the device first and syncs by itself when you're back online.
+  - Not signed in? Everything still works and is kept on this device.
+- New: **Profile page** (click your level in the sidebar, or Profile in the menu): your level and XP bar, total playtime, games played, launches, streak, most-played games, where your XP comes from, and your badges.
+- New: **21 badges** to unlock, from "Press Start" to "Unstoppable" (a 30-day streak), each showing how far along you are.
+- XP now also comes from the first launch of each game, each day you play, and streaks of days in a row, on top of playtime, finishing and rating games. Steam achievements will count once Steam linking arrives. Your level can only have gone up.
+- Friends: you can see each friend's level, XP and badge count.
+- Game time shown in the library and on Stats now includes your other devices.
+
 ## 0.10.0 (2026-11-14)
 - Accounts have moved to Neon, with proper sign-in (stage 1 of the accounts and cloud update).
   - Create an account with your email, a username and a password. Friends still add you by username; your email stays private.
