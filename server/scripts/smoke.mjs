@@ -80,7 +80,13 @@ try {
 
   const named = await api('PUT', '/me/username', jwt, { username })
   step('a username can be picked (the database works)', named.status === 200 && named.json?.user?.username === username, `HTTP ${named.status} ${named.text.slice(0, 200)}`)
-  const profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })
+  // Right after a deploy, some requests still reach the previous copy of the server for a few
+  // seconds. It doesn't know this route yet (404): give the new copy a moment before judging.
+  let profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })
+  for (let i = 0; i < 12 && profile.status === 404; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })
+  }
   step('a bio can be saved, and a throwaway account gets no official badge', profile.status === 200 && profile.json?.user?.bio === 'Deploy check' && profile.json?.user?.verified === false && profile.json?.user?.admin === false, `HTTP ${profile.status} ${profile.text.slice(0, 200)}`)
   step('friends list loads', (await api('GET', '/friends', jwt)).status === 200)
   const synced = await api('POST', '/sync', jwt, {
