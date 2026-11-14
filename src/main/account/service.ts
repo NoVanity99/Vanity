@@ -2,7 +2,7 @@ import type { BackendConfig } from '@shared/backend'
 import type { AccountState } from '@shared/types'
 import type { LibraryStore } from '../library/store'
 import type { FetchFn } from '../metadata/http'
-import { AccountClient } from './client'
+import { AccountClient, type Me } from './client'
 import { AccountError } from './errors'
 import { gameKey } from './gameKey'
 import { jwtExpiry, NeonAuth, type AuthHttp, type AuthSession } from './neonAuth'
@@ -20,7 +20,21 @@ export interface SavedSession {
   email: string
   /** Null until the account has picked a username. */
   username: string | null
+  /** The profile as last seen from the server, so it shows offline too. */
+  avatar?: string | null
+  bio?: string
+  verified?: boolean
+  admin?: boolean
 }
+
+/** The parts of the server's answer that are kept with the session. */
+const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'verified' | 'admin'> => ({
+  username: me.username,
+  avatar: me.avatar ?? null,
+  bio: me.bio ?? '',
+  verified: me.verified === true,
+  admin: me.admin === true
+})
 
 /**
  * Where the session is kept between launches: the OS credential store
@@ -88,7 +102,11 @@ export class AccountService {
       username: this.saved?.username ?? null,
       needsUsername: !!this.saved && !this.saved.username,
       sessionExpired: this.expired,
-      remembered: !!this.saved && this.remember && this.kept
+      remembered: !!this.saved && this.remember && this.kept,
+      avatar: this.saved?.avatar ?? null,
+      bio: this.saved?.bio ?? '',
+      verified: this.saved?.verified === true,
+      admin: this.saved?.admin === true
     }
   }
 
@@ -143,7 +161,7 @@ export class AccountService {
     await this.adopt(session, null, remember)
     try {
       const me = await this.client().me()
-      await this.update({ username: me.username })
+      await this.update(profileOf(me))
     } catch (err) {
       if (!(err instanceof AccountError && err.offline)) throw err
     }
@@ -156,8 +174,17 @@ export class AccountService {
     username = username.trim()
     if (!USERNAME.test(username)) throw new AccountError('Usernames are 3–20 letters, numbers or underscores.')
     const me = await this.guard((c) => c.setUsername(username))
-    await this.update({ username: me.username })
+    await this.update(profileOf(me))
     this.start()
+    return this.state()
+  }
+
+  /** Sets the profile picture (null removes it) and/or the bio. */
+  async setProfile(patch: { avatar?: string | null; bio?: string }): Promise<AccountState> {
+    if (patch.avatar != null && !/^data:image\/(png|jpeg|webp);base64,/.test(patch.avatar)) throw new AccountError('That picture could not be used. Try a PNG or JPEG image.')
+    if (patch.bio !== undefined && [...patch.bio.trim()].length > 200) throw new AccountError('Bios can be up to 200 characters.')
+    const me = await this.guard((c) => c.setProfile(patch))
+    await this.update(profileOf(me))
     return this.state()
   }
 
@@ -254,7 +281,7 @@ export class AccountService {
   private async refreshProfile(): Promise<void> {
     try {
       const me = await this.client().me()
-      await this.update({ username: me.username })
+      await this.update(profileOf(me))
     } catch {
       // Offline, or the session ended (token() has already handled that).
     }

@@ -91,4 +91,23 @@ describe('LiveService', () => {
     ]).games
     expect(await live.libraryPlayers()).toEqual({ [games[0].id]: 100, [games[1].id]: 200 })
   })
+
+  it('counts players for games from other launchers too, once their Steam page has been found', async () => {
+    const { store, live, db, calls } = setup()
+    const [steam, gog, custom] = store.upsert([
+      { source: 'steam', externalId: '10', name: 'A', installPath: null, executablePath: null },
+      { source: 'gog', externalId: '1', name: 'The Witcher 3', installPath: '/w', executablePath: '/w/w.exe' },
+      { source: 'custom', externalId: '/x.exe', name: 'Indie', installPath: '/i', executablePath: '/x.exe' }
+    ]).games
+    createMetadataRepo(db).setMatch(gog.id, { steamGridDbId: null, igdbId: 1942 })
+    // First ask: Steam games straight away; the GOG game's Steam page is looked up in the background.
+    expect(await live.libraryPlayers()).toEqual({ [steam.id]: 100 })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(await live.libraryPlayers()).toEqual({ [steam.id]: 100, [gog.id]: 2920300 })
+    expect(custom.id).toBeGreaterThan(0) // no Steam page: simply no number
+    // Then it is remembered: asking again within ten minutes asks nobody.
+    const before = calls.length
+    await live.libraryPlayers()
+    expect(calls.length).toBe(before)
+  })
 })

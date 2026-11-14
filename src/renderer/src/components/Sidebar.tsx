@@ -1,3 +1,4 @@
+import { UserBadges } from '@/components/UserBadges'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -119,9 +120,12 @@ function AccountItem(): React.JSX.Element {
     >
       {account?.signedIn && account.username ? (
         <>
-          <Avatar key={played} name={account.username} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
+          <Avatar key={played} name={account.username} src={account.avatar} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-text">{account.username}</span>
+            <span className="flex items-center gap-1.5 text-text">
+              <span className="truncate">{account.username}</span>
+              <UserBadges verified={account.verified} admin={account.admin} />
+            </span>
             <span className="block text-[11px] text-muted">Account</span>
           </span>
         </>

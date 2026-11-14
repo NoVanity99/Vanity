@@ -8,7 +8,9 @@ import type { LibraryStore } from '../library/store'
 
 const LIVE_TTL_MS = 10 * 60_000
 const WORKSHOP_TTL_MS = 30 * 24 * 60 * 60_000
-const LIBRARY_LOOKUPS = 150
+const LIBRARY_LOOKUPS = 600
+/** Non-Steam games whose Steam page is looked up (once a month each) per pass. */
+const ID_LOOKUPS_PER_PASS = 60
 
 export interface LiveDeps {
   db: Db
@@ -125,23 +127,51 @@ export class LiveService {
     return result
   }
 
-  /** Current Steam players for every Steam game in the library (cached for 10 minutes). */
+  /** The Steam app ID if it is known without asking anyone: `undefined` means it would need a look-up. */
+  private knownAppId(game: Game): string | null | undefined {
+    if (game.source === 'steam') return /^\d+$/.test(game.externalId) ? game.externalId : null
+    if (game.metadata.igdbId === null) return null
+    return this.kvGet<string | null>(`live:steamid:${game.metadata.igdbId}`, WORKSHOP_TTL_MS)
+  }
+
+  private resolving: Promise<void> | null = null
+
+  /**
+   * Current Steam players for the games in the library, by game ID (cached for 10 minutes): the
+   * same number the game page shows. Steam games are counted straight away. Games from other
+   * launchers need their Steam page found first: that happens in the background, a batch at a
+   * time, and they join the answer the next time it is asked for.
+   */
   async libraryPlayers(): Promise<Record<number, number>> {
     if (this.libraryCache && this.now() - this.libraryCache.at < LIVE_TTL_MS) return this.libraryCache.data
-    const games = this.deps.store
-      .list()
-      .filter((g) => g.source === 'steam' && /^\d+$/.test(g.externalId) && !g.hidden)
-      .slice(0, LIBRARY_LOOKUPS)
+    const games = this.deps.store.list().filter((g) => !g.hidden)
+    const withId: { id: number; appId: string }[] = []
+    const unknown: Game[] = []
+    for (const g of games) {
+      const appId = this.knownAppId(g)
+      if (appId === undefined) unknown.push(g)
+      else if (appId) withId.push({ id: g.id, appId })
+    }
+    // One request per Steam game, however many copies of it are in the library.
+    const counts = new Map<string, Promise<number | null>>()
     const data: Record<number, number> = {}
     await Promise.all(
-      games.map((g) =>
-        this.steamLimit(async () => {
-          const n = await steamPlayers(this.deps.fetchFn, g.externalId).catch(() => null)
-          if (n !== null) data[g.id] = n
-        })
-      )
+      withId.slice(0, LIBRARY_LOOKUPS).map(async (g) => {
+        let count = counts.get(g.appId)
+        if (!count) counts.set(g.appId, (count = this.steamLimit(() => steamPlayers(this.deps.fetchFn, g.appId).catch(() => null))))
+        const n = await count
+        if (n !== null) data[g.id] = n
+      })
     )
     this.libraryCache = { at: this.now(), data }
+    if (unknown.length && !this.resolving) {
+      this.resolving = (async () => {
+        let found = false
+        for (const g of unknown.slice(0, ID_LOOKUPS_PER_PASS)) found = !!(await this.steamAppIdFor(g).catch(() => null)) || found
+        // New Steam pages were found: count their players on the next ask instead of in ten minutes.
+        if (found) this.libraryCache = null
+      })().finally(() => (this.resolving = null))
+    }
     return data
   }
 }

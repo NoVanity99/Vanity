@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
-import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, GitBranch, KeyRound, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
@@ -14,12 +14,22 @@ import { useToast } from '@/state/toasts'
 import { checkForUpdate, openUpdateDialog, pendingCount, useUpdate } from '@/state/update'
 import { formatAgo } from '@/lib/format'
 import { isAndroid } from '@/lib/platform'
+import { loadPref, savePref } from '@/lib/storage'
 
 /**
  * Shows the "Metadata & artwork" section with the API key fields.
  * Hidden: the API keys are built in (src/main/builtinKeys.ts). Set to true to show it again.
  */
 const SHOW_API_KEYS = false
+
+/** Settings are split into a few short pages instead of one long one. */
+type SettingsTab = 'look' | 'library' | 'playing' | 'updates'
+const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
+  { id: 'look', label: 'Appearance', icon: Palette },
+  { id: 'library', label: 'Library', icon: Library },
+  { id: 'playing', label: 'Playing', icon: Gamepad2 },
+  { id: 'updates', label: 'Updates', icon: ArrowDownToLine }
+]
 
 function Section({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
   return (
@@ -346,6 +356,16 @@ export function SettingsPage(): React.JSX.Element {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [keyCheck, setKeyCheck] = useState<{ steamGridDb: KeyCheck; igdb: KeyCheck } | null>(null)
   const [checking, setChecking] = useState(false)
+  // The page you were on last time opens again.
+  const [tab, setTabState] = useState<SettingsTab>(() => {
+    const saved = loadPref<{ tab: SettingsTab }>('settings-tab', { tab: 'look' }).tab
+    return SETTINGS_TABS.some((t) => t.id === saved) ? saved : 'look'
+  })
+  const setTab = (next: SettingsTab): void => {
+    setTabState(next)
+    savePref('settings-tab', { tab: next })
+  }
+  const updates = pendingCount(useUpdate())
 
   async function checkKeys(): Promise<void> {
     setChecking(true)
@@ -390,6 +410,28 @@ export function SettingsPage(): React.JSX.Element {
       <div className="stagger mx-auto max-w-3xl space-y-6 px-10 pb-16 pt-12">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
+        <div role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 -mx-2 flex gap-1 max-md:mx-0 overflow-x-auto rounded-2xl border border-border bg-surface/90 p-1.5 backdrop-blur [scrollbar-width:none]">
+          {SETTINGS_TABS.map((t) => {
+            const Icon = t.icon
+            const active = tab === t.id
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  'relative flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition max-md:px-2 max-md:text-[13px]',
+                  active ? 'bg-accent text-white shadow-lg shadow-accent/25' : 'text-muted hover:bg-white/5 hover:text-text'
+                )}
+              >
+                <Icon className="size-4 max-md:hidden" /> {t.label}
+                {t.id === 'updates' && updates > 0 && <span className="size-2 rounded-full bg-accent ring-2 ring-surface" aria-label="Update available" />}
+              </button>
+            )
+          })}
+        </div>
+        {tab === 'look' && (
         <Section title="Appearance" description="Make Vanity yours: a colour skin, a font, and a little ambience.">
           <h3 className="mb-3 text-sm font-semibold text-muted">Skin</h3>
           <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
@@ -479,6 +521,10 @@ export function SettingsPage(): React.JSX.Element {
             )}
           </div>
         </Section>
+        )}
+
+        {tab === 'playing' && (
+          <>
 
         <Section
           title="Controller"
@@ -523,8 +569,19 @@ export function SettingsPage(): React.JSX.Element {
         {!android && <DiscordSection settings={settings} save={save} />}
 
         {android && <PlaytimeSection />}
+          </>
+        )}
+
+        {tab === 'updates' && (
+          <>
 
         <UpdatesSection settings={settings} save={save} />
+            <VersionLabel />
+          </>
+        )}
+
+        {tab === 'library' && (
+          <>
 
         <Section
           title="Library scan"
@@ -667,7 +724,8 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           </Section>
         )}
-        <VersionLabel />
+          </>
+        )}
       </div>
     </div>
   )

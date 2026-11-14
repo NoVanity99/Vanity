@@ -176,6 +176,8 @@ export interface VanityApi {
     signOut(): Promise<AccountState>
     /** Picks the username of a new account, or renames it. */
     setUsername(username: string): Promise<Result<AccountState>>
+    /** Sets your profile picture (a small image as a data: address; null removes it) and/or your bio. */
+    setProfile(patch: { avatar?: string | null; bio?: string }): Promise<Result<AccountState>>
     /** Emails a 6-digit code for choosing a new password. */
     sendResetCode(email: string): Promise<Result<true>>
     resetPassword(email: string, code: string, password: string): Promise<Result<true>>
@@ -385,6 +387,7 @@ export const IPC = {
   accountSignIn: 'account:sign-in',
   accountSignOut: 'account:sign-out',
   accountSetUsername: 'account:set-username',
+  accountSetProfile: 'account:set-profile',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',
   accountDelete: 'account:delete',

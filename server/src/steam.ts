@@ -255,9 +255,14 @@ export function createSteam({ sql, apiKey, fetchFn = fetch, now = Date.now, dail
         due.slice(i, i + 5).map(async (g) => {
           try {
             const a = await achievements(userId, steamId, g.appId)
-            return { appId: g.appId, unlocked: a.achievements.filter((x) => x.achieved).length, total: a.achievements.length }
+            return { appId: g.appId, unlocked: a.achievements.filter((x) => x.achieved).length, total: a.achievements.length, failed: false }
           } catch (err) {
-            return err instanceof SteamError ? err : null
+            if (err instanceof SteamError && (err.code === 'steam_private' || err.code === 'steam_budget' || err.status === 503)) return err
+            // Steam can't give this game's achievements (removed from the store, or Steam answered
+            // with an error). It counts as checked with what we knew, so the total doesn't say
+            // "counting" forever; it is tried again a day later.
+            const k = known.get(g.appId)
+            return { appId: g.appId, unlocked: k?.unlocked ?? 0, total: k?.total ?? 0, failed: true }
           }
         })
       )
@@ -266,13 +271,15 @@ export function createSteam({ sql, apiKey, fetchFn = fetch, now = Date.now, dail
         if (r instanceof SteamError) {
           // Private, or the key is missing or rejected: the whole request fails with that message.
           if (r.code === 'steam_private' || r.status === 503) throw r
-          // Out of budget for today: keep what we have and stop. Anything else: skip this game for now.
+          // Out of budget for today: keep what we have and stop.
           if (r.code === 'steam_budget') stop = true
           continue
         }
-        known.set(r.appId, { unlocked: r.unlocked, total: r.total, at: t })
+        // A failed check is dated six days back, so the weekly re-check picks it up tomorrow.
+        const at = r.failed ? t - 6 * 86_400_000 : t
+        known.set(r.appId, { unlocked: r.unlocked, total: r.total, at })
         await sql`INSERT INTO vanity.steam_achievements (user_id, steam_id, app_id, unlocked, total, checked_at)
-          VALUES (${userId}, ${steamId}, ${r.appId}, ${r.unlocked}, ${r.total}, to_timestamp(${t / 1000}))
+          VALUES (${userId}, ${steamId}, ${r.appId}, ${r.unlocked}, ${r.total}, to_timestamp(${at / 1000}))
           ON CONFLICT (user_id, steam_id, app_id) DO UPDATE SET unlocked = excluded.unlocked, total = excluded.total, checked_at = excluded.checked_at`
       }
     }
@@ -287,7 +294,8 @@ export function createSteam({ sql, apiKey, fetchFn = fetch, now = Date.now, dail
       total += k.total
       checked++
     }
-    return { unlocked, total, gamesChecked: checked, gamesTotal: played.length, complete: checked >= played.length }
+    // Complete also when today's budget of calls to Steam is used up: nothing more is added until tomorrow.
+    return { unlocked, total, gamesChecked: checked, gamesTotal: played.length, complete: stop || checked >= played.length }
   }
 
   // ---- linking ---------------------------------------------------------------------

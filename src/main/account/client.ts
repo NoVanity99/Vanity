@@ -11,6 +11,10 @@ export interface Me {
   email: string | null
   /** Null until the account has picked a username. */
   username: string | null
+  avatar: string | null
+  bio: string
+  verified: boolean
+  admin: boolean
 }
 
 /**
@@ -60,6 +64,8 @@ export class AccountClient {
   usernameAvailable = async (username: string) => (await this.call<{ available: boolean }>('GET', `/usernames/${encodeURIComponent(username)}`, undefined, false)).available
   me = async () => (await this.call<{ user: Me }>('GET', '/me')).user
   setUsername = async (username: string) => (await this.call<{ user: Me }>('PUT', '/me/username', { username })).user
+  /** Sets the picture (null removes it) and/or the bio; fields left out stay as they are. */
+  setProfile = async (patch: { avatar?: string | null; bio?: string }) => (await this.call<{ user: Me }>('PUT', '/me/profile', patch)).user
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>

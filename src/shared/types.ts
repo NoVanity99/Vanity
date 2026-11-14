@@ -346,6 +346,21 @@ export interface AccountState {
   sessionExpired: boolean
   /** This device keeps you signed in after Vanity closes. */
   remembered: boolean
+  /** Your profile picture (a small image as a data: address), or null for none. */
+  avatar: string | null
+  bio: string
+  /** Official badges. Only Vanity's server grants them. */
+  verified: boolean
+  admin: boolean
+}
+
+/** What everyone may see of another account. */
+export interface PublicUser {
+  id: string
+  username: string
+  avatar: string | null
+  verified: boolean
+  admin: boolean
 }
 
 export interface FriendStatus {
@@ -357,9 +372,8 @@ export interface FriendStatus {
   lastSeen: number | null
 }
 
-export interface Friend {
-  id: string
-  username: string
+export interface Friend extends PublicUser {
+  bio: string
   status: FriendStatus
   totalPlaytimeSeconds: number
   gamesPlayed: number
@@ -368,9 +382,7 @@ export interface Friend {
   xp: number
 }
 
-export interface FriendRequest {
-  id: string
-  username: string
+export interface FriendRequest extends PublicUser {
   createdAt: number | null
 }
 
@@ -389,6 +401,10 @@ export interface FriendGameStat {
 
 export interface FriendStats {
   username: string
+  avatar: string | null
+  bio: string
+  verified: boolean
+  admin: boolean
   level: number
   xp: number
   /** Ids of the badges they've earned (see src/shared/progress.ts). */
@@ -399,9 +415,7 @@ export interface FriendStats {
   recent: FriendGameStat[]
 }
 
-export interface GameFriend {
-  id: string
-  username: string
+export interface GameFriend extends PublicUser {
   playtimeSeconds: number
   lastPlayedAt: number | null
 }

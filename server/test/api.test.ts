@@ -68,7 +68,7 @@ describe('/api prefix', () => {
 describe('accounts', () => {
   it('knows a signed-in account before and after it picks a username', async () => {
     const before = await call('GET', '/me', 't:u1')
-    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null })
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', verified: false, admin: false })
     // Everything social needs a username first, and says so in a way the app can act on.
     const friends = await call('GET', '/friends', 't:u1')
     expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])
@@ -81,7 +81,7 @@ describe('accounts', () => {
   it('never stores passwords or emails', async () => {
     await register('alice')
     const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['created_at', 'id', 'username'])
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'username'])
   })
 
   it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {
@@ -120,6 +120,57 @@ describe('accounts', () => {
     expect((await call('DELETE', '/me', a.token)).status).toBe(204)
     expect((await call('GET', '/me', a.token)).json.user.username).toBeNull()
     expect((await call('GET', '/friends', b.token)).json.friends).toEqual([])
+  })
+})
+
+describe('profile picture, bio and official badges', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
+  it('saves, changes and removes a picture and a bio', async () => {
+    const a = await register('alice')
+    const set = await call('PUT', '/me/profile', a.token, { avatar: PNG, bio: '  Hello\n\nthere  ' })
+    expect(set.status).toBe(200)
+    expect(set.json.user).toMatchObject({ username: 'alice', avatar: PNG, bio: 'Hello there' })
+    // Only what is sent changes.
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'New bio' })).json.user).toMatchObject({ avatar: PNG, bio: 'New bio' })
+    expect((await call('PUT', '/me/profile', a.token, { avatar: null })).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
+    expect((await call('GET', '/me', a.token)).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
+  })
+
+  it('refuses anything that is not a small image, and bios that are too long', async () => {
+    const a = await register('alice')
+    for (const avatar of ['https://example.com/a.png', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,' + 'A'.repeat(70_000), 42]) {
+      expect((await call('PUT', '/me/profile', a.token, { avatar })).status).toBe(400)
+    }
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'x'.repeat(201) })).status).toBe(400)
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'x'.repeat(200) })).status).toBe(200)
+    expect((await call('PUT', '/me/profile', 't:nobody', { bio: 'hi' })).status).toBe(409) // no username yet
+    expect((await call('PUT', '/me/profile', undefined, { bio: 'hi' })).status).toBe(401)
+  })
+
+  it('shows pictures, bios and badges to friends', async () => {
+    const boss = await register('sbcvanity') // capitals don't matter
+    const bob = await register('bob')
+    await call('PUT', '/me/profile', boss.token, { avatar: PNG, bio: 'I make Vanity.' })
+    expect((await call('GET', '/me', boss.token)).json.user).toMatchObject({ verified: true, admin: true })
+    expect((await call('GET', '/me', bob.token)).json.user).toMatchObject({ verified: false, admin: false })
+
+    await call('POST', '/friends/requests', boss.token, { username: 'bob' })
+    expect((await call('GET', '/friends', bob.token)).json.incoming[0]).toMatchObject({ username: 'sbcvanity', avatar: PNG, verified: true, admin: true })
+    expect((await call('GET', '/friends', boss.token)).json.outgoing[0]).toMatchObject({ username: 'bob', avatar: null, verified: false, admin: false })
+    await call('POST', `/friends/requests/${boss.id}/accept`, bob.token)
+    expect((await call('GET', '/friends', bob.token)).json.friends[0]).toMatchObject({ username: 'sbcvanity', avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
+    expect((await call('GET', `/friends/${boss.id}/stats`, bob.token)).json).toMatchObject({ avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
+    expect((await call('GET', `/friends/${bob.id}/stats`, boss.token)).json).toMatchObject({ avatar: null, bio: '', verified: false, admin: false })
+  })
+
+  it('cannot be claimed from the app: badges come only from the server list', async () => {
+    const a = await register('alice')
+    const r = await call('PUT', '/me/profile', a.token, { bio: 'hi', verified: true, admin: true })
+    expect(r.json.user).toMatchObject({ verified: false, admin: false })
+    // The badge name is taken by its owner, so nobody can rename themselves into it.
+    await register('SBCVanity')
+    expect((await call('PUT', '/me/username', a.token, { username: 'sbcvanity' })).status).toBe(409)
   })
 })
 
@@ -229,7 +280,7 @@ describe('presence and stats', () => {
 
     expect((await call('GET', `/friends/${b.id}/stats`, c.token)).status).toBe(403)
     expect((await call('GET', '/games/steam%3A620/friends', a.token)).json.friends).toEqual([
-      { id: b.id, username: 'bob', playtimeSeconds: 7300, lastPlayedAt: null }
+      { id: b.id, username: 'bob', avatar: null, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
     ])
     expect((await call('GET', '/games/steam%3A620/friends', c.token)).json.friends).toEqual([])
   })

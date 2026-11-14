@@ -64,6 +64,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | GET | `/usernames/:name` | `{ available }`: whether a username is free (rate-limited per IP) |
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
+| PUT | `/me/profile` | `{ avatar?, bio? }`: the profile picture (a small PNG/JPEG/WebP as a `data:` address, about 40 KB at most; `null` removes it) and a bio of up to 200 characters. Fields left out stay as they are |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
 | POST | `/sync` | Cloud-saved progress: the device sends what it knows (per-device counters, choices with timestamps, days, badges, collections, settings) and gets the merged result back. Rules are in `src/sync.ts`. Rate-limited per account |
 | GET | `/steam/link` | `{ configured, link }`: the linked Steam account (`steamId`, `name`, `avatar`, `profileUrl`, `verified`), and whether the server has a Steam key |
@@ -97,6 +98,12 @@ Routes after `/me` answer `409` with `code: "needs_username"` until the account 
 - **The Steam key** is read from the function's environment and added to requests on the server. Error messages and logs never include it. Steam routes answer `503` with `code: "steam_not_configured"` until the key is set.
 - **Sync can't take progress away:** a device can never lower a counter or remove a day or badge, and a clock set in the future can't make its changes win forever (timestamps are capped at the server's time). The server creates its tables by itself on first use.
 - **Deleting an account** removes what Vanity stores. The sign-in record at Neon Auth stays until you remove it in the Neon console (Auth → Users).
+
+## Official badges (verified and admin)
+
+`/me`, the friends list, friend requests and friend stats all carry `verified` and `admin` for each account. They come from one place only: the two lists in [`src/roles.ts`](src/roles.ts), matched against the username without regard to capitals. Nothing the app sends can set them.
+
+To give someone a badge, add their Vanity username to the list in `src/roles.ts` and push: the "Deploy backend" workflow puts it live. Because badges follow the username, the account must keep that name: if it is ever renamed or deleted, the name becomes free and whoever takes it would get the badge, so remove it from the list first.
 
 ## Working on it
 

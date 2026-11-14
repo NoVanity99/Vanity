@@ -19,7 +19,16 @@ export const mobileSessionVault: SessionVault = {
     try {
       const parsed = JSON.parse(value) as Partial<SavedSession>
       if (typeof parsed.cookie !== 'string' || typeof parsed.userId !== 'string') return null
-      return { cookie: parsed.cookie, userId: parsed.userId, email: String(parsed.email ?? ''), username: typeof parsed.username === 'string' ? parsed.username : null }
+      return {
+          cookie: parsed.cookie,
+          userId: parsed.userId,
+          email: String(parsed.email ?? ''),
+          username: typeof parsed.username === 'string' ? parsed.username : null,
+          avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
+          bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+          verified: parsed.verified === true,
+          admin: parsed.admin === true
+        }
     } catch {
       return null
     }

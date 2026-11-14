@@ -9,6 +9,8 @@ export interface FakeAccount {
   games?: { appid: number; name: string; playtime_forever: number; playtime_2weeks?: number; rtime_last_played?: number; img_icon_url?: string }[]
   /** appid → achievements (apiname, achieved). A game missing here "has no stats". */
   achievements?: Record<number, { apiname: string; name?: string; achieved: 0 | 1; unlocktime?: number }[]>
+  /** Games whose achievements Steam answers with a server error, every time. */
+  broken?: number[]
 }
 
 export const KEY = 'TEST-STEAM-KEY-0123456789ABCDEF'
@@ -60,6 +62,7 @@ export function fakeSteam(accounts: FakeAccount[]) {
     }
     if (u.pathname === '/ISteamUserStats/GetPlayerAchievements/v1/') {
       if (!account || account.private) return json({ playerstats: { error: 'Profile is not public', success: false } }, 403)
+      if (account.broken?.includes(Number(u.searchParams.get('appid')))) return json({}, 500)
       const list = account.achievements?.[Number(u.searchParams.get('appid'))]
       if (!list) return json({ playerstats: { error: 'Requested app has no stats', success: false } }, 400)
       return json({ playerstats: { steamID: account.steamId, gameName: 'Game', achievements: list.map((a) => ({ unlocktime: 0, ...a })), success: true } })

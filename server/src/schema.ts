@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS vanity.profiles (
 );
 -- Usernames are unique regardless of case.
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower ON vanity.profiles (lower(username));
+-- The profile picture (a small image the app shrinks before sending, kept as a data: address) and a short bio.
+ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS avatar text;
+ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
 
 -- One row per friend request. The status becomes 'accepted' when the other side accepts.
 CREATE TABLE IF NOT EXISTS vanity.friendships (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
+import { UserBadges } from '@/components/UserBadges'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
@@ -32,10 +33,11 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
         playing && !selected && 'border-accent/25 bg-gradient-to-r from-accent/10 to-transparent'
       )}
     >
-      <Avatar name={friend.username} status={friend.status.state} />
+      <Avatar name={friend.username} src={friend.avatar} status={friend.status.state} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate font-semibold">{friend.username}</span>
+          <UserBadges verified={friend.verified} admin={friend.admin} />
           <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent" title={`Level ${friend.level} (${friend.xp.toLocaleString()} XP)`}>
             Lv {friend.level}
           </span>
@@ -69,9 +71,12 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
   return (
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 rounded-2xl border border-border bg-surface p-6">
       <div className="flex items-center gap-4">
-        <Avatar name={friend.username} size="lg" status={friend.status.state} />
+        <Avatar name={friend.username} src={friend.avatar} size="lg" status={friend.status.state} />
         <div className="min-w-0">
-          <p className="truncate font-display text-2xl font-bold">{friend.username}</p>
+          <p className="flex items-center gap-2 font-display text-2xl font-bold">
+            <span className="truncate">{friend.username}</span>
+            <UserBadges verified={friend.verified} admin={friend.admin} size="md" />
+          </p>
           <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
           <p className="mt-1 text-xs font-semibold text-accent">
             Level {stats?.level ?? friend.level}
@@ -82,6 +87,7 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
           </p>
         </div>
       </div>
+      {(stats?.bio ?? friend.bio) && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-3.5 py-3 text-sm text-text/85">{stats?.bio ?? friend.bio}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-surface-2 p-3">
@@ -262,9 +268,9 @@ export function FriendsPage(): React.JSX.Element {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Requests</h2>
             {list.incoming.map((r) => (
               <div key={r.id} className="animate-pop-in flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 p-3">
-                <Avatar name={r.username} size="sm" />
+                <Avatar name={r.username} src={r.avatar} size="sm" />
                 <span className="flex-1 text-sm">
-                  <b>{r.username}</b> wants to be friends
+                  <b>{r.username}</b> <UserBadges verified={r.verified} admin={r.admin} /> wants to be friends
                 </span>
                 <Button variant="primary" onClick={() => act(() => window.vanity.friends.accept(r.id), `You and ${r.username} are now friends`)}>
                   <Check className="size-4" /> Accept
@@ -276,9 +282,9 @@ export function FriendsPage(): React.JSX.Element {
             ))}
             {list.outgoing.map((r) => (
               <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3">
-                <Avatar name={r.username} size="sm" />
+                <Avatar name={r.username} src={r.avatar} size="sm" />
                 <span className="flex-1 text-sm text-muted">
-                  Waiting for <b className="text-text">{r.username}</b> to accept
+                  Waiting for <b className="text-text">{r.username}</b> <UserBadges verified={r.verified} admin={r.admin} /> to accept
                 </span>
                 <Button variant="ghost" onClick={() => act(() => window.vanity.friends.decline(r.id), 'Request cancelled')}>
                   Cancel

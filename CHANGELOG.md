@@ -3,6 +3,15 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.15.0 (2026-11-14)
+- New: **profile picture and bio.** On the Account page you can add a picture (Vanity crops and shrinks it), change it, remove it, and write a bio of up to 200 characters. Both are saved to your account, follow you to every device, and show to your friends. Works on Windows and Android.
+- New: **verified and admin badges.** A blue bubble with a check mark for verified accounts and a gold bubble with a crown for admins, side by side when an account has both, each with a light that sweeps across it. They show next to the name everywhere: sidebar, Account, Profile, Friends, friend requests and "friends who played this". Only Vanity's server hands them out (`server/src/roles.ts`); for now that is SBCVanity.
+- New: **Vibe Check has a second row:** three picks from games you own but haven't installed, each with an Install button. If everything you own is installed, the row isn't there.
+- Changed: **player counts are always on the covers** in the Library, in the bottom-left corner (before, only when the mouse was over a game). Games from other launchers get a count too once Vanity has found their Steam page, the same number their game page shows.
+- Changed: **Settings is four short pages** (Appearance, Library, Playing, Updates) instead of one long one. It reopens on the page you used last, and Updates shows a dot when one is waiting.
+- Fixed: the Steam card kept saying "(counting…)" after the achievement count had stopped growing. It now only says so while the number is still going up: games Steam can't report on no longer hold it up, and neither does running out of the day's Steam requests.
+- Fixed: in the **Epic and GOG sign-in windows, "more sign-in options"** (Google, Apple, Xbox, Steam, Facebook…) did nothing, because Vanity blocked the small window they open. Those windows now open, and the sign-in window introduces itself as an ordinary browser so those services accept it.
+
 ## 0.14.0 (2026-11-14)
 - New: **install Epic and GOG games inside Vanity** (stage 5 of the accounts and cloud update). Windows only.
   - **Downloads page** (in the sidebar, with a count): a queue that installs one game at a time, with a progress bar, speed, time left, and pause, resume and cancel. The queue is remembered when you close Vanity, and downloads carry on where they stopped.

@@ -40,6 +40,8 @@ export class SteamService {
   private refreshing: Promise<SteamState> | null = null
   private timer: ReturnType<typeof setInterval> | null = null
   private retry: ReturnType<typeof setTimeout> | null = null
+  /** How many games had been counted the last time the count was unfinished (null: not counting). */
+  private lastChecked: number | null = null
   private signInRun = 0
 
   constructor(private deps: SteamDeps) {
@@ -109,6 +111,7 @@ export class SteamService {
     try {
       const { configured, link } = await this.deps.account.guard((c) => c.steamLink())
       if (!link) {
+        this.lastChecked = null
         this.set({ configured, link: null, gamesPrivate: false, privateMessage: null, ownedGames: null, achievements: null, error: null })
         this.setAchievements(0)
         this.deps.onOwnedGames?.(null)
@@ -127,7 +130,12 @@ export class SteamService {
   private async loadGames(): Promise<void> {
     try {
       const summary = await this.deps.account.guard((c) => c.steamAchievementSummary())
-      this.set({ gamesPrivate: false, privateMessage: null, ownedGames: summary.gamesTotal, achievements: { unlocked: summary.unlocked, total: summary.total, complete: summary.complete } })
+      // "Counting" only while the count is really still growing: if asking again checked no more
+      // games than last time, nothing more is being added for now, so it reads as finished.
+      const stalled = !summary.complete && this.lastChecked !== null && summary.gamesChecked <= this.lastChecked
+      this.lastChecked = summary.complete ? null : summary.gamesChecked
+      const complete = summary.complete || stalled
+      this.set({ gamesPrivate: false, privateMessage: null, ownedGames: summary.gamesTotal, achievements: { unlocked: summary.unlocked, total: summary.total, complete } })
       this.setAchievements(summary.unlocked)
       const owned = await this.deps.account.guard((c) => c.steamOwnedGames()).catch(() => null)
       if (owned) {
@@ -135,7 +143,7 @@ export class SteamService {
         this.deps.onOwnedGames?.(owned)
       }
       // A big library is counted a batch at a time: keep asking until it's done.
-      if (!summary.complete) this.retry = setTimeout(() => void this.refresh(), COUNTING_RETRY_MS)
+      if (!complete) this.retry = setTimeout(() => void this.refresh(), COUNTING_RETRY_MS)
     } catch (err) {
       if (err instanceof AccountError && err.code === 'steam_private') {
         this.set({ gamesPrivate: true, privateMessage: err.message, ownedGames: null, achievements: null })
@@ -150,6 +158,7 @@ export class SteamService {
   /** Links from a SteamID64, a profile link or a custom URL name. Throws with a message to show. */
   async link(input: string): Promise<SteamState> {
     const { link } = await this.deps.account.guard((c) => c.steamLinkSet(input))
+    this.lastChecked = null
     this.set({ link, gamesPrivate: false, privateMessage: null, ownedGames: null, achievements: null, error: null })
     await this.loadGames().catch((err) => this.set({ error: err instanceof Error ? err.message : null }))
     return this.state()
@@ -158,6 +167,7 @@ export class SteamService {
   async unlink(): Promise<SteamState> {
     await this.deps.account.guard((c) => c.steamUnlink())
     this.signInRun++
+    this.lastChecked = null
     this.set({ link: null, gamesPrivate: false, privateMessage: null, ownedGames: null, achievements: null, signingIn: false, error: null })
     this.setAchievements(0)
     this.deps.onOwnedGames?.(null)

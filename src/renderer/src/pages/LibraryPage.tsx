@@ -105,14 +105,23 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   const layout = phone ? 'grid' : prefs.layout
 
   // Live Steam player counts for the cards (cached in the main process for 10 minutes).
+  // Asked again shortly after opening (games from other launchers have their Steam page looked up
+  // in the background first), then every ten minutes.
   useEffect(() => {
     let cancelled = false
-    window.vanity.live.library().then(
-      (p) => !cancelled && setPlayers(p),
-      () => {}
-    )
+    const load = (): void => {
+      window.vanity.live.library().then(
+        (p) => !cancelled && setPlayers((prev) => (Object.keys(p).length || !Object.keys(prev).length ? p : prev)),
+        () => {}
+      )
+    }
+    load()
+    const soon = [setTimeout(load, 20_000), setTimeout(load, 75_000)]
+    const timer = setInterval(load, 10 * 60_000)
     return () => {
       cancelled = true
+      soon.forEach(clearTimeout)
+      clearInterval(timer)
     }
   }, [])
 

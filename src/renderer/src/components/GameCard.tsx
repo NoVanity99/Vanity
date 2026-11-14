@@ -14,7 +14,7 @@ interface Props {
   /** Position in the grid, for the cascade-in animation. */
   index: number
   session?: Exclude<SessionState, 'stopped'>
-  /** Current Steam players, shown on hover. */
+  /** Current Steam players, always shown in the bottom-left corner of the cover. */
   players?: number
   onOpen: (game: Game) => void
   onPlay: (game: Game) => void
@@ -74,6 +74,21 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
           </span>
         </div>
 
+        {/* How many people are playing right now (Steam), always in the bottom-left corner. It sits above the status strip when there is one. */}
+        {players !== undefined && players > 0 && (
+          <span
+            data-players
+            title={`${players.toLocaleString()} playing on Steam right now`}
+            className={cn(
+              'pointer-events-none absolute left-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold tabular-nums text-white backdrop-blur',
+              session || game.missing || !game.installed ? 'bottom-10' : 'bottom-2'
+            )}
+          >
+            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
+            {formatCompact(players)}
+          </span>
+        )}
+
         {session ? (
           <span className="absolute inset-x-2 bottom-2 flex items-center gap-1.5">
             <span className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1.5 text-[11px] font-semibold text-white backdrop-blur">
@@ -92,12 +107,6 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
             {!game.installed && (
               <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[11px] font-medium text-white/80 backdrop-blur transition group-hover:opacity-0">
                 Not installed
-              </span>
-            )}
-            {players !== undefined && players > 0 && (
-              <span className="absolute bottom-4 left-3 flex translate-y-2 items-center gap-1.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
-                {formatCompact(players)} playing
               </span>
             )}
             {game.installed ? (

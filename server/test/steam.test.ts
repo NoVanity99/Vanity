@@ -203,6 +203,27 @@ describe('games and achievements', () => {
     expect(steam.count()).toBe(before)
   })
 
+  it('finishes counting even when Steam keeps failing for some games, and tries those again a day later', async () => {
+    const flaky: FakeAccount = {
+      steamId: '76561198000000010',
+      name: 'Flaky',
+      games: [1, 2, 3].map((n) => ({ appid: n, name: `Game ${n}`, playtime_forever: 10 })),
+      achievements: { 1: [{ apiname: 'A', achieved: 1 }], 2: [{ apiname: 'A', achieved: 1 }], 3: [{ apiname: 'A', achieved: 1 }] },
+      broken: [2]
+    }
+    steam = fakeSteam([flaky])
+    await build()
+    await call('PUT', '/steam/link', 't:a', { input: flaky.steamId })
+    expect((await call('GET', '/steam/achievements-summary', 't:a')).json).toEqual({ unlocked: 2, total: 2, gamesChecked: 3, gamesTotal: 3, complete: true })
+    const before = steam.count('GetPlayerAchievements')
+    await call('GET', '/steam/achievements-summary', 't:a')
+    expect(steam.count('GetPlayerAchievements')).toBe(before) // not hammered
+    flaky.broken = []
+    clock += 25 * HOUR
+    expect((await call('GET', '/steam/achievements-summary', 't:a')).json).toMatchObject({ unlocked: 3, total: 3, complete: true })
+    expect(steam.count('GetPlayerAchievements')).toBe(before + 1)
+  })
+
   it('re-checks recently played games hourly and the rest weekly', async () => {
     await call('GET', '/steam/achievements-summary', 't:a')
     const after = (): number => steam.count('GetPlayerAchievements')
@@ -312,8 +333,10 @@ describe('protecting the key', () => {
     await build({ steamDailyBudget: 12 })
     await call('PUT', '/steam/link', 't:a', { input: big.steamId }) // 1 call
     const partial = (await call('GET', '/steam/achievements-summary', 't:a')).json // 1 (owned) + up to 10 more
-    expect(partial.complete).toBe(false)
+    // Nothing more can be added today, so it doesn't claim to still be counting.
+    expect(partial.complete).toBe(true)
     expect(partial.gamesChecked).toBeGreaterThan(0)
+    expect(partial.gamesChecked).toBeLessThan(40)
     expect(steam.count()).toBeLessThanOrEqual(13)
     const blocked = await call('PUT', '/steam/link', 't:a', { input: 'gabelogannewell' })
     expect([blocked.status, blocked.json.code]).toEqual([429, 'steam_budget'])

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import type { Progress, ProgressBadge, ProgressGame } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
+import { UserBadges } from '@/components/UserBadges'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime, formatRelativeDate } from '@/lib/format'
@@ -237,7 +238,7 @@ export function ProfilePage(): React.JSX.Element {
           <div className="pointer-events-none absolute -bottom-28 left-1/3 size-64 rounded-full bg-accent-2/15 blur-3xl" />
           <div className="relative flex flex-wrap items-center gap-6">
             {account?.username ? (
-              <Avatar name={name} size="xl" />
+              <Avatar name={name} src={account.avatar} size="xl" />
             ) : (
               <span className="flex size-20 items-center justify-center rounded-full bg-white/5 text-muted ring-2 ring-bg">
                 <UserCircle2 className="size-10" />
@@ -245,7 +246,11 @@ export function ProfilePage(): React.JSX.Element {
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>
-              <h1 className="truncate font-display text-4xl font-black tracking-tight max-md:text-3xl">{name}</h1>
+              <h1 className="flex items-center gap-3 font-display text-4xl font-black tracking-tight max-md:text-3xl">
+                <span className="truncate">{name}</span>
+                <UserBadges verified={account?.verified} admin={account?.admin} size="lg" />
+              </h1>
+              {account?.bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{account.bio}</p>}
               <p className="mt-1 text-sm text-muted">
                 {earned.length} of {progress.badges.length} badges · {totals.gamesPlayed.toLocaleString()} {totals.gamesPlayed === 1 ? 'game' : 'games'} played
               </p>

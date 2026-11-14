@@ -65,7 +65,7 @@ export function createGogVault(file: string): GogVault {
   }
 }
 
-interface LoginWindowOptions {
+export interface LoginWindowOptions {
   title: string
   url: string
   parent: BrowserWindow | null
@@ -75,10 +75,42 @@ interface LoginWindowOptions {
   findCode(win: BrowserWindow, url: string): Promise<string | null> | string | null
 }
 
+/** The browser name sent to sign-in pages: the built-in Chrome's, without the parts that name Electron or Vanity. */
+export function browserUserAgent(userAgent: string): string {
+  return userAgent
+    .replace(/\s(?:Electron|vanity)\/\S+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Only ordinary web pages may open in a sign-in pop-up. */
+export function isWebAddress(url: string): boolean {
+  try {
+    return ['https:', 'http:'].includes(new URL(url).protocol) || url === 'about:blank'
+  } catch {
+    return false
+  }
+}
+
 /** Opens a store's own sign-in page in a window. Resolves to the one-time code, or null if closed. */
-function loginWindow({ title, url, parent, partition, findCode }: LoginWindowOptions): Promise<string | null> {
+export function loginWindow({ title, url, parent, partition, findCode }: LoginWindowOptions): Promise<string | null> {
   return new Promise((resolve) => {
     const ses = session.fromPartition(partition)
+    // Sign-in pages (Google's above all) turn away browsers that say they are an embedded app,
+    // so the window introduces itself as plain Chrome.
+    const userAgent = browserUserAgent(ses.getUserAgent())
+    // New windows take their name from the app-wide default before any page-level setting applies,
+    // so that is plain Chrome's too (it only drops the words "Electron" and "Vanity").
+    app.userAgentFallback = browserUserAgent(app.userAgentFallback)
+    ses.setUserAgent(userAgent)
+    // Pop-ups don't pick the session's name up for their first page, so it is also set on every request.
+    ses.webRequest.onBeforeSendHeaders((details, callback) => {
+      const headers = { ...details.requestHeaders }
+      for (const name of Object.keys(headers)) if (name.toLowerCase() === 'user-agent') delete headers[name]
+      callback({ requestHeaders: { ...headers, 'User-Agent': userAgent } })
+    })
+    const webPreferences = { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false }
+    const popups = new Set<BrowserWindow>()
     const win = new BrowserWindow({
       width: 520,
       height: 760,
@@ -87,7 +119,7 @@ function loginWindow({ title, url, parent, partition, findCode }: LoginWindowOpt
       modal: false,
       autoHideMenuBar: true,
       backgroundColor: '#0b0d12',
-      webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false }
+      webPreferences
     })
     win.removeMenu()
     let settled = false
@@ -95,24 +127,43 @@ function loginWindow({ title, url, parent, partition, findCode }: LoginWindowOpt
       if (settled) return
       settled = true
       resolve(code)
+      for (const popup of popups) if (!popup.isDestroyed()) popup.close()
       if (!win.isDestroyed()) win.close()
       // The sign-in itself is kept by the store's own token, not by this window's cookies.
       void ses.clearStorageData().catch(() => {})
     }
-    const check = async (current: string): Promise<void> => {
-      if (settled) return
+    const check = async (current: string, where: BrowserWindow = win): Promise<void> => {
+      if (settled || where.isDestroyed()) return
       try {
-        const code = await findCode(win, current)
+        const code = await findCode(where, current)
         if (code) finish(code)
       } catch {
         // The page wasn't the one with the code: keep waiting.
       }
     }
-    win.webContents.on('will-redirect', (_e, next) => void check(next))
-    win.webContents.on('did-navigate', (_e, next) => void check(next))
-    win.webContents.on('did-finish-load', () => void check(win.webContents.getURL()))
-    // The sign-in page only: links that would open other windows are ignored.
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    /**
+     * "More sign-in options" (Google, Apple, Xbox, Steam, Facebook…) open in a small window of
+     * their own and report back to the page that opened them. Those are allowed, as ordinary web
+     * pages (they share the opener's throwaway profile and sandbox by themselves); anything that
+     * isn't a web address is refused.
+     */
+    const watch = (w: BrowserWindow): void => {
+      w.webContents.on('will-redirect', (_e, next) => void check(next, w))
+      w.webContents.on('did-navigate', (_e, next) => void check(next, w))
+      w.webContents.on('did-finish-load', () => !w.isDestroyed() && void check(w.webContents.getURL(), w))
+      w.webContents.setWindowOpenHandler(({ url: target }) => {
+        if (!isWebAddress(target)) return { action: 'deny' }
+        return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 720, parent: win, autoHideMenuBar: true, backgroundColor: '#ffffff' } }
+      })
+      w.webContents.on('did-create-window', (popup) => {
+        popups.add(popup)
+        popup.webContents.setUserAgent(userAgent)
+        popup.removeMenu()
+        popup.on('closed', () => popups.delete(popup))
+        watch(popup)
+      })
+    }
+    watch(win)
     win.on('closed', () => finish(null))
     void win.loadURL(url).catch(() => finish(null))
   })

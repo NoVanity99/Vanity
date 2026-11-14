@@ -471,3 +471,42 @@ html {
     font-size: 16px !important;
   }
 }
+
+/* The verified and admin badges: a light sweeps across them every few seconds. */
+.badge-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.badge-shine > * {
+  position: relative;
+  z-index: 1;
+}
+.badge-shine::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  z-index: 2;
+  background: linear-gradient(115deg, transparent 38%, rgb(255 255 255 / 0.9) 50%, transparent 62%);
+  transform: translateX(-130%);
+  animation: badge-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.badge-shine-late::after {
+  animation-delay: 0.45s;
+}
+@keyframes badge-shine {
+  0%,
+  55% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-shine::after {
+    animation: none;
+    opacity: 0;
+  }
+}

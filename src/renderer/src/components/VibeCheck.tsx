@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BookOpen, Check, Coffee, Flame, Info, Play, Shuffle, Sparkles, Users, X, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, Coffee, Download, Flame, Info, Play, Shuffle, Sparkles, Users, X, Zap, type LucideIcon } from 'lucide-react'
 import type { PlayStats } from '@shared/ipc'
 import { cn } from '@/lib/cn'
 import { mediaUrl, nameHue } from '@/lib/media'
@@ -30,7 +30,7 @@ interface Prefs {
   mood: Mood
 }
 
-/** "What should I play?": pick your time and mood, get three picks from your own library. */
+/** "What should I play?": pick your time and mood, get three picks from your installed games, and three more from games you own but haven't installed. */
 export function VibeCheck(): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
   useEffect(() => {
@@ -43,7 +43,7 @@ export function VibeCheck(): React.JSX.Element | null {
   return open ? <VibeDialog onClose={() => setOpen(false)} /> : null
 }
 
-function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index: number; rank: number; onPlay: () => void; onOpen: () => void }): React.JSX.Element {
+function PickCard({ pick, index, rank, onPlay, onOpen, install = false }: { pick: VibePick; index: number; rank: number; onPlay: () => void; onOpen: () => void; install?: boolean }): React.JSX.Element {
   const cover = mediaUrl(pick.game.coverPath)
   const hue = nameHue(pick.game.name)
   return (
@@ -53,7 +53,7 @@ function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index
     >
       <div className="relative aspect-[3/4] max-h-64 overflow-hidden max-md:aspect-[16/7]" style={{ background: `linear-gradient(160deg, hsl(${hue} 45% 26%), hsl(${(hue + 40) % 360} 45% 10%))` }}>
         {cover ? (
-          <img src={cover} alt="" className="size-full object-cover" draggable={false} />
+          <img src={cover} alt="" className={cn('size-full object-cover', install && 'opacity-70 saturate-50')} draggable={false} />
         ) : (
           // No cover: a big initial (the name is shown along the bottom).
           <span aria-hidden className="absolute inset-0 flex items-center justify-center text-8xl font-black text-white/10">
@@ -61,7 +61,11 @@ function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index
           </span>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-        {rank === 0 && <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg">Top pick</span>}
+        {install ? (
+          <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white/85 backdrop-blur">Not installed</span>
+        ) : (
+          rank === 0 && <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg">Top pick</span>
+        )}
         <span className="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold tabular-nums text-white backdrop-blur">{pick.match}% match</span>
         <p className="absolute inset-x-3 bottom-3 truncate text-lg font-bold text-white drop-shadow">{pick.game.name}</p>
       </div>
@@ -79,8 +83,14 @@ function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index
           )}
         </ul>
         <div className="mt-4 flex gap-2">
-          <button onClick={onPlay} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-bold text-white transition hover:brightness-110">
-            <Play className="size-4 fill-current" /> Play
+          <button
+            onClick={onPlay}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition hover:brightness-110',
+              install ? 'border border-white/15 bg-white/10 hover:bg-white/15' : 'bg-accent'
+            )}
+          >
+            {install ? <Download className="size-4" /> : <Play className="size-4 fill-current" />} {install ? 'Install' : 'Play'}
           </button>
           <button onClick={onOpen} title="Open the game page" aria-label={`Open ${pick.game.name}`} className="rounded-xl border border-border px-3 transition hover:border-white/25">
             <Info className="size-4" />
@@ -93,7 +103,9 @@ function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index
 
 function VibeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const navigate = useNavigate()
-  const { games, launch } = useLibrary()
+  const { games, library, launch, install } = useLibrary()
+  // Games you own on a linked account but haven't installed here.
+  const notInstalled = useMemo(() => library.filter((g) => !g.installed), [library])
   const [prefs, setPrefs] = useState<Prefs>(() => loadPref('vibe-check', { minutes: 60, mood: 'chill' as Mood }))
   const [stats, setStats] = useState<PlayStats | null>(null)
   const [seed, setSeed] = useState<number | null>(null)
@@ -118,6 +130,13 @@ function VibeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   )
   const pages = Math.max(1, Math.ceil(ranked.length / 3))
   const picks = ranked.slice((page % pages) * 3, (page % pages) * 3 + 3)
+  // A second row from the games you haven't installed. With everything installed there is none.
+  const rankedOwned = useMemo(
+    () => (seed === null || !stats || notInstalled.length === 0 ? [] : vibeCheck({ games: notInstalled, sessions: stats.recent, minutes: prefs.minutes, mood: prefs.mood, seed }, 12)),
+    [seed, stats, notInstalled, prefs]
+  )
+  const ownedPages = Math.max(1, Math.ceil(rankedOwned.length / 3))
+  const ownedPicks = rankedOwned.slice((page % ownedPages) * 3, (page % ownedPages) * 3 + 3)
   const find = useCallback(() => {
     setPage(0)
     setSeed(Math.floor(Math.random() * 1e6))
@@ -191,17 +210,17 @@ function VibeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
 
               <button
                 onClick={find}
-                disabled={!stats || games.length === 0}
+                disabled={!stats || (games.length === 0 && notInstalled.length === 0)}
                 className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-accent to-accent-2 py-4 text-lg font-bold text-white shadow-xl shadow-accent/30 transition hover:brightness-110 disabled:opacity-50"
               >
-                <Sparkles className="size-5" /> {games.length === 0 ? 'Add some games first' : 'Find my game'}
+                <Sparkles className="size-5" /> {games.length === 0 && notInstalled.length === 0 ? 'Add some games first' : 'Find my game'}
               </button>
             </>
           ) : (
             <>
               <p className="mt-2 text-sm text-muted">Here's what fits right now.</p>
               {picks.length === 0 ? (
-                <p className="mt-10 text-center text-muted">Nothing in your library fits that. Try another vibe.</p>
+                <p className="mt-10 text-center text-muted">{ownedPicks.length ? 'Nothing installed fits that.' : 'Nothing in your library fits that. Try another vibe.'}</p>
               ) : (
                 <div className="mt-6 grid gap-5 md:grid-cols-3">
                   {picks.map((p, i) => (
@@ -222,11 +241,35 @@ function VibeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
                   ))}
                 </div>
               )}
+              {ownedPicks.length > 0 && (
+                <section data-vibe-not-installed>
+                  <h3 className="mb-3 mt-8 text-xs font-semibold uppercase tracking-widest text-muted">You own these, but they aren't installed</h3>
+                  <div className="grid gap-5 md:grid-cols-3">
+                    {ownedPicks.map((p, i) => (
+                      <PickCard
+                        key={`${seed}-${page}-${p.game.id}`}
+                        pick={p}
+                        index={i + 3}
+                        rank={(page % ownedPages) * 3 + i}
+                        install
+                        onPlay={() => {
+                          onClose()
+                          void install(p.game.id)
+                        }}
+                        onOpen={() => {
+                          onClose()
+                          navigate(`/game/${p.game.id}`)
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
               <div className="mt-6 flex flex-wrap justify-between gap-3">
                 <button onClick={() => setSeed(null)} className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold transition hover:border-white/25">
                   <ArrowLeft className="size-4" /> Change vibe
                 </button>
-                {ranked.length > 3 && (
+                {(ranked.length > 3 || rankedOwned.length > 3) && (
                   <button onClick={() => setPage((n) => n + 1)} className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold transition hover:border-white/25">
                     <Shuffle className="size-4" /> Show me others
                   </button>

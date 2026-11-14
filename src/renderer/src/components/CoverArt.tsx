@@ -8,7 +8,8 @@ function Placeholder({ game, showTitle }: { game: Game; showTitle: boolean }): R
   const hue = nameHue(game.name)
   return (
     <div
-      className="absolute inset-0 flex items-end overflow-hidden p-4"
+      // Extra room at the bottom: the player count sits in the bottom-left corner of the cover.
+      className="absolute inset-0 flex items-end overflow-hidden p-4 pb-11"
       style={{
         background: `radial-gradient(120% 80% at 20% 0%, hsl(${hue} 55% 32%) 0%, transparent 60%),
                      linear-gradient(160deg, hsl(${hue} 40% 18%) 0%, hsl(${(hue + 40) % 360} 45% 9%) 100%)`

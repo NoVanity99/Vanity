@@ -192,6 +192,8 @@ Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the 
 - **Your session** is kept in the operating system's protected storage (DPAPI on Windows, the Keystore on Android), never in a plain-text file. With "Stay signed in" off, it is forgotten when Vanity closes.
 - **Friends, presence ("Playing X · 23 min") and shared stats** use the Vanity server, a Neon Function. The app only talks to that server, never to the database, and nothing secret ships with the app.
 - **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
+- **Profile picture and bio:** set on the Account page. The picture is cropped to a square and shrunk to 160×160 in the app (`src/renderer/src/lib/avatarImage.ts`) before it is sent, so only a few kilobytes are stored. Friends see both.
+- **Verified and admin badges** (`src/renderer/src/components/UserBadges.tsx`) show next to a username. Who has them is decided only by the server, from the lists in [`server/src/roles.ts`](server/src/roles.ts).
 
 ## Cloud-saved progress, XP and badges
 
