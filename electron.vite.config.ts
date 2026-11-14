@@ -36,6 +36,8 @@ export default defineConfig({
         '@shared': shared
       }
     },
+    // Small font files would otherwise be embedded as data: addresses, which the app's security policy blocks.
+    build: { assetsInlineLimit: 0 },
     plugins: [react(), tailwindcss()]
   }
 })

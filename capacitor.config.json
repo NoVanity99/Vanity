@@ -1,0 +1,14 @@
+{
+  "appId": "com.vanity.launcher",
+  "appName": "Vanity",
+  "webDir": "dist-mobile",
+  "backgroundColor": "#0b0d12",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

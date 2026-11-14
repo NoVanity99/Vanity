@@ -1,7 +1,7 @@
 {
   "name": "vanity",
   "productName": "Vanity",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "A unified desktop game launcher for Steam, Epic, GOG, EA, Ubisoft and custom games.",
   "author": {
     "name": "NoVanity99"
@@ -27,7 +27,8 @@
     "test:watch": "vitest",
     "setup-keys": "node scripts/setup-keys.mjs",
     "typecheck:mobile": "tsc --noEmit -p tsconfig.mobile.json",
-    "build:mobile": "vite build --config vite.mobile.config.ts"
+    "build:mobile": "vite build --config vite.mobile.config.ts",
+    "build:android": "npm run typecheck:mobile && npm run build:mobile && cap sync android && cd android && ./gradlew assembleRelease --no-daemon"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

@@ -1,6 +1,6 @@
 # Vanity
 
-A unified desktop game launcher for Windows 10/11. It finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games and shows them in one dark, cover-art library.
+A unified game launcher for Windows 10/11 and Android. On a PC it finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games; on a phone it finds every installed game. Either way they show in one dark, cover-art library.
 
 Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v4 and SQLite (better-sqlite3).
 
@@ -11,6 +11,17 @@ Download **[Vanity-Installer.exe](https://github.com/NoVanity99/Vanity/releases/
 - **What you get:** a Start Menu entry, a desktop shortcut, and an uninstaller in Windows **Apps & features**.
 - **SmartScreen:** the installer isn't code-signed, so Windows may show "Windows protected your PC". Click **More info → Run anyway**.
 - **Updates:** the installed app keeps itself up to date from GitHub Releases. See [RELEASING.md](RELEASING.md) for how releases are made.
+
+## Install (Android)
+
+On your phone, download **[Vanity.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk)** and tap it to install. That link always gives the newest version. Needs Android 6 or newer.
+
+- **"Install unknown apps":** Android asks you to allow this for your browser the first time, because the app doesn't come from the Play Store. Play Protect may also ask: choose **Install anyway**.
+- **Finding games:** Vanity lists every app Android labels as a game, each time it opens. For anything it misses, use **Add a game** and pick the app.
+- **Playtime:** for exact times, switch on **Usage access** for Vanity (Settings → Playtime tracking takes you there). Without it, Vanity counts from when you tap Play until you come back.
+- **Music:** the player plays the songs stored on the phone, after you allow access to music.
+- **Updates:** Vanity shows the update button when a new version is out and downloads the new APK; tap it to install over the old one. Your library is kept.
+- **Not on Android:** the Steam store tab, Discord status, Big Picture, break reminders, and .exe or web games.
 
 ## Getting started (from source)
 
@@ -269,6 +280,7 @@ When run from source, Vanity updates itself from your **Vanity server on Vercel*
 - **Installing:** Vanity downloads the new files over its own, keeping `node_modules`, your `.env.local` and your data. It runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
 - **Without a server address:** Vanity falls back to GitHub. A git clone updates with git and your GitHub login; a downloaded copy needs a GitHub token in Settings → Updates. The branch is `vanity.updateBranch` in `package.json`.
 - **Patch notes:** come from [`CHANGELOG.md`](CHANGELOG.md). Each release bumps `version` in `package.json` and adds an entry there. The current version is at the bottom right of Settings.
+- **The Android app** checks GitHub Releases too, and downloads the new `Vanity.apk` for you to install.
 - **Installed copies** (from `Vanity-Setup.exe`) don't use any of the above. They update from GitHub Releases: they check when they start and every hour, download in the background, then show "Update ready: restart to install". See [RELEASING.md](RELEASING.md).
 
 ## Native modules

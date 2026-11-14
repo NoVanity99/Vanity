@@ -3,6 +3,21 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.9.0 (2026-11-14)
+- New: **Vanity for Android.** Install Vanity.apk on your phone and it finds every game installed on it, the same way the Windows app finds your PC games.
+  - Tap a game to play it. Touch and hold a game for its menu (favourite, hide, collections, remove).
+  - "Add a game" lists every other app on the phone, for games Android doesn't label as games.
+  - Playtime: turn on "Usage access" in Settings for exact times. Without it, Vanity counts from when you tap Play until you come back.
+  - The music player plays the songs stored on your phone.
+  - Cover art, game pages, Most hyped, Stats, Wrapped, Vibe Check, collections, accounts and friends all work like on Windows.
+  - Updates: Vanity tells you when a new version is out and downloads the new APK for you to install.
+  - Not on Android: the Steam store tab, Discord status, Big Picture, break reminders, and .exe or web games.
+- Vanity now scans for new games every time it opens, on Windows and Android.
+- No more duplicates: if the same game is found twice (for example on Steam and Epic), it shows once. Vanity keeps the copy you've played the most.
+- A game you remove stays removed, even after a rescan. Settings has a "Removed games" list to bring them back.
+- Fonts: changing the font in Settings now changes all the text in the launcher, including headings, buttons, menus and text boxes.
+- Fixed: a few small font pieces were blocked from loading, so some special characters could show in the wrong font.
+
 ## 0.8.1 (2026-11-14)
 - New: a small web installer, Vanity-Installer.exe. It always downloads and installs the newest version of Vanity, so the same file can be shared forever.
 
