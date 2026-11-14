@@ -219,4 +219,28 @@ describe('setup', () => {
   it('refuses a short JWT secret', () => {
     expect(() => createApp({ sql: (async () => []) as Sql, jwtSecret: 'short' })).toThrow(/32 characters/)
   })
+
+  it('saves a profile style and shows it to friends', async () => {
+    const a = await register('styled_a')
+    const b = await register('styled_b')
+    // Nothing set yet.
+    expect((await call('GET', '/me', a.token)).json.profile).toEqual({})
+    // Only known kinds of values are kept; markup and long text are dropped or trimmed.
+    const saved = await call('PUT', '/profile', a.token, {
+      banner: 'galaxy', frame: 'rainbow', nameStyle: '<b>bold</b>', effect: 'sparkle', flair: '\u{1F451}',
+      tagline: '  hello   <script>there</script>  ', extra: 'ignored'
+    })
+    expect(saved.status).toBe(200)
+    expect(saved.json.profile).toEqual({ banner: 'galaxy', frame: 'rainbow', effect: 'sparkle', flair: '\u{1F451}', tagline: 'hello scriptthere/script' })
+    expect((await call('PUT', '/profile', a.token, { flair: 'abc' })).json.profile.flair).toBeUndefined()
+    await call('PUT', '/profile', a.token, { banner: 'galaxy', frame: 'rainbow', flair: '\u{1F451}', tagline: 'gg' })
+    expect((await call('GET', '/me', a.token)).json.profile.tagline).toBe('gg')
+    expect((await call('PUT', '/profile', undefined, { banner: 'gold' })).status).toBe(401)
+
+    await call('POST', '/friends/requests', a.token, { username: 'styled_b' })
+    await call('POST', `/friends/requests/${a.id}/accept`, b.token)
+    const list = await call('GET', '/friends', b.token)
+    expect(list.json.friends[0].profile).toEqual({ banner: 'galaxy', frame: 'rainbow', flair: '\u{1F451}', tagline: 'gg' })
+    expect((await call('GET', `/friends/${a.id}/stats`, b.token)).json.profile.banner).toBe('galaxy')
+  })
 })

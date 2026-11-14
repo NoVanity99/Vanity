@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Globe, LogOut, Server, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
-import { Avatar } from '@/components/Avatar'
+import { ProfileCard } from '@/components/ProfileCard'
+import { useSettings } from '@/state/settings'
 import { Button, Dialog } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { useAccount } from '@/state/account'
@@ -48,6 +49,7 @@ function ServerForm({ current, onSaved }: { current: string; onSaved?: () => voi
 
 export function AccountPage(): React.JSX.Element {
   const account = useAccount()
+  const settings = useSettings()
   const toast = useToast()
   const navigate = useNavigate()
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -93,18 +95,16 @@ export function AccountPage(): React.JSX.Element {
           </section>
         ) : account.signedIn ? (
           <>
+            {/* Your profile as friends see it; change the look in Settings → Profile. */}
+            <ProfileCard name={account.username ?? '?'} profile={settings?.profile} status="online">
+              <p className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <ShieldCheck className="size-3.5" /> Your playtime and what you're playing are shared with your friends.
+              </p>
+              <button onClick={() => navigate('/settings#profile')} className="mt-2 text-xs font-medium text-accent hover:underline">
+                Customize your profile
+              </button>
+            </ProfileCard>
             <section className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6">
-              <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/20 blur-3xl" />
-              <div className="relative flex items-center gap-5">
-                <Avatar name={account.username ?? '?'} size="xl" status="online" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted">Signed in as</p>
-                  <p className="truncate font-display text-3xl font-bold">{account.username}</p>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-400">
-                    <ShieldCheck className="size-3.5" /> Your playtime and what you're playing are shared with your friends.
-                  </p>
-                </div>
-              </div>
               <div className="relative mt-6 flex flex-wrap gap-3">
                 <Button variant="primary" onClick={() => navigate('/friends')}>
                   <Users className="size-4" /> Friends

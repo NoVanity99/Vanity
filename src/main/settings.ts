@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import { DEFAULT_FONT } from '@shared/fonts'
 import { DEFAULT_THEME } from '@shared/themes'
+import { DEFAULT_PROFILE, sanitizeProfile } from '@shared/profile'
+import { DEFAULT_UI, sanitizeUi } from '@shared/ui'
 import { SCAN_SOURCES, type Settings } from '@shared/types'
 import { BUILT_IN_KEYS } from './builtinKeys'
 
@@ -27,7 +29,9 @@ const DEFAULTS: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  profile: DEFAULT_PROFILE,
+  ui: DEFAULT_UI
 }
 
 let cache: Settings | null = null
@@ -87,7 +91,9 @@ function withDefaults(stored: Partial<Settings>): Settings {
   const merged: Settings = {
     ...DEFAULTS,
     ...stored,
-    enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources }
+    enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources },
+    profile: sanitizeProfile(stored.profile),
+    ui: sanitizeUi(stored.ui)
   }
   for (const field of SECRET_FIELDS) merged[field] ||= BUILT_IN[field]
   merged.discordClientId ||= import.meta.env.MAIN_VITE_DISCORD_CLIENT_ID?.trim() || BUILT_IN_KEYS.discordClientId

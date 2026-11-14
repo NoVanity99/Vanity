@@ -9,6 +9,7 @@ import { saveSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
+import { CustomizeSettings, ProfileSettings } from './settings/Customize'
 import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 import { checkForUpdate, openUpdateDialog, pendingCount, useUpdate } from '@/state/update'
@@ -402,13 +403,20 @@ export function SettingsPage(): React.JSX.Element {
           ))}
 
           <div className="-mx-3 mt-6 border-t border-border pt-3">
-            <Toggle label="Ambient background glow" checked={settings.ambientBackground !== false} onChange={(v) => save({ ambientBackground: v })} />
             <Toggle
               label="Minimise Vanity while a game is running"
               checked={!!settings.minimizeWhilePlaying}
               onChange={(v) => save({ minimizeWhilePlaying: v })}
             />
           </div>
+        </Section>
+
+        <Section title="Profile" description="Make your profile yours. Your friends see this look next to your name.">
+          <ProfileSettings settings={settings} save={save} />
+        </Section>
+
+        <Section title="Customize" description="Build the launcher your way: colours, shapes, the background, what the sidebar holds and more.">
+          <CustomizeSettings settings={settings} save={save} />
         </Section>
 
         <Section

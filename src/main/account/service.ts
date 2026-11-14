@@ -106,6 +106,7 @@ export class AccountService {
     this.stop()
     void this.heartbeat()
     void this.syncStats()
+    void this.pushProfile()
     this.heartbeatTimer = setInterval(() => void this.heartbeat(), HEARTBEAT_MS)
     this.statsTimer = setInterval(() => void this.syncStats(), STATS_SYNC_MS)
   }
@@ -122,6 +123,15 @@ export class AccountService {
     const running = this.deps.runningGame()
     const game = running ? this.deps.store.get(running.id) : null
     await this.guard((c) => c.heartbeat(game ? { gameKey: gameKey(game.name), gameName: game.name, startedAt: running!.startedAt } : null)).catch(() => {})
+  }
+
+  /**
+   * Sends your profile style to the server so friends see it. Never throws: an older server
+   * without profiles just doesn't show it to anyone else.
+   */
+  async pushProfile(): Promise<void> {
+    if (!this.state().signedIn) return
+    await this.guard((c) => c.saveProfile(this.deps.getSettings().profile)).catch(() => {})
   }
 
   /** Uploads playtime for every game you've played. Never throws. */

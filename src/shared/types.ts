@@ -203,6 +203,10 @@ export interface Settings {
   updateKey: string
   /** Remind you to take a break every this many minutes of play; 0 = off. */
   breakReminderMinutes: number
+  /** How your profile looks to you and your friends (src/shared/profile.ts). */
+  profile: import('./profile').ProfileStyle
+  /** Launcher layout and behaviour options (src/shared/ui.ts). */
+  ui: import('./ui').UiPrefs
 }
 
 /** Fields the user can change on a game. */
@@ -349,6 +353,8 @@ export interface FriendStatus {
 export interface Friend {
   id: string
   username: string
+  /** How they've styled their profile; missing from older servers. */
+  profile?: import('./profile').ProfileStyle
   status: FriendStatus
   totalPlaytimeSeconds: number
   gamesPlayed: number
@@ -376,6 +382,7 @@ export interface FriendGameStat {
 
 export interface FriendStats {
   username: string
+  profile?: import('./profile').ProfileStyle
   totalPlaytimeSeconds: number
   gamesPlayed: number
   top: FriendGameStat[]

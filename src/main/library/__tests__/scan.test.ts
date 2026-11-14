@@ -1,3 +1,5 @@
+import { DEFAULT_PROFILE } from '@shared/profile'
+import { DEFAULT_UI } from '@shared/ui'
 import { describe, expect, it, vi } from 'vitest'
 import type { GameCandidate, Settings } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -28,7 +30,9 @@ const settings: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  profile: DEFAULT_PROFILE,
+  ui: DEFAULT_UI
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

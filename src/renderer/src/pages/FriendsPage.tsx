@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
+import { ProfileCard, ProfileName } from '@/components/ProfileCard'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
@@ -32,9 +33,9 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
         playing && !selected && 'border-accent/25 bg-gradient-to-r from-accent/10 to-transparent'
       )}
     >
-      <Avatar name={friend.username} status={friend.status.state} />
+      <Avatar name={friend.username} status={friend.status.state} frame={friend.profile?.frame} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold">{friend.username}</span>
+        <ProfileName name={friend.username} profile={friend.profile} className="max-w-full font-semibold" />
         <span className={cn('flex items-center gap-1.5 truncate text-xs', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
           {playing && <Gamepad2 className="size-3.5 shrink-0" />}
           <span className="truncate">{statusLine(friend)}</span>
@@ -63,13 +64,10 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
 
   return (
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 rounded-2xl border border-border bg-surface p-6">
-      <div className="flex items-center gap-4">
-        <Avatar name={friend.username} size="lg" status={friend.status.state} />
-        <div className="min-w-0">
-          <p className="truncate font-display text-2xl font-bold">{friend.username}</p>
-          <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
-        </div>
-      </div>
+      {/* Their profile, styled the way they chose. */}
+      <ProfileCard name={friend.username} profile={stats?.profile ?? friend.profile} status={friend.status.state} className="-mx-2 -mt-2">
+        <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
+      </ProfileCard>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-surface-2 p-3">

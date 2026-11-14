@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { applyFont, applyTheme } from './lib/theme'
+import { applyFont, applyTheme, applyUi } from './lib/theme'
+import { sanitizeUi } from '@shared/ui'
 import { AmbientBackground } from './components/AmbientBackground'
 import { useSettings } from './state/settings'
 import { CandidateReview } from './components/CandidateReview'
@@ -34,18 +35,20 @@ function Shell(): React.JSX.Element {
     if (!settings) return
     applyTheme(settings.theme)
     applyFont(settings.font)
-  }, [settings?.theme, settings?.font]) // eslint-disable-line react-hooks/exhaustive-deps
+    applyUi(settings.ui, settings.theme)
+  }, [settings?.theme, settings?.font, settings?.ui]) // eslint-disable-line react-hooks/exhaustive-deps
+  const ui = sanitizeUi(settings?.ui)
 
   return (
     <div className="relative flex h-full">
-      {settings?.ambientBackground !== false && <AmbientBackground />}
+      {settings?.ambientBackground !== false && <AmbientBackground kind={ui.background} />}
       <Sidebar />
       <main className="relative z-10 min-w-0 flex-1">
         {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
         <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] [-webkit-app-region:drag]">
-          <LauncherStatusBar />
+          {ui.showLauncherStatus && <LauncherStatusBar />}
           <div className="ml-auto flex items-center gap-2">
-            <MusicPlayer />
+            {ui.showMusicPlayer && <MusicPlayer />}
             <UpdateButton />
           </div>
         </div>
@@ -64,7 +67,7 @@ function Shell(): React.JSX.Element {
             <Route path="/account" element={<AccountPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/library" replace />} />
+            <Route path="*" element={settings ? <Navigate to={`/${ui.startPage}`} replace /> : null} />
           </Routes>
         </div>
       </main>

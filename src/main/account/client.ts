@@ -1,4 +1,5 @@
 import type { FriendsList, FriendStats, GameFriend } from '@shared/types'
+import type { ProfileStyle } from '@shared/profile'
 import type { FetchFn } from '../metadata/http'
 
 /** A failure with a message that can be shown to the user. `signedOut` means the token is no longer valid. */
@@ -62,7 +63,9 @@ export class AccountClient {
 
   register = (username: string, password: string) => this.call<Session>('POST', '/auth/register', { username, password }, false)
   login = (username: string, password: string) => this.call<Session>('POST', '/auth/login', { username, password }, false)
-  me = () => this.call<{ user: { id: string; username: string } }>('GET', '/me')
+  me = () => this.call<{ user: { id: string; username: string }; profile?: unknown }>('GET', '/me')
+  /** Saves how your profile looks, for friends to see. */
+  saveProfile = (profile: ProfileStyle) => this.call<{ profile: unknown }>('PUT', '/profile', profile)
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>

@@ -212,6 +212,8 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
     }
     if (before.githubToken !== after.githubToken || before.updateKey !== after.updateKey || before.accountServerUrl !== after.accountServerUrl) void update.check()
     if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
+    // A new profile look goes to the account server, so friends see it.
+    if (JSON.stringify(before.profile) !== JSON.stringify(after.profile)) void account.pushProfile()
     onSettingsChanged?.(after)
     return after
   })

@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.7.0 (2026-11-14)
+- Profile customization: Settings → Profile lets you style your profile with a live preview. Your friends see it next to your name on the Friends page.
+  - 12 banners (Aurora, Galaxy, Cyber grid, Gold, Rainbow flow and more), 8 picture frames (Neon glow, Gold, Spinning rainbow, Fire, Ice…), 7 name styles (Gradient, Gold shine, Rainbow, Glow, Glitch…), 6 moving effects (Shimmer, Sparkles, Starfield, Scanlines, Bubbles), a flair emoji and a tagline.
+  - Your Account page and the sidebar show your look, and opening a friend shows theirs.
+- Customize: a new Settings section to build the launcher your way.
+  - Your own accent colour over any skin, sharp, soft or round corners, and a size slider for the whole interface (85–125%).
+  - Backgrounds: Soft glow, Aurora, Cyber grid, Starfield or Plain.
+  - Game covers: choose what they do when you point at them (Lift, Zoom, Glow, 3D tilt or Stay still).
+  - Sidebar: switch entries on or off and reorder them, hide the level, search or collections, or use a compact icons-only sidebar.
+  - Choose the page Vanity opens on, hide the music player or launcher status at the top, use solid panels, or reduce motion.
+- Friends see profile looks once the account server is updated; until then your look shows on your own PC.
+
 ## 0.6.1 (2026-10-26)
 - Settings is simpler: the API keys and the Discord application ID are built in, so the "Metadata & artwork" section and the Discord ID field are gone. Discord Rich Presence works as soon as you turn it on.
 

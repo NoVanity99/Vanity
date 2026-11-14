@@ -44,6 +44,25 @@ async function body<T>(c: Context): Promise<Partial<T>> {
   }
 }
 
+const PROFILE_ID = /^[a-z0-9-]{1,24}$/
+
+/**
+ * A profile style as stored and sent to friends: short IDs the app knows how to draw, one emoji
+ * and a tagline. Anything else is dropped, so a profile can never carry markup or links.
+ */
+function cleanProfile(raw: unknown): Record<string, string> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const out: Record<string, string> = {}
+  for (const key of ['banner', 'frame', 'nameStyle', 'effect']) {
+    const v = r[key]
+    if (typeof v === 'string' && PROFILE_ID.test(v)) out[key] = v
+  }
+  // One emoji: a few characters, none of them plain text or markup.
+  if (typeof r.flair === 'string' && r.flair.length > 0 && r.flair.length <= 8 && /^[^\x00-\x7f]+$/.test(r.flair)) out.flair = r.flair
+  if (typeof r.tagline === 'string') out.tagline = r.tagline.replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60)
+  return out
+}
+
 /** Shapes a presence row into what friends see. */
 function status(row: { online: boolean; game_name: string | null; started_at: unknown; updated_at: unknown }): {
   state: 'playing' | 'online' | 'offline'
@@ -69,6 +88,13 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
     else if (++a.count > authRateLimit) fail(429, 'Too many attempts. Try again in a few minutes.')
     await next()
   }
+
+  // Older databases get the profile column the first time it's needed (schema.sql adds it too).
+  let profileColumn: Promise<unknown> | null = null
+  const ensureProfileColumn = (): Promise<unknown> =>
+    (profileColumn ??= sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile JSONB NOT NULL DEFAULT '{}'::jsonb`.catch(() => {
+      profileColumn = null
+    }))
 
   const requireUser: MiddlewareHandler<Env> = async (c, next) => {
     const token = /^Bearer (.+)$/.exec(c.req.header('authorization') ?? '')?.[1]
@@ -141,7 +167,19 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
     return c.json(session(user))
   })
 
-  app.get('/me', requireUser, (c) => c.json({ user: { id: c.get('userId'), username: c.get('username') } }))
+  app.get('/me', requireUser, async (c) => {
+    await ensureProfileColumn()
+    const [row] = await sql<{ profile: unknown }>`SELECT profile FROM users WHERE id = ${c.get('userId')}`
+    return c.json({ user: { id: c.get('userId'), username: c.get('username') }, profile: cleanProfile(row?.profile) })
+  })
+
+  /** Saves how your profile looks. Friends see it next to your name. */
+  app.put('/profile', requireUser, async (c) => {
+    await ensureProfileColumn()
+    const profile = cleanProfile(await body<Record<string, unknown>>(c))
+    await sql`UPDATE users SET profile = ${JSON.stringify(profile)}::jsonb WHERE id = ${c.get('userId')}`
+    return c.json({ profile })
+  })
 
   app.delete('/me', requireUser, async (c) => {
     await sql`DELETE FROM users WHERE id = ${c.get('userId')}`
@@ -196,9 +234,11 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
 
   app.get('/friends', requireUser, async (c) => {
     const me = c.get('userId')
+    await ensureProfileColumn()
     const friends = await sql<{
       id: string
       username: string
+      profile: unknown
       online: boolean
       game_name: string | null
       started_at: unknown
@@ -207,7 +247,7 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
       games: number
       top_game: string | null
     }>`
-      SELECT u.id, u.username,
+      SELECT u.id, u.username, u.profile,
         COALESCE(NOT p.signed_off AND p.updated_at > now() - ${ONLINE_WINDOW}::interval, false) AS online,
         p.game_name, p.started_at, p.updated_at,
         COALESCE((SELECT SUM(playtime_seconds) FROM game_stats s WHERE s.user_id = u.id), 0)::int AS total,
@@ -228,6 +268,7 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
       friends: friends.map((f) => ({
         id: f.id,
         username: f.username,
+        profile: cleanProfile(f.profile),
         status: status(f),
         totalPlaytimeSeconds: f.total,
         gamesPlayed: f.games,
@@ -284,13 +325,15 @@ export function createApp({ sql, jwtSecret, tokenTtlSeconds = 30 * 24 * 3600, au
   app.get('/friends/:id/stats', requireUser, async (c) => {
     const id = c.req.param('id')
     if (!(await areFriends(c.get('userId'), id))) fail(403, 'You can only see stats of your friends.')
-    const [user] = await sql<{ username: string }>`SELECT username FROM users WHERE id = ${id}`
+    await ensureProfileColumn()
+    const [user] = await sql<{ username: string; profile: unknown }>`SELECT username, profile FROM users WHERE id = ${id}`
     const games = await sql<{ game_key: string; game_name: string; playtime_seconds: number; last_played_at: unknown }>`
       SELECT game_key, game_name, playtime_seconds, last_played_at FROM game_stats
       WHERE user_id = ${id} AND playtime_seconds > 0 ORDER BY playtime_seconds DESC`
     const shape = (g: (typeof games)[number]) => ({ gameKey: g.game_key, gameName: g.game_name, playtimeSeconds: g.playtime_seconds, lastPlayedAt: toMs(g.last_played_at) })
     return c.json({
       username: user?.username ?? '',
+      profile: cleanProfile(user?.profile),
       totalPlaytimeSeconds: games.reduce((sum, g) => sum + g.playtime_seconds, 0),
       gamesPlayed: games.length,
       top: games.slice(0, 10).map(shape),

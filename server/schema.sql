@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower(username));
 
 -- One row per friend request; status becomes 'accepted' when the other side accepts.
+-- How each person has styled their profile (IDs of banners, frames and so on, plus a tagline).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE TABLE IF NOT EXISTS friendships (
   requester_id  uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   addressee_id  uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
