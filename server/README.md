@@ -27,6 +27,18 @@ You need a free [Neon](https://console.neon.tech) account and this GitHub reposi
 
 The workflow turns on Neon Auth, deploys the server, signs up a throwaway account to check everything works (and removes it again), and saves the two public addresses into `src/shared/backend.ts`. The next Vanity release has accounts switched on. It runs again by itself whenever `server/` changes.
 
+### Steam linking: where the Steam key goes
+
+Steam linking needs a Steam Web API key. It lives **only** on the server, as a secret of the Neon Function. It is never in the app, in any file that ships, or in this repository.
+
+1. Get a key at <https://steamcommunity.com/dev/apikey> (sign in with a Steam account that has made a purchase; for "Domain name" enter anything, such as `vanity`).
+2. In this repository: **Settings** → **Secrets and variables** → **Actions** → *New repository secret*. Name: `STEAM_WEB_API_KEY`. Secret: the key.
+3. **Actions** → **Deploy backend** → **Run workflow**. The deploy stores the key on Neon and checks it by looking up a public Steam profile.
+
+To change the key later, update the secret and run the workflow again. A deploy without the secret leaves the key on Neon as it is. To remove it, delete it in the Neon console (the function's environment variables).
+
+The key allows 100,000 calls a day for everyone together, so the server protects it: answers are cached for 5–10 minutes (custom URL names for a day), each account may make 30 Steam requests a minute, and each account has a budget of 1,500 calls to Steam per day. Achievement totals are worked out a batch of games at a time and remembered, re-checking recently played games hourly and the rest weekly.
+
 ### Things to know
 
 - **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*.
@@ -54,6 +66,16 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
 | POST | `/sync` | Cloud-saved progress: the device sends what it knows (per-device counters, choices with timestamps, days, badges, collections, settings) and gets the merged result back. Rules are in `src/sync.ts`. Rate-limited per account |
+| GET | `/steam/link` | `{ configured, link }`: the linked Steam account (`steamId`, `name`, `avatar`, `profileUrl`, `verified`), and whether the server has a Steam key |
+| PUT | `/steam/link` | `{ input }`: links from a SteamID64, a profile link or a custom URL name |
+| DELETE | `/steam/link` | Unlinks |
+| POST | `/steam/resolve` | `{ input }` → `{ profile }`: looks an account up without linking it (uses ResolveVanityURL for names) |
+| GET | `/steam/owned-games` | The linked account's games with playtime and icons. `409` with `code: "steam_private"` when game details are private |
+| GET | `/steam/recent-games` | Games played in the last two weeks |
+| GET | `/steam/achievements/:appId` | The linked account's achievements for one game |
+| GET | `/steam/achievements-summary` | Total achievements unlocked; ask again while `complete` is false |
+| POST | `/steam/openid/start` | `{ url }`: Steam's sign-in page, to open in a browser |
+| GET | `/steam/openid/return` | Where Steam sends the browser back (no token: the one-time `state` identifies who started it). Checks the answer with Steam, links the account, shows a small page |
 | PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing |
 | DELETE | `/presence` | Signed out / closed: shows as offline |
 | PUT | `/stats` | `{ games: [{ gameKey, gameName, playtimeSeconds, lastPlayedAt }] }` (up to 5000) |
@@ -72,6 +94,7 @@ Routes after `/me` answer `409` with `code: "needs_username"` until the account 
 **Security notes**
 - **Tokens:** verified against Neon Auth's published keys (`NEON_AUTH_JWKS_URL`, injected by Neon), EdDSA only, with the expiry enforced.
 - **Database:** every query is parameterised, and the tables hold no passwords or emails (`src/schema.ts`).
+- **The Steam key** is read from the function's environment and added to requests on the server. Error messages and logs never include it. Steam routes answer `503` with `code: "steam_not_configured"` until the key is set.
 - **Sync can't take progress away:** a device can never lower a counter or remove a day or badge, and a clock set in the future can't make its changes win forever (timestamps are capped at the server's time). The server creates its tables by itself on first use.
 - **Deleting an account** removes what Vanity stores. The sign-in record at Neon Auth stays until you remove it in the Neon console (Auth → Users).
 

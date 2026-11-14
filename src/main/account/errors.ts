@@ -6,7 +6,9 @@ export class AccountError extends Error {
   constructor(
     message: string,
     readonly signedOut = false,
-    readonly offline = false
+    readonly offline = false,
+    /** The server's machine-readable reason, when it gave one (e.g. "steam_private"). */
+    readonly code: string | null = null
   ) {
     super(message)
   }

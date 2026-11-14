@@ -2,9 +2,11 @@
 # Neon Function, checks that it all works, and saves the two public addresses in the app.
 # See server/README.md.
 #
-# Needs two repository secrets (Settings → Secrets and variables → Actions):
-#   NEON_API_KEY     from the Neon console → Account settings → API keys
-#   NEON_PROJECT_ID  from the Neon console → your project → Settings (looks like "cool-lab-12345678")
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   NEON_API_KEY       from the Neon console → Account settings → API keys
+#   NEON_PROJECT_ID    from the Neon console → your project → Settings (looks like "cool-lab-12345678")
+#   STEAM_WEB_API_KEY  optional, for Steam linking: from https://steamcommunity.com/dev/apikey
+#                      It is stored on Neon as a secret of the server and never reaches the app or this repo.
 name: Deploy backend
 
 on:
@@ -69,7 +71,11 @@ jobs:
 
       # Applies server/neon.ts: Neon Auth on, and the "vanity" function deployed.
       # The database tables are created by the server itself the first time it is used.
+      # The Steam key (if the secret exists) becomes a secret of the function. Without the secret,
+      # the key that is already on Neon is left as it is.
       - name: Deploy to Neon
+        env:
+          STEAM_WEB_API_KEY: ${{ secrets.STEAM_WEB_API_KEY }}
         run: npx neon deploy --project-id "$NEON_PROJECT_ID" --yes --no-env-pull
 
       # Only the public addresses are read: the database password never appears here.

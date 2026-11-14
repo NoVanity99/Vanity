@@ -91,6 +91,52 @@ CREATE TABLE IF NOT EXISTS vanity.user_state (
   device_name             text,
   updated_at              timestamptz NOT NULL DEFAULT now()
 );
+-- Accounts on other services that a Vanity account is linked to (Steam for now).
+-- verified is true when the link was made by signing in through the service, not by typing an id.
+CREATE TABLE IF NOT EXISTS vanity.linked_accounts (
+  user_id       text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  provider      text NOT NULL,
+  external_id   text NOT NULL,
+  display_name  text NOT NULL,
+  avatar_url    text,
+  profile_url   text NOT NULL,
+  verified      boolean NOT NULL DEFAULT false,
+  linked_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, provider)
+);
+
+-- Answers from outside services (the Steam Web API), kept for a few minutes so the same question isn't asked twice.
+CREATE TABLE IF NOT EXISTS vanity.api_cache (
+  cache_key   text PRIMARY KEY,
+  body        jsonb NOT NULL,
+  expires_at  timestamptz NOT NULL
+);
+
+-- How many calls to outside services each account has caused per day (its daily budget).
+CREATE TABLE IF NOT EXISTS vanity.api_usage (
+  user_id  text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  day      date NOT NULL,
+  calls    integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, day)
+);
+
+-- Achievement counts per Steam game, so the total doesn't need every game asked every time.
+CREATE TABLE IF NOT EXISTS vanity.steam_achievements (
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  steam_id    text NOT NULL,
+  app_id      integer NOT NULL,
+  unlocked    integer NOT NULL DEFAULT 0,
+  total       integer NOT NULL DEFAULT 0,
+  checked_at  timestamptz NOT NULL,
+  PRIMARY KEY (user_id, steam_id, app_id)
+);
+
+-- "Sign in through Steam" in progress: which account started it. Each is used once and expires after 10 minutes.
+CREATE TABLE IF NOT EXISTS vanity.openid_states (
+  state       text PRIMARY KEY,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  expires_at  timestamptz NOT NULL
+);
 `
 
 /** The schema as separate statements, without comments. */

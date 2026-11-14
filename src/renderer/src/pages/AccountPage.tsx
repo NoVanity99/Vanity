@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, AtSign, Check, CloudOff, KeyRound, LogOut, Mail, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { Button, Dialog } from '@/components/Dialog'
+import { LinkedAccounts } from '@/components/LinkedAccounts'
 import { cn } from '@/lib/cn'
 import { useAccount } from '@/state/account'
 import { useToast } from '@/state/toasts'
@@ -316,6 +317,8 @@ export function AccountPage(): React.JSX.Element {
             {!account.remembered && <p className="relative mt-4 text-xs text-muted">This device won't keep you signed in: you'll be signed out when Vanity closes.</p>}
           </section>
         )}
+
+        {account.signedIn && !account.needsUsername && <LinkedAccounts />}
       </div>
 
       {confirmDelete && (

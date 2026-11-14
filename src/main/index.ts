@@ -31,6 +31,7 @@ import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
 import { SyncService } from './sync/service'
+import { SteamService } from './steam/service'
 import { tracked } from './sync/track'
 import { createSessionVault, nodeAuthHttp } from './account/desktop'
 import { backendConfig } from '@shared/backend'
@@ -47,6 +48,7 @@ let trending: TrendingService | null = null
 let status: StatusService | null = null
 let account: AccountService | null = null
 let sync: SyncService | null = null
+let steam: SteamService | null = null
 let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
@@ -299,6 +301,7 @@ app.whenReady().then(() => {
     onChange: (s) => {
       broadcast(IPC.accountChanged, s)
       sync?.accountChanged()
+      steam?.accountChanged()
     }
   })
   sync = new SyncService({
@@ -315,6 +318,14 @@ app.whenReady().then(() => {
     onChange: (p) => broadcast(IPC.progressChanged, p)
   })
   sync.start()
+  steam = new SteamService({
+    db,
+    account,
+    openExternal: (url) => shell.openExternal(url),
+    onProgress: () => sync?.touch(),
+    onChange: (s) => broadcast(IPC.steamChanged, s)
+  })
+  steam.start()
   void account.load()
   // Sessions of the old account server were kept in settings: they no longer work, so forget them.
   if (getSettings().accountToken) void updateSettings({ accountToken: '', accountUsername: '' })
@@ -353,7 +364,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.

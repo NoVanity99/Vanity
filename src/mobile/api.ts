@@ -1,8 +1,9 @@
 import type { Result, VanityApi } from '@shared/ipc'
-import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, ScanSummary, SessionState, Settings } from '@shared/types'
+import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
 import { AccountService } from '../main/account/service'
 import { SyncService } from '../main/sync/service'
+import { SteamService } from '../main/steam/service'
 import { tracked } from '../main/sync/track'
 import { backendConfig } from '@shared/backend'
 import { mobileAuthHttp, mobileSessionVault } from './account'
@@ -74,6 +75,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   const trendingUpdated = emitter<ReturnType<TrendingService['state']>>()
   const accountChanged = emitter<ReturnType<AccountService['state']>>()
   const progressChanged = emitter<Progress>()
+  const steamChanged = emitter<SteamState>()
+  let steam: SteamService | null = null
   const settingsChanged = emitter<Settings>()
   const statusUpdated = emitter<ReturnType<StatusService['get']>>()
   const updateChanged = emitter<ReturnType<MobileUpdater['state']>>()
@@ -136,6 +139,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     onChange: (s) => {
       accountChanged.emit(s)
       sync?.accountChanged()
+      steam?.accountChanged()
     }
   })
   sync = new SyncService({
@@ -147,6 +151,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     onChange: (p) => progressChanged.emit(p)
   })
   const progress = sync
+  steam = new SteamService({ db, account, openExternal: openUrl, onProgress: () => progress.touch(), onChange: (s) => steamChanged.emit(s) })
+  const steamService = steam
 
   const updater = new MobileUpdater({
     currentVersion: appVersion,
@@ -205,6 +211,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
 
   // ---- start background work ----
   progress.start()
+  steamService.start()
   void account.load()
   trending.start()
   status.start()
@@ -340,6 +347,18 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
         await progress.syncNow()
         return progress.progress()
       }
+    },
+    steam: {
+      state: async () => steamService.state(),
+      onChange: (cb) => steamChanged.on(cb),
+      link: (input) => wrap(() => steamService.link(text(input, 300))),
+      signIn: () => wrap(() => steamService.signIn()),
+      cancelSignIn: async () => steamService.cancelSignIn(),
+      unlink: () => wrap(() => steamService.unlink()),
+      refresh: () => steamService.refresh(),
+      ownedGames: () => wrap(() => steamService.ownedGames()),
+      recentGames: () => wrap(() => steamService.recentGames()),
+      achievements: (appId) => wrap(() => steamService.achievements(Number(appId)))
     },
     account: {
       state: async () => account.state(),

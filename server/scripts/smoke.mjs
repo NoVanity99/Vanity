@@ -97,6 +97,18 @@ try {
     synced.status === 200 && synced.json?.games?.[0]?.playtimeSeconds === 120 && synced.json?.prefs?.[0]?.favorite === true && synced.json?.days?.length === 1 && synced.json?.collections?.items?.length === 1,
     `HTTP ${synced.status} ${synced.status === 200 ? '' : synced.text.slice(0, 200)}`
   )
+  // Steam: only checked when the server has a key. A well-known public profile is looked up.
+  const steamLink = await api('GET', '/steam/link', jwt)
+  if (steamLink.status !== 200) {
+    step('Steam routes answer', false, `HTTP ${steamLink.status} ${steamLink.text.slice(0, 200)}`)
+  } else if (!steamLink.json?.configured) {
+    console.log('note  Steam linking is off: the server has no Steam key yet (add the STEAM_WEB_API_KEY repository secret and deploy again)')
+  } else {
+    const looked = await api('POST', '/steam/resolve', jwt, { input: '76561197960287930' })
+    step('the Steam key works (looked up a public Steam profile)', looked.status === 200 && looked.json?.profile?.steamId === '76561197960287930', `HTTP ${looked.status} ${looked.status === 200 ? looked.json?.profile?.name : (looked.json?.code ?? looked.text.slice(0, 120))}`)
+    const noLink = await api('GET', '/steam/owned-games', jwt)
+    step('Steam games need a linked account', noLink.status === 409 && noLink.json?.code === 'steam_not_linked', `HTTP ${noLink.status}`)
+  }
   step('the Vanity profile is removed again', (await api('DELETE', '/me', jwt)).status === 204)
 
   const wrong = await auth('POST', '/sign-in/email', { body: { email, password: 'definitely-wrong' } })

@@ -16,6 +16,7 @@ import { createApp } from '../../src/app'
 import { neonAuthVerifier } from '../../src/auth'
 import type { Sql } from '../../src/db'
 import { schemaStatements } from '../../src/schema'
+import { fakeSteam, KEY } from './fake-steam'
 
 const port = Number(process.env.PORT) || 8791
 const base = `http://127.0.0.1:${port}`
@@ -38,8 +39,22 @@ const sql: Sql = async (strings, ...values) => {
   return (await db.query(text, values)).rows as never
 }
 let keys: ReturnType<typeof createLocalJWKSet> | null = null
+// A pretend Steam with two accounts: "gabelogannewell" (public) and "shy_one" (game details private).
+const steam = fakeSteam([
+  {
+    steamId: '76561197960287930',
+    name: 'Rabscuttle',
+    vanity: 'gabelogannewell',
+    games: Array.from({ length: 142 }, (_, i) => ({ appid: 1000 + i, name: `Game ${i + 1}`, playtime_forever: i % 3 === 0 ? 0 : 60 * (i + 1), playtime_2weeks: i < 4 ? 30 : 0, rtime_last_played: 1_790_000_000 - i * 86_400 })),
+    achievements: Object.fromEntries(Array.from({ length: 142 }, (_, i) => [1000 + i, Array.from({ length: 12 }, (_, n) => ({ apiname: `A${n}`, achieved: (n < (i % 13) ? 1 : 0) as 0 | 1 }))]))
+  },
+  { steamId: '76561198000000001', name: 'Shy', vanity: 'shy_one', private: true }
+])
+
 const api = createApp({
   sql,
+  steamApiKey: process.env.NO_STEAM ? '' : KEY,
+  fetchFn: steam.fetchFn,
   verifyToken: neonAuthVerifier(async (header, token) =>
     (keys ??= createLocalJWKSet((await (await auth.handler(new Request(`${base}/neondb/auth/.well-known/jwks.json`))).json()) as JSONWebKeySet))(header, token)
   ),

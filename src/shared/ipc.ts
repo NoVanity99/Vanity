@@ -1,5 +1,8 @@
 import type {
   AccountState,
+  SteamState,
+  SteamGame,
+  SteamAchievement,
   Progress,
   FriendsList,
   FriendStats,
@@ -174,6 +177,21 @@ export interface VanityApi {
     /** Syncs with the cloud now. Resolves with the result (never rejects). */
     syncNow(): Promise<Progress>
   }
+  /** Your linked Steam account. The Steam key is on the Vanity server, never in the app. */
+  steam: {
+    state(): Promise<SteamState>
+    onChange(callback: (state: SteamState) => void): () => void
+    /** Links from a SteamID64, a profile link, or a custom URL name. */
+    link(input: string): Promise<Result<SteamState>>
+    /** Opens Steam's sign-in page in the browser; the link appears when you finish there. */
+    signIn(): Promise<Result<SteamState>>
+    cancelSignIn(): Promise<SteamState>
+    unlink(): Promise<Result<SteamState>>
+    refresh(): Promise<SteamState>
+    ownedGames(): Promise<Result<SteamGame[]>>
+    recentGames(): Promise<Result<SteamGame[]>>
+    achievements(appId: number): Promise<Result<SteamAchievement[]>>
+  }
   friends: {
     list(): Promise<Result<FriendsList>>
     add(username: string): Promise<Result<'pending' | 'accepted'>>
@@ -291,6 +309,16 @@ export const IPC = {
   progressSyncNow: 'progress:sync-now',
   settingsChanged: 'settings:changed',
   sessionsStop: 'sessions:stop',
+  steamState: 'steam:state',
+  steamChanged: 'steam:changed',
+  steamLink: 'steam:link',
+  steamSignIn: 'steam:sign-in',
+  steamCancelSignIn: 'steam:cancel-sign-in',
+  steamUnlink: 'steam:unlink',
+  steamRefresh: 'steam:refresh',
+  steamOwnedGames: 'steam:owned-games',
+  steamRecentGames: 'steam:recent-games',
+  steamAchievements: 'steam:achievements',
   accountState: 'account:state',
   accountChanged: 'account:changed',
   accountSignUp: 'account:sign-up',

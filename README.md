@@ -208,6 +208,16 @@ Sign in and your progress is saved to your account and kept the same on every de
 - **Badges** are defined in [`src/shared/progress.ts`](src/shared/progress.ts) (`BADGES`). Add one by adding a line; never rename an existing id.
 - **Code:** `src/main/sync/` (the sync engine and progress), `server/src/sync.ts` (the merge rules on the server), `src/shared/sync.ts` (what the two exchange).
 
+## Linked accounts: Steam
+
+Account → **Linked accounts** links a Steam account to your Vanity account.
+
+- **What you can enter:** a SteamID64 (17 digits), a profile link (`steamcommunity.com/profiles/7656…` or `steamcommunity.com/id/yourname`), or just the custom URL name. Names are looked up with Steam's ResolveVanityURL.
+- **Sign in through Steam** opens Steam's sign-in page in your browser (OpenID). Vanity never sees the Steam password: Steam tells the Vanity server which account signed in, the server double-checks that with Steam, and links it. These links are marked verified.
+- **Private profiles:** if "Game details" is private, Steam shares the name and avatar but not the games. Vanity explains how to change that (Profile → Edit Profile → Privacy Settings → My profile: Public, Game details: Public).
+- **Achievements** unlocked on Steam count towards XP (`perSteamAchievement` in `src/shared/xpConfig.ts`).
+- **The Steam Web API key is never in the app or this repository.** It is a secret of the Vanity server on Neon. The app calls the server with your sign-in token; the server adds the key, asks Steam and answers. See [server/README.md](server/README.md) for where the key goes.
+
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
 - **Stats:** your playtime syncs after each session and every 15 minutes.

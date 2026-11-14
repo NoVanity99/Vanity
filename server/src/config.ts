@@ -5,6 +5,7 @@ import { neonMigrate, neonSql } from './db'
 /**
  * Builds the app from environment variables. On Neon Functions both are injected automatically:
  * DATABASE_URL (the branch's Postgres) and NEON_AUTH_JWKS_URL (the keys that sign Neon Auth's tokens).
+ * STEAM_WEB_API_KEY is a secret of the function (set by the Deploy backend workflow from a GitHub secret).
  */
 export function appFromEnv(env: NodeJS.ProcessEnv = process.env, extra: Pick<Parameters<typeof createApp>[0], 'updates' | 'updateKey'> = {}) {
   const url = env.DATABASE_URL
@@ -13,5 +14,5 @@ export function appFromEnv(env: NodeJS.ProcessEnv = process.env, extra: Pick<Par
   // Without it nobody can be signed in, so every account route answers "please sign in".
   // A host that only hands out app updates (the Vercel entry) can run like that.
   if (!jwks) console.warn('[vanity-api] NEON_AUTH_JWKS_URL is not set: account routes are off. On Neon, turn on Neon Auth for the branch (the deploy does this).')
-  return createApp({ sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), ...extra })
+  return createApp({ sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', ...extra })
 }

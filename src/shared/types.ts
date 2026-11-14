@@ -600,3 +600,51 @@ export interface Progress {
   badges: ProgressBadge[]
   sync: SyncState
 }
+
+// ---- Linked Steam account ------------------------------------------------------------
+
+export interface SteamLink {
+  steamId: string
+  name: string
+  avatar: string | null
+  profileUrl: string
+  /** Linked by signing in through Steam (proof the account is yours), not just by typing an id. */
+  verified: boolean
+  linkedAt: number
+}
+
+export interface SteamGame {
+  appId: number
+  name: string
+  playtimeMinutes: number
+  playtimeTwoWeeksMinutes: number
+  lastPlayedAt: number | null
+  iconUrl: string | null
+}
+
+export interface SteamAchievement {
+  id: string
+  name: string
+  description: string | null
+  achieved: boolean
+  unlockedAt: number | null
+}
+
+export interface SteamState {
+  /** Signed in to Vanity with a username (linking needs an account). */
+  available: boolean
+  /** The Vanity server has a Steam key. Null: not asked yet. */
+  configured: boolean | null
+  link: SteamLink | null
+  /** Steam isn't sharing this account's games ("Game details" is private). */
+  gamesPrivate: boolean
+  /** How to fix that, in plain words. */
+  privateMessage: string | null
+  /** Games in the Steam library, when Steam shares them. */
+  ownedGames: number | null
+  /** Achievements unlocked across played games. `complete` is false while the server is still counting. */
+  achievements: { unlocked: number; total: number; complete: boolean } | null
+  /** Waiting for the user to finish signing in on Steam's page in the browser. */
+  signingIn: boolean
+  error: string | null
+}

@@ -3,6 +3,16 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.12.0 (2026-11-14)
+- New: **link your Steam account** (stage 3 of the accounts and cloud update). On the Account page there is a new "Linked accounts" section.
+  - Paste any of: your SteamID (17 digits), your profile link (steamcommunity.com/profiles/… or steamcommunity.com/id/yourname), or just your custom URL name.
+  - Or click "Sign in through Steam": Steam's own sign-in page opens in your browser and the link fills in by itself. Vanity never sees your Steam password. Accounts linked this way get a verified tick.
+  - Once linked you see your Steam name and avatar, how many games you own and how many achievements you've unlocked, with an Unlink button.
+  - If your Steam profile's game details are private, Vanity says so and shows the five steps to make them public.
+  - The link is saved to your Vanity account, so it shows on every device.
+- Steam achievements now count towards your XP and level, and the "Achievement Hunter" badge can be unlocked. Big libraries are counted over a few minutes.
+- The Steam key that makes this work lives only on Vanity's server. It is not in the app. Each account has limits on how often it can ask, and answers are remembered for a few minutes.
+
 ## 0.11.1 (2026-11-14)
 - New: a red **cancel** bubble next to "Starting…" when a game is starting. Click it to stop waiting; if the game had already opened, it is closed too.
 - New: a red **close game** bubble at the top right of a game's cover while it is running (also next to the Playing button on the game page, in Jump back in, the list view and Big Picture). It ends the game the way "End task" in Task Manager does.

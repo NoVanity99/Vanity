@@ -1,5 +1,5 @@
 import type { SyncRequest, SyncResponse } from '@shared/sync'
-import type { FriendsList, FriendStats, GameFriend } from '@shared/types'
+import type { FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
 import { AccountError } from './errors'
 import { OFFLINE_MESSAGE } from './neonAuth'
@@ -52,7 +52,7 @@ export class AccountClient {
     if (!res.ok) {
       if (res.status === 401 && auth) throw new AccountError(data.error ?? 'Please sign in again.', true)
       if (res.status >= 500) throw new AccountError(data.error ?? 'The Vanity server is having trouble. Try again in a moment.', false, true)
-      throw new AccountError(data.error ?? `The Vanity server answered with an error (HTTP ${res.status}).`)
+      throw new AccountError(data.error ?? `The Vanity server answered with an error (HTTP ${res.status}).`, false, false, typeof data.code === 'string' ? data.code : null)
     }
     return data as T
   }
@@ -70,6 +70,16 @@ export class AccountClient {
 
   /** Cloud-saved progress: sends what this device knows, gets the merged result back. */
   sync = (request: SyncRequest) => this.call<SyncResponse>('POST', '/sync', request)
+
+  // Steam: the server holds the Steam key and does the asking.
+  steamLink = () => this.call<{ configured: boolean; link: SteamLink | null }>('GET', '/steam/link')
+  steamLinkSet = (input: string) => this.call<{ link: SteamLink }>('PUT', '/steam/link', { input })
+  steamUnlink = () => this.call<void>('DELETE', '/steam/link')
+  steamOpenIdStart = () => this.call<{ url: string }>('POST', '/steam/openid/start')
+  steamOwnedGames = async () => (await this.call<{ games: SteamGame[] }>('GET', '/steam/owned-games')).games
+  steamRecentGames = async () => (await this.call<{ games: SteamGame[] }>('GET', '/steam/recent-games')).games
+  steamAchievements = async (appId: number) => (await this.call<{ achievements: SteamAchievement[] }>('GET', `/steam/achievements/${appId}`)).achievements
+  steamAchievementSummary = () => this.call<{ unlocked: number; total: number; gamesChecked: number; gamesTotal: number; complete: boolean }>('GET', '/steam/achievements-summary')
 
   friends = () => this.call<FriendsList>('GET', '/friends')
   addFriend = (username: string) => this.call<{ status: 'pending' | 'accepted' }>('POST', '/friends/requests', { username })

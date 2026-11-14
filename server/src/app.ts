@@ -2,6 +2,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
 import type { Sql } from './db'
+import { createSteam, SteamError, type FetchFn } from './steam'
 import { SyncError, syncUser } from './sync'
 import { keyMatches, type UpdateBundle } from './updates'
 
@@ -15,6 +16,15 @@ export interface AppOptions {
   lookupRateLimit?: number
   /** Max syncs per account per minute. */
   syncRateLimit?: number
+  /** The Steam Web API key: a server secret, never sent to the app. Empty: Steam routes say "not set up". */
+  steamApiKey?: string
+  /** Max Steam requests per account per minute. */
+  steamRateLimit?: number
+  /** Calls to Steam one account may cause per day. */
+  steamDailyBudget?: number
+  /** For calls to Steam (tests replace it). */
+  fetchFn?: FetchFn
+  now?: () => number
   /** The Vanity app update bundle built into this deployment, if any. */
   updates?: () => Promise<UpdateBundle | null>
   /** When set, /update needs this in the X-Update-Key header. */
@@ -58,7 +68,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -226,6 +236,106 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       return c.json(await syncUser(sql, me, await body(c)))
     } catch (err) {
       if (err instanceof SyncError) fail(400, err.message)
+      throw err
+    }
+  })
+
+  // ---- Steam (the key stays on this server) ------------------------------------
+
+  const steam = createSteam({ sql, apiKey: steamApiKey, fetchFn, now, dailyBudget: steamDailyBudget })
+  const steamHits = new Map<string, { count: number; reset: number }>()
+  /** Per-account request limit, on top of the daily budget of calls to Steam. */
+  const steamLimit: MiddlewareHandler<Env> = async (c, next) => {
+    const me = c.get('userId')
+    const t = Date.now()
+    const h = steamHits.get(me)
+    if (!h || h.reset < t) steamHits.set(me, { count: 1, reset: t + 60_000 })
+    else if (++h.count > steamRateLimit) fail(429, 'Too many Steam requests. Wait a minute and try again.', 'rate_limited')
+    await next()
+  }
+  /** Runs a Steam call, turning its errors into answers the app can show. */
+  const steamAnswer = async <T>(c: Context<Env>, fn: () => Promise<T>): Promise<Response> => {
+    try {
+      return c.json(await fn())
+    } catch (err) {
+      if (err instanceof SteamError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.status)
+      throw err
+    }
+  }
+  const signedIn = [requireAuth, requireUser, steamLimit] as const
+
+  app.get('/steam/link', requireAuth, requireUser, (c) => steamAnswer(c, async () => ({ configured: steam.configured, link: await steam.getLink(c.get('userId')) })))
+  /** Links a Steam account from a SteamID64, a profile link or a custom URL name. */
+  app.put('/steam/link', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const { input } = await body<{ input: string }>(c)
+      return { link: await steam.link(c.get('userId'), typeof input === 'string' ? input.slice(0, 300) : '') }
+    })
+  )
+  app.delete('/steam/link', requireAuth, requireUser, async (c) => {
+    await steam.unlink(c.get('userId'))
+    return c.body(null, 204)
+  })
+  /** Looks an account up without linking it (to show "is this you?"). */
+  app.post('/steam/resolve', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const { input } = await body<{ input: string }>(c)
+      const me = c.get('userId')
+      return { profile: await steam.summary(me, await steam.resolve(me, typeof input === 'string' ? input.slice(0, 300) : '')) }
+    })
+  )
+  app.get('/steam/owned-games', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const me = c.get('userId')
+      return { games: await steam.ownedGames(me, await steam.linkedId(me)) }
+    })
+  )
+  app.get('/steam/recent-games', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const me = c.get('userId')
+      return { games: await steam.recentGames(me, await steam.linkedId(me)) }
+    })
+  )
+  app.get('/steam/achievements/:appId', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const me = c.get('userId')
+      const appId = Number(c.req.param('appId'))
+      if (!Number.isInteger(appId) || appId <= 0 || appId > 2_000_000_000) throw new SteamError("That isn't a Steam app id.")
+      return steam.achievements(me, await steam.linkedId(me), appId)
+    })
+  )
+  /** Total achievements unlocked. Worked out a batch of games at a time: ask again while `complete` is false. */
+  app.get('/steam/achievements-summary', ...signedIn, (c) =>
+    steamAnswer(c, async () => {
+      const me = c.get('userId')
+      return steam.achievementSummary(me, await steam.linkedId(me))
+    })
+  )
+
+  // "Sign in through Steam": the app opens the address from /start in the browser; Steam sends
+  // the browser back to /return, where the answer is checked with Steam and the account linked.
+  const origin = (c: Context<Env>): string => {
+    const url = new URL(c.req.url)
+    const host = c.req.header('x-forwarded-host') ?? c.req.header('host') ?? url.host
+    const proto = c.req.header('x-forwarded-proto') ?? (/^(localhost|127\.)/.test(host) ? url.protocol.replace(':', '') : 'https')
+    return `${proto}://${host}`
+  }
+  app.post('/steam/openid/start', ...signedIn, (c) => steamAnswer(c, async () => ({ url: (await steam.openIdStart(c.get('userId'), origin(c))).url })))
+  app.get('/steam/openid/return', async (c) => {
+    await ready()
+    const page = (title: string, text: string, ok: boolean): Response =>
+      c.html(
+        `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>` +
+          `<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d12;color:#f2f3f7;font-family:system-ui,sans-serif;text-align:center;padding:24px">` +
+          `<div><div style="font-size:56px">${ok ? '✅' : '⚠️'}</div><h1 style="font-size:24px;margin:16px 0 8px">${title}</h1><p style="color:#9aa0b0;max-width:420px;line-height:1.5">${text}</p></div></body></html>`,
+        ok ? 200 : 400
+      )
+    const esc = (s: string): string => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+    try {
+      const link = await steam.openIdReturn(new URL(c.req.url).searchParams, origin(c))
+      return page('Steam linked', `${esc(link.name)} is now linked to your Vanity account. You can close this tab and go back to Vanity.`, true)
+    } catch (err) {
+      if (err instanceof SteamError) return page("Steam wasn't linked", esc(err.message), false)
       throw err
     }
   })

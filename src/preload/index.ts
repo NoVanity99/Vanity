@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
+import type { AccountState, SteamState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
   platform: 'desktop',
@@ -88,6 +88,22 @@ const api: VanityApi = {
       return () => ipcRenderer.removeListener(IPC.progressChanged, listener)
     },
     syncNow: () => ipcRenderer.invoke(IPC.progressSyncNow)
+  },
+  steam: {
+    state: () => ipcRenderer.invoke(IPC.steamState),
+    onChange: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, s: SteamState): void => callback(s)
+      ipcRenderer.on(IPC.steamChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.steamChanged, listener)
+    },
+    link: (input) => ipcRenderer.invoke(IPC.steamLink, input),
+    signIn: () => ipcRenderer.invoke(IPC.steamSignIn),
+    cancelSignIn: () => ipcRenderer.invoke(IPC.steamCancelSignIn),
+    unlink: () => ipcRenderer.invoke(IPC.steamUnlink),
+    refresh: () => ipcRenderer.invoke(IPC.steamRefresh),
+    ownedGames: () => ipcRenderer.invoke(IPC.steamOwnedGames),
+    recentGames: () => ipcRenderer.invoke(IPC.steamRecentGames),
+    achievements: (appId) => ipcRenderer.invoke(IPC.steamAchievements, appId)
   },
   account: {
     state: () => ipcRenderer.invoke(IPC.accountState),
