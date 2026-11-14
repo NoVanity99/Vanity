@@ -475,9 +475,10 @@ export interface UpdateState {
   notes: UpdateNote[]
   /**
    * Where updates come from. Installed copies: 'release' (GitHub Releases, installed by the Windows installer).
+   * Android: 'apk' (GitHub Releases; Vanity downloads the new APK and Android installs it).
    * Running from source: the Vanity server on Vercel, or (without one) git / GitHub.
    */
-  mode: 'release' | 'vercel' | 'git' | 'github' | 'unsupported'
+  mode: 'release' | 'apk' | 'vercel' | 'git' | 'github' | 'unsupported'
   branch: string
   /** Where updates come from, for Settings (server URL or GitHub repo). */
   source: string

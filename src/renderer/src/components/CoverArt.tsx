@@ -37,10 +37,20 @@ export function CoverArt({ game, className }: { game: Game; className?: string }
   }, [src])
 
   const hasImage = !!src && state !== 'failed'
+  // No cover yet (common for phone games): show the game's own icon instead of a bare placeholder.
+  const icon = hasImage ? null : mediaUrl(game.iconPath)
 
   return (
     <div className={cn('relative size-full', className)}>
-      <Placeholder game={game} showTitle={!hasImage || state === 'loading'} />
+      <Placeholder game={game} showTitle={!icon && (!hasImage || state === 'loading')} />
+      {icon && (
+        <>
+          <img src={icon} alt="" draggable={false} className="absolute inset-0 size-full scale-150 object-cover opacity-50 blur-2xl" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <img src={icon} alt="" draggable={false} loading="lazy" className="w-[58%] rounded-[22%] shadow-2xl shadow-black/60" />
+          </div>
+        </>
+      )}
       {hasImage && state === 'loading' && <div className="shimmer absolute inset-0" />}
       {hasImage && (
         <img

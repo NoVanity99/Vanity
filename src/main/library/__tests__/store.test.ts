@@ -99,4 +99,20 @@ describe('executable override', () => {
     expect(s.update(g.id, { playStatus: 'nonsense' as never, userRating: 9, notes: '   ' })).toMatchObject({ playStatus: null, userRating: null, notes: null })
     expect(s.get(g.id)?.metadata.detailsLocked).toBe(false)
   })
+
+  it('remembers removed games so scans skip them, until restored or added back by hand', () => {
+    const s = store()
+    const [g] = s.upsert([portal]).games
+    s.remove(g.id)
+    expect(s.list()).toEqual([])
+    expect(s.removed()).toEqual([{ source: 'steam', externalId: '620', name: 'Portal 2' }])
+    expect(s.upsert([portal])).toMatchObject({ added: 0, games: [] }) // a scan finds it again: skipped
+
+    expect(s.upsert([portal], { restore: true }).added).toBe(1) // the user adds it back
+    expect(s.removed()).toEqual([])
+
+    s.remove(s.list()[0].id)
+    expect(s.restoreRemoved()).toBe(1)
+    expect(s.upsert([portal]).added).toBe(1)
+  })
 })

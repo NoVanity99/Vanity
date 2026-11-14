@@ -52,13 +52,27 @@ export interface MusicState {
 export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
 /** The API the preload script exposes to the renderer as `window.vanity`. */
+/** An app installed on the phone that could be added as a game (Android). */
+export interface InstalledApp {
+  packageName: string
+  name: string
+  /** A file:// path to the app's icon, if available. */
+  icon: string | null
+}
+
 export interface VanityApi {
+  /** Which version of Vanity this is: the Windows desktop app or the Android app. */
+  platform: 'desktop' | 'android'
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
     update(id: number, patch: GamePatch): Promise<Game | null>
-    /** Removes a game from the library. A launcher game comes back on the next scan if it is still installed. */
+    /** Removes a game from the library. Scans skip it from then on, until it's restored. */
     remove(id: number): Promise<void>
+    /** Names of the games you removed (which scans are skipping). */
+    removed(): Promise<string[]>
+    /** Lets scans add removed games back. Resolves to how many were restored. */
+    restoreRemoved(): Promise<number>
     /** Opens the game's install folder in Explorer. Resolves to an error message, or null on success. */
     openFolder(id: number): Promise<string | null>
     /** Starts the game. Resolves to an error message, or null on success. */
@@ -69,6 +83,10 @@ export interface VanityApi {
     confirmCandidates(accepted: GameCandidate[], rejected: GameCandidate[]): Promise<Game[]>
     /** Opens a file picker for an .exe. Resolves to null if cancelled. */
     addManually(): Promise<Game | null>
+    /** Android: apps on the phone that aren't in the library yet (for "Add a game"). Empty on desktop. */
+    installedApps(): Promise<InstalledApp[]>
+    /** Android: adds an installed app to the library as a game. */
+    addApp(packageName: string): Promise<Game | null>
     /** Sessions, averages and rank for one game. */
     playStats(id: number): Promise<GamePlayStats>
     /** Ratings, time to beat, credits, media, news and similar games (cached; `refresh` refetches). */
@@ -83,6 +101,15 @@ export interface VanityApi {
     remove(id: number): Promise<void>
     /** Adds a game to a collection or takes it out; resolves to the updated game. */
     setMember(collectionId: number, gameId: number, member: boolean): Promise<Result<Game | null>>
+  }
+  playtime: {
+    /**
+     * Android: whether Vanity may read app usage, which makes playtime exact and counts games
+     * opened outside Vanity. Null on desktop, where playtime is always tracked.
+     */
+    usageAccess(): Promise<boolean | null>
+    /** Android: opens the system's "Usage access" settings. */
+    openUsageSettings(): Promise<void>
   }
   sessions: {
     /** Games currently launching or running, by game ID. */
@@ -154,8 +181,12 @@ export interface VanityApi {
   music: {
     /** The music folder and how many tracks it has. */
     state(): Promise<MusicState>
-    /** Title, artist and artwork availability for a track (artwork is at vanity-music://art/<index>). */
+    /** Title, artist and artwork availability for a track. */
     track(index: number): Promise<TrackInfo | null>
+    /** Address the player loads a track from. `version` is MusicState.version. */
+    url(index: number, version: number): string
+    /** Address of a track's artwork. */
+    artUrl(index: number, version: number): string
     /** Opens a folder picker, then scans it. Resolves to the new state, or null if cancelled. */
     pickFolder(): Promise<MusicState | null>
   }
@@ -201,6 +232,8 @@ export const IPC = {
   gamesGet: 'games:get',
   gamesUpdate: 'games:update',
   gamesRemove: 'games:remove',
+  gamesRemoved: 'games:removed',
+  gamesRestoreRemoved: 'games:restore-removed',
   gamesOpenFolder: 'games:open-folder',
   gamesLaunch: 'games:launch',
   gamesPickExecutable: 'games:pick-executable',

@@ -12,7 +12,7 @@ export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: 
   return (
     <section className="mb-10">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">Jump back in</h2>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5 max-md:-mx-4 max-md:flex max-md:snap-x max-md:overflow-x-auto max-md:px-4 max-md:pb-2 max-md:[&>*]:w-[82%] max-md:[&>*]:shrink-0 max-md:[&>*]:snap-center">
         {games.map((g, i) => {
           const art = mediaUrl(g.heroPath) ?? mediaUrl(g.coverPath)
           const logo = mediaUrl(g.logoPath)

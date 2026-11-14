@@ -3,16 +3,22 @@ import { IPC, type VanityApi } from '@shared/ipc'
 import type { AccountState, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
+  platform: 'desktop',
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
     update: (id, patch) => ipcRenderer.invoke(IPC.gamesUpdate, id, patch),
     remove: (id) => ipcRenderer.invoke(IPC.gamesRemove, id),
+    removed: () => ipcRenderer.invoke(IPC.gamesRemoved),
+    restoreRemoved: () => ipcRenderer.invoke(IPC.gamesRestoreRemoved),
     openFolder: (id) => ipcRenderer.invoke(IPC.gamesOpenFolder, id),
     launch: (id) => ipcRenderer.invoke(IPC.gamesLaunch, id),
     pickExecutable: (id) => ipcRenderer.invoke(IPC.gamesPickExecutable, id),
     confirmCandidates: (accepted, rejected) => ipcRenderer.invoke(IPC.gamesConfirmCandidates, accepted, rejected),
     addManually: () => ipcRenderer.invoke(IPC.gamesAddManually),
+    // Android only: the desktop app adds games by file.
+    installedApps: async () => [],
+    addApp: async () => null,
     playStats: (id) => ipcRenderer.invoke(IPC.gamesPlayStats, id),
     details: (id, refresh) => ipcRenderer.invoke(IPC.gamesDetails, id, refresh === true),
     diskSize: (id) => ipcRenderer.invoke(IPC.gamesDiskSize, id)
@@ -23,6 +29,10 @@ const api: VanityApi = {
     rename: (id, name) => ipcRenderer.invoke(IPC.collectionsRename, id, name),
     remove: (id) => ipcRenderer.invoke(IPC.collectionsRemove, id),
     setMember: (collectionId, gameId, member) => ipcRenderer.invoke(IPC.collectionsSetMember, collectionId, gameId, member)
+  },
+  playtime: {
+    usageAccess: async () => null,
+    openUsageSettings: async () => {}
   },
   sessions: {
     states: () => ipcRenderer.invoke(IPC.sessionsStates),
@@ -99,7 +109,9 @@ const api: VanityApi = {
   music: {
     state: () => ipcRenderer.invoke(IPC.musicState),
     pickFolder: () => ipcRenderer.invoke(IPC.musicPickFolder),
-    track: (index) => ipcRenderer.invoke(IPC.musicTrack, index)
+    track: (index) => ipcRenderer.invoke(IPC.musicTrack, index),
+    url: (index, version) => `vanity-music://track/${index}?v=${version}`,
+    artUrl: (index, version) => `vanity-music://art/${index}?v=${version}`
   },
   status: {
     get: () => ipcRenderer.invoke(IPC.statusGet),

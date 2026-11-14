@@ -5,6 +5,8 @@ import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
 import { LevelBadge } from './LevelBadge'
+import { openAppPicker } from './AppPicker'
+import { isAndroid, menuGesture } from '@/lib/platform'
 import { useAccount } from '@/state/account'
 import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
@@ -132,7 +134,8 @@ function AccountItem(): React.JSX.Element {
   )
 }
 
-export function Sidebar(): React.JSX.Element {
+/** `open`/`onClose` only matter on phones, where the sidebar is a slide-out menu. */
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }): React.JSX.Element {
   const sidebarRef = useRef<HTMLElement>(null)
   const indicator = useActiveIndicator(sidebarRef)
   const { games, scan, addManually, sessions, metadata } = useLibrary()
@@ -145,7 +148,17 @@ export function Sidebar(): React.JSX.Element {
   const [creating, setCreating] = useState(false)
 
   return (
-    <aside ref={sidebarRef} className="relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl">
+    <>
+    {/* Phones: tap outside the menu to close it. */}
+    <div aria-hidden onClick={onClose} className={cn('fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')} />
+    <aside
+      ref={sidebarRef}
+      className={cn(
+        'relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl',
+        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:bg-bg max-md:pb-[env(safe-area-inset-bottom)] max-md:pt-[env(safe-area-inset-top)] max-md:transition-transform max-md:duration-300',
+        !open && 'max-md:-translate-x-full'
+      )}
+    >
       <Indicator {...indicator} />
       <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
         <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
@@ -156,7 +169,7 @@ export function Sidebar(): React.JSX.Element {
           to="/big"
           title="Big Picture mode: full screen, for the couch"
           aria-label="Big Picture mode"
-          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text [-webkit-app-region:no-drag]"
+          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
         >
           <Tv className="size-[18px]" />
         </NavLink>
@@ -165,18 +178,21 @@ export function Sidebar(): React.JSX.Element {
       <LevelBadge />
 
       <button
-        onClick={openCommandPalette}
+        onClick={() => {
+          onClose?.()
+          openCommandPalette()
+        }}
         className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
       >
         <Search className="size-4" />
         <span className="flex-1 text-left">Search</span>
-        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide">Ctrl K</kbd>
+        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
       </button>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
         <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
-        <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />
+        {!isAndroid() && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
         <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />
         <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
@@ -190,7 +206,7 @@ export function Sidebar(): React.JSX.Element {
         </div>
         {collections.length === 0 ? (
           <button onClick={() => setCreating(true)} className="w-full rounded-lg px-3 py-2 text-left text-xs text-muted transition hover:bg-white/5 hover:text-text">
-            Group games your way: make a collection, then right-click games to add them.
+            Group games your way: make a collection, then {menuGesture().toLowerCase()} a game to add it.
           </button>
         ) : (
           collections.map((c) => (
@@ -246,7 +262,10 @@ export function Sidebar(): React.JSX.Element {
         <button
           onClick={() => {
             playAdd()
-            addManually()
+            onClose?.()
+            // Android adds games from the list of installed apps; Windows from a file.
+            if (isAndroid()) openAppPicker()
+            else void addManually()
           }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-text"
         >
@@ -268,5 +287,6 @@ export function Sidebar(): React.JSX.Element {
         />
       )}
     </aside>
+    </>
   )
 }

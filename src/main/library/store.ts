@@ -9,13 +9,19 @@ export interface LibraryStore {
    * Inserts new games and refreshes scanner-owned fields (paths, and the name
    * unless the user renamed it) of known ones. Keyed by source + externalId,
    * so rescans never create duplicates. Re-found games stop being "missing".
+   * Games the user removed are skipped, unless `restore` is set (the user is adding it back by hand).
    */
-  upsert(games: DetectedGame[]): { added: number; updated: number; games: Game[] }
+  upsert(games: DetectedGame[], opts?: { restore?: boolean }): { added: number; updated: number; games: Game[] }
   /** After a successful scan of `source`, flags its games that were not found. Returns how many became missing. */
   markMissing(source: GameSource, foundExternalIds: string[]): number
   setMissing(id: number, missing: boolean): void
   update(id: number, patch: GamePatch): Game | null
+  /** Removes a game and remembers it, so scans don't add it back. */
   remove(id: number): void
+  /** Games the user removed that scans are skipping. */
+  removed(): { source: GameSource; externalId: string; name: string }[]
+  /** Forgets the removed list, so the next scan can add those games again. Returns how many. */
+  restoreRemoved(): number
 }
 
 interface GameRow {
@@ -130,7 +136,14 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       'SELECT id, external_id, missing FROM games WHERE source = ?'
     ),
     setMissing: db.prepare<[number, number]>('UPDATE games SET missing = ? WHERE id = ?'),
-    remove: db.prepare<[number]>('DELETE FROM games WHERE id = ?')
+    remove: db.prepare<[number]>('DELETE FROM games WHERE id = ?'),
+    isRemoved: db.prepare<[string, string], { n: number }>('SELECT 1 AS n FROM removed_games WHERE source = ? AND external_id = ?'),
+    remember: db.prepare<[string, string, string, number]>('INSERT OR REPLACE INTO removed_games (source, external_id, name, removed_at) VALUES (?, ?, ?, ?)'),
+    forget: db.prepare<[string, string]>('DELETE FROM removed_games WHERE source = ? AND external_id = ?'),
+    removedList: db.prepare<[], { source: GameSource; externalId: string; name: string }>(
+      'SELECT source, external_id AS externalId, name FROM removed_games ORDER BY name COLLATE NOCASE'
+    ),
+    forgetAll: db.prepare('DELETE FROM removed_games')
   }
 
   const get = (id: number): Game | null => {
@@ -138,12 +151,14 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
     return row ? toGame(row) : null
   }
 
-  const upsert = db.transaction((detected: DetectedGame[]) => {
+  const upsert = db.transaction((detected: DetectedGame[], restore: boolean) => {
     let added = 0
     let updated = 0
     const ids: number[] = []
     const t = now()
     for (const d of detected) {
+      if (restore) q.forget.run(d.source, d.externalId)
+      else if (q.isRemoved.get(d.source, d.externalId)) continue
       const params = {
         source: d.source,
         externalId: d.externalId,
@@ -180,8 +195,8 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
   return {
     list: () => q.list.all().map(toGame),
     get,
-    upsert(detected) {
-      const { added, updated, ids } = upsert(detected)
+    upsert(detected, opts) {
+      const { added, updated, ids } = upsert(detected, opts?.restore === true)
       return { added, updated, games: ids.map(get).filter((g): g is Game => g !== null) }
     },
     markMissing: (source, found) => markMissing(source, found),
@@ -243,7 +258,13 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       if (sets.length) db.prepare(`UPDATE games SET ${sets.join(', ')} WHERE id = @id`).run(params)
       return get(id)
     },
-    remove: (id) => void q.remove.run(id)
+    remove: db.transaction((id: number) => {
+      const game = get(id)
+      if (game) q.remember.run(game.source, game.externalId, game.name, now())
+      q.remove.run(id)
+    }),
+    removed: () => q.removedList.all(),
+    restoreRemoved: () => q.forgetAll.run().changes
   }
 }
 

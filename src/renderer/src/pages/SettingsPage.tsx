@@ -13,6 +13,7 @@ import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 import { checkForUpdate, openUpdateDialog, pendingCount, useUpdate } from '@/state/update'
 import { formatAgo } from '@/lib/format'
+import { isAndroid } from '@/lib/platform'
 
 /**
  * Shows the "Metadata & artwork" section with the API key fields.
@@ -145,11 +146,13 @@ function UpdatesSection({
       description={
         update.mode === 'unsupported'
           ? 'This is an installed build. Install a newer build to update.'
-          : update.mode === 'release'
-            ? 'Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background. When it is ready, the round button at the top right shows a red badge: restart to install, or it installs the next time you quit.'
-            : update.mode === 'vercel'
-              ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
-              : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
+          : update.mode === 'apk'
+            ? 'Vanity checks GitHub for a new version when it opens and every hour. When one is out, the round button at the top shows a red badge: tap it to download the update, then open the file to install it.'
+            : update.mode === 'release'
+              ? 'Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background. When it is ready, the round button at the top right shows a red badge: restart to install, or it installs the next time you quit.'
+              : update.mode === 'vercel'
+                ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
+                : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
       }
     >
       <div className="flex flex-wrap items-center gap-4">
@@ -270,6 +273,68 @@ function DiscordSection({
   )
 }
 
+/** Games you removed are skipped by scans; this brings them back. */
+function RemovedGames(): React.JSX.Element | null {
+  const { scan } = useLibrary()
+  const toast = useToast()
+  const [names, setNames] = useState<string[]>([])
+  const load = (): void => void window.vanity.games.removed().then(setNames, () => {})
+  useEffect(load, [scan.running])
+  if (names.length === 0) return null
+  return (
+    <p className="mt-4 text-sm text-muted">
+      {names.length} removed game{names.length > 1 ? 's are' : ' is'} being skipped ({names.slice(0, 3).join(', ')}
+      {names.length > 3 ? '…' : ''}).{' '}
+      <button
+        className="font-medium text-accent hover:underline"
+        onClick={async () => {
+          await window.vanity.games.restoreRemoved()
+          toast('Removed games will come back on the next scan')
+          await scan.start()
+          load()
+        }}
+      >
+        Restore
+      </button>
+    </p>
+  )
+}
+
+/** Android: playtime is exact when Vanity may read app usage; this explains it and opens the setting. */
+function PlaytimeSection(): React.JSX.Element {
+  const [granted, setGranted] = useState<boolean | null>(null)
+  useEffect(() => {
+    const check = (): void => void window.vanity.playtime.usageAccess().then(setGranted, () => {})
+    check()
+    // Coming back from Android's settings: check again.
+    document.addEventListener('visibilitychange', check)
+    return () => document.removeEventListener('visibilitychange', check)
+  }, [])
+  return (
+    <Section
+      title="Playtime tracking"
+      description="Android doesn't let apps watch each other, so Vanity needs your permission to see how long games were open."
+    >
+      <p className="flex items-center gap-2 text-sm">
+        <span className={cn('size-2 rounded-full', granted ? 'bg-emerald-400' : 'bg-amber-400')} />
+        {granted
+          ? 'Usage access is on: playtime is exact, and games you open outside Vanity are counted too.'
+          : 'Usage access is off: Vanity counts from when you press Play until you come back to it.'}
+      </p>
+      {!granted && (
+        <div className="mt-4">
+          <Button variant="primary" onClick={() => void window.vanity.playtime.openUsageSettings()}>
+            Turn on usage access
+          </Button>
+          <p className="mt-2 text-xs text-muted">
+            In the list that opens, choose Vanity and allow usage access. Vanity only looks at the games in your library.
+          </p>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 function VersionLabel(): React.JSX.Element | null {
   const update = useUpdate()
   return update ? <p className="!mt-3 text-right text-[11px] tabular-nums text-muted/70">Vanity v{update.current}</p> : null
@@ -318,6 +383,7 @@ export function SettingsPage(): React.JSX.Element {
   }
 
   if (!settings) return <div className="p-10" />
+  const android = isAndroid()
 
   return (
     <div className="h-full overflow-y-auto">
@@ -326,7 +392,7 @@ export function SettingsPage(): React.JSX.Element {
 
         <Section title="Appearance" description="Make Vanity yours: a colour skin, a font, and a little ambience.">
           <h3 className="mb-3 text-sm font-semibold text-muted">Skin</h3>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
             {THEMES.map((t) => {
               const active = (settings.theme ?? 'midnight') === t.id
               return (
@@ -365,12 +431,13 @@ export function SettingsPage(): React.JSX.Element {
 
           <h3 className="mb-1 mt-7 text-sm font-semibold text-muted">Font</h3>
           <p className="mb-4 text-xs text-muted">
-            Every font is built in, so it works offline. A font changes all the text in Vanity. Themes that pair two fonts use the second only for long descriptions and notes.
+            Every font is built in, so it works offline. A font changes all the text in Vanity. Themes that pair two fonts use the second only for long
+            descriptions and notes.
           </p>
           {FONT_GROUPS.map((group) => (
             <div key={group} className="mb-5 last:mb-0">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted/80">{group}</h4>
-              <div className="grid grid-cols-3 gap-3 xl:grid-cols-4">
+              <div className="grid grid-cols-3 gap-3 max-md:grid-cols-2 xl:grid-cols-4">
                 {FONT_THEMES.filter((f) => f.group === group).map((f) => {
                   const active = (settings.font ?? 'system') === f.id
                   return (
@@ -403,11 +470,13 @@ export function SettingsPage(): React.JSX.Element {
 
           <div className="-mx-3 mt-6 border-t border-border pt-3">
             <Toggle label="Ambient background glow" checked={settings.ambientBackground !== false} onChange={(v) => save({ ambientBackground: v })} />
-            <Toggle
-              label="Minimise Vanity while a game is running"
-              checked={!!settings.minimizeWhilePlaying}
-              onChange={(v) => save({ minimizeWhilePlaying: v })}
-            />
+            {!android && (
+              <Toggle
+                label="Minimise Vanity while a game is running"
+                checked={!!settings.minimizeWhilePlaying}
+                onChange={(v) => save({ minimizeWhilePlaying: v })}
+              />
+            )}
           </div>
         </Section>
 
@@ -421,41 +490,49 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </Section>
 
-        <Section title="Wellbeing" description="While a game is running, Vanity can nudge you to take a break with a Windows notification.">
-          <p className="mb-2 text-sm font-medium">Remind me to take a break every</p>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Break reminders">
-            {[0, 30, 60, 90, 120, 180].map((m) => {
-              const active = (settings.breakReminderMinutes ?? 0) === m
-              return (
-                <button
-                  key={m}
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() =>
-                    save(
-                      { breakReminderMinutes: m },
-                      m ? `Break reminders every ${m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`}` : 'Break reminders off'
-                    )
-                  }
-                  className={cn(
-                    'rounded-lg border px-3.5 py-2 text-sm transition',
-                    active ? 'border-accent bg-accent/15 font-semibold text-text' : 'border-border text-muted hover:border-white/25 hover:text-text'
-                  )}
-                >
-                  {m === 0 ? 'Off' : m < 60 ? `${m} min` : `${m / 60} h`}
-                </button>
-              )
-            })}
-          </div>
-        </Section>
+        {!android && (
+          <Section title="Wellbeing" description="While a game is running, Vanity can nudge you to take a break with a Windows notification.">
+            <p className="mb-2 text-sm font-medium">Remind me to take a break every</p>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Break reminders">
+              {[0, 30, 60, 90, 120, 180].map((m) => {
+                const active = (settings.breakReminderMinutes ?? 0) === m
+                return (
+                  <button
+                    key={m}
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() =>
+                      save(
+                        { breakReminderMinutes: m },
+                        m ? `Break reminders every ${m < 60 ? `${m} minutes` : `${m / 60} hour${m === 60 ? '' : 's'}`}` : 'Break reminders off'
+                      )
+                    }
+                    className={cn(
+                      'rounded-lg border px-3.5 py-2 text-sm transition',
+                      active ? 'border-accent bg-accent/15 font-semibold text-text' : 'border-border text-muted hover:border-white/25 hover:text-text'
+                    )}
+                  >
+                    {m === 0 ? 'Off' : m < 60 ? `${m} min` : `${m / 60} h`}
+                  </button>
+                )
+              })}
+            </div>
+          </Section>
+        )}
 
-        <DiscordSection settings={settings} save={save} />
+        {!android && <DiscordSection settings={settings} save={save} />}
+
+        {android && <PlaytimeSection />}
 
         <UpdatesSection settings={settings} save={save} />
 
         <Section
           title="Library scan"
-          description="Vanity looks for installed games in the launchers below and in your own folders. Rescanning never creates duplicates."
+          description={
+            android
+              ? 'Vanity looks for the games installed on your phone every time it opens. Rescanning never creates duplicates.'
+              : 'Vanity looks for installed games in the launchers below and in your own folders, every time it opens. Rescanning never creates duplicates.'
+          }
         >
           <div className="flex items-center gap-4">
             <Button variant="primary" onClick={scan.start} disabled={scan.running}>
@@ -481,57 +558,62 @@ export function SettingsPage(): React.JSX.Element {
               <ScanProgressPanel progress={scan.progress} />
             </div>
           )}
+          <RemovedGames />
         </Section>
 
-        <Section title="Launchers" description="Turn off a source to skip it during scans. Games already in your library stay.">
-          <div className="-mx-3">
-            {SCAN_SOURCES.map((s) => (
-              <Toggle
-                key={s}
-                label={SOURCE_LABELS[s]}
-                checked={settings.enabledSources[s]}
-                onChange={(v) => save({ enabledSources: { ...settings.enabledSources, [s]: v } })}
-              />
-            ))}
-          </div>
-        </Section>
-
-        <Section
-          title="Game folders"
-          description="Folders with games that don't come from a launcher. Each subfolder is treated as one game, and you confirm what gets added."
-        >
-          {settings.customFolders.length > 0 && (
-            <ul className="mb-4 divide-y divide-border overflow-hidden rounded-xl border border-border">
-              {settings.customFolders.map((f) => (
-                <li key={f} className="flex items-center gap-3 bg-surface-2 px-4 py-3 text-sm">
-                  <span className="flex-1 truncate" title={f}>
-                    {f}
-                  </span>
-                  <button
-                    className="rounded p-1 text-muted transition hover:text-accent"
-                    title="Remove folder"
-                    onClick={() => save({ customFolders: settings.customFolders.filter((x) => x !== f) })}
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </li>
+        {!android && (
+          <Section title="Launchers" description="Turn off a source to skip it during scans. Games already in your library stay.">
+            <div className="-mx-3">
+              {SCAN_SOURCES.map((s) => (
+                <Toggle
+                  key={s}
+                  label={SOURCE_LABELS[s]}
+                  checked={settings.enabledSources[s]}
+                  onChange={(v) => save({ enabledSources: { ...settings.enabledSources, [s]: v } })}
+                />
               ))}
-            </ul>
-          )}
-          <div className="flex items-center gap-4">
-            <Button onClick={addFolder}>
-              <FolderPlus className="size-4" /> Add folder
-            </Button>
-            {settings.ignoredExecutables.length > 0 && (
-              <button
-                className="text-sm text-muted transition hover:text-text"
-                onClick={() => save({ ignoredExecutables: [] }, 'Declined items will be suggested again on the next scan')}
-              >
-                Reset {settings.ignoredExecutables.length} declined item{settings.ignoredExecutables.length > 1 ? 's' : ''}
-              </button>
+            </div>
+          </Section>
+        )}
+
+        {!android && (
+          <Section
+            title="Game folders"
+            description="Folders with games that don't come from a launcher. Each subfolder is treated as one game, and you confirm what gets added."
+          >
+            {settings.customFolders.length > 0 && (
+              <ul className="mb-4 divide-y divide-border overflow-hidden rounded-xl border border-border">
+                {settings.customFolders.map((f) => (
+                  <li key={f} className="flex items-center gap-3 bg-surface-2 px-4 py-3 text-sm">
+                    <span className="flex-1 truncate" title={f}>
+                      {f}
+                    </span>
+                    <button
+                      className="rounded p-1 text-muted transition hover:text-accent"
+                      title="Remove folder"
+                      onClick={() => save({ customFolders: settings.customFolders.filter((x) => x !== f) })}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
-        </Section>
+            <div className="flex items-center gap-4">
+              <Button onClick={addFolder}>
+                <FolderPlus className="size-4" /> Add folder
+              </Button>
+              {settings.ignoredExecutables.length > 0 && (
+                <button
+                  className="text-sm text-muted transition hover:text-text"
+                  onClick={() => save({ ignoredExecutables: [] }, 'Declined items will be suggested again on the next scan')}
+                >
+                  Reset {settings.ignoredExecutables.length} declined item{settings.ignoredExecutables.length > 1 ? 's' : ''}
+                </button>
+              )}
+            </div>
+          </Section>
+        )}
 
         {SHOW_API_KEYS && (
           <Section

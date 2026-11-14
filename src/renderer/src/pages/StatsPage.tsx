@@ -122,7 +122,7 @@ export function StatsPage(): React.JSX.Element {
               <ul className="mt-5 space-y-3">
                 {stats.top.map((g, i) => (
                   <li key={g.id}>
-                    <button onClick={() => navigate(`/game/${g.id}`)} className="group grid w-full grid-cols-[1.5rem_12rem_1fr_5rem] items-center gap-3 text-left">
+                    <button onClick={() => navigate(`/game/${g.id}`)} className="group grid w-full grid-cols-[1.5rem_12rem_1fr_5rem] items-center gap-3 text-left max-md:grid-cols-[1.25rem_6.5rem_1fr_3.5rem] max-md:gap-2">
                       <span className="text-sm tabular-nums text-muted">{i + 1}</span>
                       <span className="truncate text-sm font-medium transition-colors group-hover:text-accent">{g.name}</span>
                       <span className="h-3 overflow-hidden rounded-r-[4px] bg-white/5">

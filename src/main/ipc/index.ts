@@ -86,6 +86,9 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
     await media.removeGame(id)
   })
 
+  ipcMain.handle(IPC.gamesRemoved, () => store.removed().map((g) => g.name))
+  ipcMain.handle(IPC.gamesRestoreRemoved, () => store.restoreRemoved())
+
   ipcMain.handle(IPC.gamesLaunch, async (_e, id: number) => {
     const game = store.get(id)
     if (!game) return 'This game is no longer in your library.'
@@ -181,7 +184,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
       for (const c of rejected) if (c.executablePath) ignored.add(c.executablePath)
       await updateSettings({ ignoredExecutables: [...ignored] })
     }
-    const added = store.upsert(toAdd).games
+    const added = store.upsert(toAdd, { restore: true }).games
     metadata.enqueue(added.map((g) => g.id))
     return added
   })
@@ -204,7 +207,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
         installPath: dirname(exe),
         executablePath: exe
       }
-    ]).games
+    ], { restore: true }).games
     if (game) metadata.enqueue([game.id])
     return game
   })

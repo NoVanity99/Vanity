@@ -3,6 +3,8 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Layers, LayoutGrid, List, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
 import { openVibeCheck } from '@/components/VibeCheck'
+import { openAppPicker } from '@/components/AppPicker'
+import { isAndroid, menuGesture, useIsPhone } from '@/lib/platform'
 import { PLAY_STATUS_LABELS, PLAY_STATUSES, SOURCE_LABELS, type Game, type GameSource, type PlayStatus } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
@@ -96,6 +98,9 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   const [players, setPlayers] = useState<Record<number, number>>({})
   const [surprise, setSurprise] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  // The list layout needs a wide screen; phones always use the grid.
+  const phone = useIsPhone()
+  const layout = phone ? 'grid' : prefs.layout
 
   // Live Steam player counts for the cards (cached in the main process for 10 minutes).
   useEffect(() => {
@@ -206,7 +211,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <div className="relative w-72">
+          <div className="relative w-72 max-md:w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
             <input
               ref={searchRef}
@@ -296,7 +301,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             <button
               onClick={openVibeCheck}
               title="What should I play right now? Pick your time and mood."
-              className="group/vibe ml-auto flex h-9 items-center gap-2 rounded-lg bg-gradient-to-r from-accent to-accent-2 px-3 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:brightness-110"
+              className="group/vibe ml-auto flex h-9 max-md:ml-0 items-center gap-2 rounded-lg bg-gradient-to-r from-accent to-accent-2 px-3 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:brightness-110"
             >
               <Sparkles className="size-4 transition-transform duration-500 group-hover/vibe:rotate-180" />
               Vibe Check
@@ -314,7 +319,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
           )}
 
           <div
-            className={cn('flex rounded-lg border border-border bg-surface-2 p-0.5', !(view === 'all' && games.length > 1) && 'ml-auto')}
+            className={cn('flex rounded-lg border border-border bg-surface-2 p-0.5 max-md:hidden', !(view === 'all' && games.length > 1) && 'ml-auto')}
             role="radiogroup"
             aria-label="Layout"
           >
@@ -340,7 +345,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             ))}
           </div>
 
-          {prefs.layout === 'grid' && (
+          {layout === 'grid' && !phone && (
             <label className="flex items-center gap-2 text-muted" title="Card size">
               <ImageIcon className="size-3.5" />
               <input
@@ -361,7 +366,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
 
       <div className="min-h-0 flex-1 overflow-y-auto px-10 pb-16 pt-8">
         {loading ? (
-          <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+          <div className="game-grid grid gap-x-6 gap-y-8" style={gridStyle}>
             {Array.from({ length: 12 }, (_, i) => (
               <div key={i}>
                 <div className="shimmer aspect-[2/3] rounded-xl bg-surface-2" />
@@ -373,7 +378,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
           <>
             <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} />
             {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
-            {prefs.layout === 'list' ? (
+            {layout === 'list' ? (
               <div>
                 <div className={cn(ROW_GRID, 'border-b border-white/5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted')}>
                   <span />
@@ -400,7 +405,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                 </div>
               </div>
             ) : (
-              <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+              <div className="game-grid grid gap-x-6 gap-y-8" style={gridStyle}>
                 {shown.map((g, i) => (
                   <GameCard
                     key={g.id}
@@ -423,17 +428,17 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
         ) : view === 'recent' ? (
           <EmptyState icon={Clock} title="Nothing played yet" text="Games you launch from Vanity show up here." />
         ) : view === 'favorites' ? (
-          <EmptyState icon={Star} title="No favorites yet" text="Right-click a game and choose Add to favorites." />
+          <EmptyState icon={Star} title="No favorites yet" text={`${menuGesture()} a game and choose Add to favorites.`} />
         ) : view === 'collection' ? (
-          <EmptyState icon={Layers} title="This collection is empty" text="Right-click any game and choose Add to collection." />
+          <EmptyState icon={Layers} title="This collection is empty" text={`${menuGesture()} any game and choose Add to collection.`} />
         ) : scan.running ? (
-          <EmptyState icon={FolderSearch} title="Looking for your games…" text="Checking Steam, Epic, GOG, EA, Ubisoft and your folders." />
+          <EmptyState icon={FolderSearch} title="Looking for your games…" text={isAndroid() ? 'Checking the games installed on your phone.' : 'Checking Steam, Epic, GOG, EA, Ubisoft and your folders.'} />
         ) : (
           <EmptyState icon={FolderSearch} title="No games yet" text="Scan for installed games, or add one yourself.">
             <Button variant="primary" onClick={scan.start}>
               Scan for games
             </Button>
-            <Button onClick={addManually}>
+            <Button onClick={() => (isAndroid() ? openAppPicker() : void addManually())}>
               <Plus className="size-4" /> Add a game
             </Button>
           </EmptyState>

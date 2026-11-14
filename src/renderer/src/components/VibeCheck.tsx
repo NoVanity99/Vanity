@@ -51,7 +51,7 @@ function PickCard({ pick, index, rank, onPlay, onOpen }: { pick: VibePick; index
       className="animate-card-in flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-2/80 shadow-xl shadow-black/40"
       style={{ '--i': index * 4 } as React.CSSProperties}
     >
-      <div className="relative aspect-[3/4] max-h-64 overflow-hidden" style={{ background: `linear-gradient(160deg, hsl(${hue} 45% 26%), hsl(${(hue + 40) % 360} 45% 10%))` }}>
+      <div className="relative aspect-[3/4] max-h-64 overflow-hidden max-md:aspect-[16/7]" style={{ background: `linear-gradient(160deg, hsl(${hue} 45% 26%), hsl(${(hue + 40) % 360} 45% 10%))` }}>
         {cover ? (
           <img src={cover} alt="" className="size-full object-cover" draggable={false} />
         ) : (
@@ -125,8 +125,8 @@ function VibeDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const mood = MOODS.find((m) => m.id === prefs.mood)!
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex animate-[fade-in_150ms_ease-out] items-center justify-center bg-black/70 p-6 backdrop-blur-md" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-label="Vibe Check" className="relative max-h-full w-full max-w-4xl animate-[dialog-in_200ms_ease-out] overflow-y-auto rounded-3xl border border-white/10 bg-surface/95 p-8 shadow-2xl shadow-black/60">
+    <div className="fixed inset-0 z-50 flex animate-[fade-in_150ms_ease-out] items-center justify-center bg-black/70 p-6 backdrop-blur-md max-md:p-3 max-md:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-md:pt-[calc(0.75rem+env(safe-area-inset-top))]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-label="Vibe Check" className="relative max-h-full w-full max-w-4xl animate-[dialog-in_200ms_ease-out] overflow-y-auto rounded-3xl border border-white/10 bg-surface/95 p-8 shadow-2xl shadow-black/60 max-md:p-5">
         <div aria-hidden className={cn('pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b opacity-70 transition-colors duration-700', MOOD_COLORS[prefs.mood])} />
         <button onClick={onClose} aria-label="Close" className="absolute right-5 top-5 rounded-full p-2 text-muted transition hover:bg-white/10 hover:text-text">
           <X className="size-5" />

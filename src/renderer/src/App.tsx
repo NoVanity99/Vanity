@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { applyFont, applyTheme } from './lib/theme'
 import { AmbientBackground } from './components/AmbientBackground'
@@ -12,6 +12,8 @@ import { SessionRecap } from './components/SessionRecap'
 import { VibeCheck } from './components/VibeCheck'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
+import { BottomNav } from './components/BottomNav'
+import { AppPicker } from './components/AppPicker'
 import { GameDetailPage } from './pages/GameDetailPage'
 import { CollectionPage, LibraryPage } from './pages/LibraryPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -37,14 +39,20 @@ function Shell(): React.JSX.Element {
     applyFont(settings.font)
   }, [settings?.theme, settings?.font]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phones: the sidebar is a slide-out menu, closed again whenever you go somewhere.
+  const [menuOpen, setMenuOpen] = useState(false)
+  useEffect(() => setMenuOpen(false), [location.pathname])
+
   return (
     <div className="relative flex h-full">
       {settings?.ambientBackground !== false && <AmbientBackground />}
-      <Sidebar />
-      <main className="relative z-10 min-w-0 flex-1">
+      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <main className="relative z-10 min-w-0 flex-1 max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] max-md:pt-[env(safe-area-inset-top)]">
         {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
-        <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] [-webkit-app-region:drag]">
-          <LauncherStatusBar />
+        <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] max-md:top-[env(safe-area-inset-top)] max-md:px-3 [-webkit-app-region:drag]">
+          <div className="max-md:hidden">
+            <LauncherStatusBar />
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <MusicPlayer />
             <UpdateButton />
@@ -69,6 +77,8 @@ function Shell(): React.JSX.Element {
           </Routes>
         </div>
       </main>
+      <BottomNav onMenu={() => setMenuOpen(true)} />
+      <AppPicker />
       <GamepadLayer />
       <UpdateBanner />
       <CommandPalette />

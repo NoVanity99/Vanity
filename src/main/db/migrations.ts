@@ -88,5 +88,15 @@ export const migrations: string[] = [
     PRIMARY KEY (collection_id, game_id)
   );
   CREATE INDEX collection_games_game ON collection_games (game_id);
+  `,
+  // 7: games the user removed, so scans (which run on every launch) don't bring them back
+  `
+  CREATE TABLE removed_games (
+    source       TEXT NOT NULL,
+    external_id  TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    removed_at   INTEGER NOT NULL,
+    PRIMARY KEY (source, external_id)
+  );
   `
 ]

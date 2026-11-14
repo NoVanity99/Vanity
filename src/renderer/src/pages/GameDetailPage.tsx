@@ -213,7 +213,7 @@ export function GameDetailPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto" onScroll={onScroll}>
-      <section key={game.id} className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden">
+      <section key={game.id} className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden max-md:h-[38vh] max-md:min-h-64">
         <div ref={heroLayer} className="absolute inset-0 will-change-transform">
           {hero ? (
             <img src={hero} alt="" className="animate-hero-in absolute inset-0 size-full object-cover" draggable={false} />
@@ -323,7 +323,7 @@ export function GameDetailPage(): React.JSX.Element {
             </button>
           )}
 
-          <div className="ml-6 flex flex-wrap gap-8">
+          <div className="ml-6 flex flex-wrap gap-8 max-md:ml-0 max-md:w-full max-md:gap-x-6 max-md:gap-y-4">
             {live?.players != null && live.players > 0 ? (
               <LiveStat icon={Users} label="Playing now" value={`${formatCompact(live.players)} on Steam`} />
             ) : live?.viewers ? (
@@ -430,17 +430,24 @@ export function GameDetailPage(): React.JSX.Element {
                   <dt className="text-muted">Source</dt>
                   <dd>{SOURCE_LABELS[game.source]}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted">Install folder</dt>
-                  <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
-                </div>
+                {game.source === 'android' ? (
+                  <div>
+                    <dt className="text-muted">App</dt>
+                    <dd className="break-all select-text">{game.externalId}</dd>
+                  </div>
+                ) : (
+                  <div>
+                    <dt className="text-muted">Install folder</dt>
+                    <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
+                  </div>
+                )}
                 {game.installPath && (
                   <div>
                     <dt className="text-muted">Size on disk</dt>
                     <dd>{diskSize === undefined ? <span className="shimmer inline-block h-4 w-20 rounded bg-white/5" /> : diskSize === null ? 'Unknown' : formatBytes(diskSize)}</dd>
                   </div>
                 )}
-                {game.source === 'steam' || game.source === 'epic' ? (
+                {game.source === 'android' ? null : game.source === 'steam' || game.source === 'epic' ? (
                   <div>
                     <dt className="text-muted">Launches through</dt>
                     <dd>{game.source === 'steam' ? 'Steam' : 'Epic Games Launcher'}</dd>
@@ -462,9 +469,11 @@ export function GameDetailPage(): React.JSX.Element {
                 </div>
               </dl>
               <div className="mt-4 space-y-2">
-                <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
-                  <FolderOpen className="size-4" /> Open install folder
-                </Button>
+                {game.source !== 'android' && (
+                  <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
+                    <FolderOpen className="size-4" /> Open install folder
+                  </Button>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={() => setDialog('artwork')}>
                     <Image className="size-4" /> Artwork

@@ -11,3 +11,6 @@ dist/
 
 # Generated release notes
 build-notes/
+
+# Android web build
+dist-mobile/

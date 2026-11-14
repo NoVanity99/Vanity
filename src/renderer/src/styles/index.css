@@ -430,3 +430,44 @@ textarea,
     transform: scaleX(1);
   }
 }
+
+/* ---- Phones ---------------------------------------------------------------------
+   The desktop layout uses wide gutters and hover effects; on a narrow screen the
+   gutters shrink and the library becomes a three-across grid of covers. These are
+   plain rules (not in a layer), so they win over the utility classes they adjust. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+@media (max-width: 767px) {
+  .px-10 {
+    padding-inline: 1rem;
+  }
+  .-mx-10 {
+    margin-inline: -1rem;
+  }
+  .inset-x-10 {
+    inset-inline: 1rem;
+  }
+  .left-8 {
+    left: 1rem;
+  }
+  .game-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    column-gap: 0.75rem;
+    row-gap: 1.25rem;
+  }
+  .text-5xl {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  .text-3xl {
+    font-size: 1.6rem;
+  }
+  /* Inputs under 16px make Android zoom the page when they get focus. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

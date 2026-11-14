@@ -66,13 +66,18 @@ export function UpdateBanner(): React.JSX.Element | null {
   const [hidden, setHidden] = useState<string | null>(null)
   if (!state?.available || state.applying || hidden === state.latest) return null
   return (
-    <div className="animate-rise-in fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center overflow-hidden rounded-full bg-red-600 text-sm font-semibold text-white shadow-2xl shadow-red-900/50 ring-1 ring-red-400/40">
+    <div className="animate-rise-in fixed bottom-5 left-1/2 z-40 max-md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-md:whitespace-nowrap flex -translate-x-1/2 items-center overflow-hidden rounded-full bg-red-600 text-sm font-semibold text-white shadow-2xl shadow-red-900/50 ring-1 ring-red-400/40">
       <button onClick={openUpdateDialog} className="flex items-center gap-2 py-2 pl-4 pr-3 transition hover:bg-red-500">
         <span className="relative flex size-2">
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70" />
           <span className="relative inline-flex size-2 rounded-full bg-white" />
         </span>
-        {state.mode === 'release' ? (
+        {state.mode === 'apk' ? (
+          <>
+            Update ready
+            <span className="font-normal text-white/80">tap to get v{state.latest}</span>
+          </>
+        ) : state.mode === 'release' ? (
           <>
             Update ready
             <span className="font-normal text-white/80">restart to install v{state.latest}</span>
