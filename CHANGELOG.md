@@ -3,6 +3,12 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.9.2 (2026-11-14)
+- New: **Vanity Installer for Android** (Vanity-Installer.apk), a small app to hand out. It always downloads the newest Vanity from GitHub Releases and installs it, so the same file can be shared forever.
+  - Open it and it finds the newest version, downloads it with a progress bar, and Android asks you to install.
+  - If Vanity is already on the newest version it says so and offers to open it.
+  - Once Vanity is installed you can remove the installer: Vanity keeps itself up to date.
+
 ## 0.9.1 (2026-11-14)
 - Android: Vanity now keeps itself on the newest version, however old the APK you installed is.
   - It checks for a newer version the moment it opens, and again each time you come back to it.

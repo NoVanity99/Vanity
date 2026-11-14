@@ -1,0 +1,37 @@
+apply plugin: 'com.android.application'
+
+// The small "web installer" for Android: it downloads the newest Vanity.apk from GitHub Releases
+// and hands it to Android to install. It never needs rebuilding for a new Vanity version.
+android {
+    namespace "com.vanity.installer"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.vanity.installer"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+    }
+    signingConfigs {
+        release {
+            storeFile file('../vanity-release.keystore')
+            storePassword 'vanity-launcher'
+            keyAlias 'vanity'
+            keyPassword 'vanity-launcher'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core:$androidxCoreVersion"
+}

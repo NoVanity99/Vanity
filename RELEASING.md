@@ -73,6 +73,14 @@ That's it: every installed copy picks the update up within an hour (or on its ne
   - Because the repo is public, anyone could sign their own APK with this key. That's fine for sharing with friends. Before putting Vanity on the Play Store, make a new private key and store it as a repository secret.
 - **Play Protect** may warn the first time, like SmartScreen does on Windows: choose "Install anyway".
 
+### The Android web installer
+
+`installer/Vanity-Installer.apk` is the Android file to hand out. It downloads `Vanity.apk` from the newest release and asks Android to install it, so it never goes out of date.
+
+- **Link that always works:** `https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk` (the release workflow attaches the file to every release).
+- **Its code** is `android/installer/`. Rebuilding is only needed if that changes: `npm run build:android-installer`, then commit the new `installer/Vanity-Installer.apk`.
+- It is signed with the same key as the app and installs as a separate app ("Vanity Installer"), which can be removed after Vanity is installed.
+
 ## One-time setup
 
 - **The repo is public**, so installed copies download updates from its Releases without a token.

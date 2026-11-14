@@ -14,7 +14,9 @@ Download **[Vanity-Installer.exe](https://github.com/NoVanity99/Vanity/releases/
 
 ## Install (Android)
 
-On your phone, download **[Vanity.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk)** and tap it to install. That link always gives the newest version. Needs Android 6 or newer.
+On your phone, download **[Vanity-Installer.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk)** and open it. It's a small installer that downloads the newest Vanity from GitHub Releases and installs it, so the same file always installs the latest version. Needs Android 6 or newer.
+
+You can also download the app itself: **[Vanity.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk)** (that link always gives the newest version too).
 
 - **"Install unknown apps":** Android asks you to allow this for your browser the first time, because the app doesn't come from the Play Store. Play Protect may also ask: choose **Install anyway**.
 - **Finding games:** Vanity lists every app Android labels as a game, each time it opens. For anything it misses, use **Add a game** and pick the app.
