@@ -1,6 +1,7 @@
+import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Award, BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -142,6 +143,8 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const playing = games.filter((g) => sessions[g.id])
   const [addPlayed, playAdd] = useClickAnimation()
   const visible = games.filter((g) => !g.hidden)
+  // Downloads still to finish, shown next to the Downloads entry.
+  const queued = useDownloads().filter((d) => d.state !== 'done').length
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
   const collections = useCollections()
   const navigate = useNavigate()
@@ -198,6 +201,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
         <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
         <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />
+        {!isAndroid() && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
 
         <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>

@@ -1,5 +1,5 @@
 import type { Result, VanityApi } from '@shared/ipc'
-import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, ScanSummary, SessionState, Settings } from '@shared/types'
+import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, StoreAccounts, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
 import { AccountService } from '../main/account/service'
 import { SyncService } from '../main/sync/service'
@@ -53,6 +53,12 @@ const validKind = (kind: ArtworkKind): ArtworkKind => {
   return kind
 }
 const NOT_ON_ANDROID = 'Not available on Android.'
+/** Installing PC games needs a PC. */
+const NO_STORES: StoreAccounts = {
+  supported: false,
+  epic: { available: false, signedIn: false, name: null, games: null, busy: false, error: null },
+  gog: { signedIn: false, name: null, games: null, busy: false, error: null }
+}
 
 /**
  * Vanity's backend on Android: the same services as the desktop app's main process,
@@ -350,6 +356,27 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
         await progress.syncNow()
         return progress.progress()
       }
+    },
+    downloads: {
+      list: async () => [],
+      onChange: () => () => {},
+      plan: async () => ({ error: NOT_ON_ANDROID }),
+      start: async () => ({ error: NOT_ON_ANDROID }),
+      pause: async () => {},
+      resume: async () => {},
+      cancel: async () => {},
+      clearFinished: async () => {},
+      showLog: async () => {}
+    },
+    stores: {
+      state: async () => NO_STORES,
+      onChange: () => () => {},
+      refresh: async () => NO_STORES,
+      epicLogin: async () => ({ error: NOT_ON_ANDROID }),
+      epicLoginWithCode: async () => ({ error: NOT_ON_ANDROID }),
+      epicLogout: async () => NO_STORES,
+      gogLogin: async () => ({ error: NOT_ON_ANDROID }),
+      gogLogout: async () => NO_STORES
     },
     steam: {
       state: async () => steamService.state(),

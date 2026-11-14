@@ -81,6 +81,10 @@ That's it: every installed copy picks the update up within an hour (or on its ne
 - **Its code** is `android/installer/`. Rebuilding is only needed if that changes: `npm run build:android-installer`, then commit the new `installer/Vanity-Installer.apk`.
 - It is signed with the same key as the app and installs as a separate app ("Vanity Installer"), which can be removed after Vanity is installed.
 
+### The Epic downloader (Legendary)
+
+The release workflow runs `node scripts/fetch-legendary.mjs` before building. It downloads one pinned release of `legendary.exe` from Legendary's GitHub releases into `resources/bin/` and checks its SHA-256; the build fails if the file is anything else. The exe is not committed (`.gitignore`); its licence notice, `resources/bin/LEGENDARY-LICENSE.txt`, is. To move to a newer Legendary, change `VERSION` and `SHA256` in that script together.
+
 ## One-time setup
 
 - **The repo is public**, so installed copies download updates from its Releases without a token.

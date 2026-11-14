@@ -1,7 +1,7 @@
 {
   "name": "vanity",
   "productName": "Vanity",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "A unified desktop game launcher for Steam, Epic, GOG, EA, Ubisoft and custom games.",
   "author": {
     "name": "NoVanity99"
@@ -22,7 +22,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:mobile",
-    "dist:win": "install-electron && npm run build && electron-builder --win --publish never",
+    "fetch-legendary": "node scripts/fetch-legendary.mjs",
+    "dist:win": "install-electron && npm run fetch-legendary && npm run build && electron-builder --win --publish never",
     "test": "vitest run",
     "test:watch": "vitest",
     "setup-keys": "node scripts/setup-keys.mjs",

@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.14.0 (2026-11-14)
+- New: **install Epic and GOG games inside Vanity** (stage 5 of the accounts and cloud update). Windows only.
+  - **Downloads page** (in the sidebar, with a count): a queue that installs one game at a time, with a progress bar, speed, time left, and pause, resume and cancel. The queue is remembered when you close Vanity, and downloads carry on where they stopped.
+  - **Install window:** choose the folder (Vanity remembers it), see the download size, installed size and free space, and get a clear message if the drive doesn't have room.
+  - **Epic Games:** sign in under Account → Linked accounts. Your Epic library appears in Vanity, and Install downloads the game with Legendary, the open-source Epic client that now ships with Vanity. Games installed this way start from Vanity without the Epic launcher.
+  - **GOG:** sign in under Linked accounts. Your GOG library appears, and Install downloads the game's installer and runs it without its windows (Windows asks once for permission).
+  - **Steam** games still install through Steam; Vanity says so.
+  - When an install finishes, the game moves to Installed by itself.
+  - Clear messages for no internet, an expired store sign-in, a failed download or a full drive, with a Try again button. A Log button opens the downloader's log if something needs looking into.
+- Epic and GOG sign-ins happen on the store's own page in a window, and stay on this PC. Vanity never sees those passwords. The GOG sign-in is kept encrypted with Windows credential protection.
+- Linked accounts now shows without a Vanity account too (Epic and GOG don't need one; Steam does).
+
 ## 0.13.0 (2026-11-14)
 - New: **your library now shows games you own but haven't installed** (stage 4 of the accounts and cloud update). With a Steam account linked, every game in your Steam library appears.
   - Games that aren't installed are greyed out, marked "Not installed", and have an **Install** button instead of Play.

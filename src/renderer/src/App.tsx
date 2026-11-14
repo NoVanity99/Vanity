@@ -25,6 +25,8 @@ import { BigPicturePage } from './pages/BigPicturePage'
 import { FriendsPage } from './pages/FriendsPage'
 import { AccountPage } from './pages/AccountPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { DownloadsPage } from './pages/DownloadsPage'
+import { InstallDialog } from './components/InstallDialog'
 import { useProgress } from './state/progress'
 import { reloadCollections } from './state/collections'
 import { LibraryProvider, useLibrary } from './state/library'
@@ -83,6 +85,7 @@ function Shell(): React.JSX.Element {
             <Route path="/friends" element={<FriendsPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/downloads" element={<DownloadsPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/library" replace />} />
@@ -94,6 +97,7 @@ function Shell(): React.JSX.Element {
       <GamepadLayer />
       <UpdateBanner />
       <CommandPalette />
+      <InstallDialog />
       <SessionRecap />
       <VibeCheck />
       {candidates.length > 0 && (

@@ -318,7 +318,7 @@ export function AccountPage(): React.JSX.Element {
           </section>
         )}
 
-        {account.signedIn && !account.needsUsername && <LinkedAccounts />}
+        <LinkedAccounts />
       </div>
 
       {confirmDelete && (

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, Game, SteamState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
+import type { AccountState, DownloadItem, Game, SteamState, StoreAccounts, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
   platform: 'desktop',
@@ -99,6 +99,35 @@ const api: VanityApi = {
       return () => ipcRenderer.removeListener(IPC.progressChanged, listener)
     },
     syncNow: () => ipcRenderer.invoke(IPC.progressSyncNow)
+  },
+  downloads: {
+    list: () => ipcRenderer.invoke(IPC.downloadsList),
+    onChange: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, items: DownloadItem[]): void => callback(items)
+      ipcRenderer.on(IPC.downloadsChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.downloadsChanged, listener)
+    },
+    plan: (gameId, installDir) => ipcRenderer.invoke(IPC.downloadsPlan, gameId, installDir),
+    start: (gameId, installDir) => ipcRenderer.invoke(IPC.downloadsStart, gameId, installDir),
+    pause: (id) => ipcRenderer.invoke(IPC.downloadsPause, id),
+    resume: (id) => ipcRenderer.invoke(IPC.downloadsResume, id),
+    cancel: (id) => ipcRenderer.invoke(IPC.downloadsCancel, id),
+    clearFinished: () => ipcRenderer.invoke(IPC.downloadsClearFinished),
+    showLog: () => ipcRenderer.invoke(IPC.downloadsShowLog)
+  },
+  stores: {
+    state: () => ipcRenderer.invoke(IPC.storesState),
+    onChange: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, s: StoreAccounts): void => callback(s)
+      ipcRenderer.on(IPC.storesChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.storesChanged, listener)
+    },
+    refresh: () => ipcRenderer.invoke(IPC.storesRefresh),
+    epicLogin: () => ipcRenderer.invoke(IPC.storesEpicLogin),
+    epicLoginWithCode: (code) => ipcRenderer.invoke(IPC.storesEpicLoginWithCode, code),
+    epicLogout: () => ipcRenderer.invoke(IPC.storesEpicLogout),
+    gogLogin: () => ipcRenderer.invoke(IPC.storesGogLogin),
+    gogLogout: () => ipcRenderer.invoke(IPC.storesGogLogout)
   },
   steam: {
     state: () => ipcRenderer.invoke(IPC.steamState),

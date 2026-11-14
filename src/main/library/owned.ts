@@ -48,7 +48,7 @@ export class OwnedGames {
 
   /** Applies the remembered lists again (call after a scan). */
   reapply(): void {
-    this.apply('steam')
+    for (const source of ['steam', 'epic', 'gog'] as const) this.apply(source)
   }
 
   private apply(source: GameSource): void {

@@ -229,6 +229,18 @@ With a Steam account linked, the Library shows every game you own, installed or 
 - **Artwork** for not-installed games comes straight from Steam's image servers; the full artwork look-up runs once a game is installed.
 - **Windows only.** PC games can't be installed on a phone, so the Android library doesn't list them.
 
+## Installing Epic and GOG games in Vanity (Windows)
+
+The **Downloads** page is a queue: one game at a time, with progress, speed, time left, pause, resume and cancel. It is remembered between launches.
+
+- **The queue** is `src/main/downloads/manager.ts`. Each store is a `DownloadDriver` (`sizes`, `run`, `cleanup`) in `src/main/downloads/drivers.ts`. Before a game is queued, the install window shows its sizes and the free space on the chosen drive, and refuses when there clearly isn't room.
+- **Epic** uses [Legendary](https://github.com/derrod/legendary), the open-source Epic client. Vanity ships its unmodified `legendary.exe` (fetched and checksum-verified at build time by `scripts/fetch-legendary.mjs`; licence in `resources/bin/LEGENDARY-LICENSE.txt`) and drives it as a separate program (`src/main/downloads/legendary.ts`): sign-in, the list of owned games, `install` with its progress output read line by line, and `launch`. Pausing stops the program; Legendary continues from where it was. It keeps its sign-in in Vanity's own data folder (`legendary/`), separate from any Legendary or Heroic you already use.
+- **GOG** (`src/main/downloads/gog.ts`) signs in on GOG's own page, lists your Windows games, downloads the offline installer (continuing a partial file), then runs it with Inno Setup's silent switches into your install folder. Windows shows its usual permission prompt. GOG has no official public API for this: these are the endpoints GOG's own site and GOG Galaxy use, as the community tools do, and GOG could change them.
+- **Steam** stays a hand-off to the Steam client (`SteamClientInstaller` in `src/main/install/installer.ts`), with the note that Steam games install through Steam. A SteamCMD-based installer can be added behind the same interface.
+- **Afterwards** the launchers are scanned again, so the game becomes an installed game in the library. Epic games Vanity installed are read from Legendary's own list (`src/main/scanners/epic.ts`) and start through Legendary.
+- **Sign-ins** for Epic and GOG happen in a window on the store's own page (`src/main/downloads/desktop.ts`) and stay on this PC. The GOG sign-in is encrypted with Windows credential protection.
+- **Troubleshooting:** Downloads → Log opens `logs/downloads.log` in Vanity's data folder, with the downloader's own output.
+
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
 - **Stats:** your playtime syncs after each session and every 15 minutes.

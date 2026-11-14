@@ -29,6 +29,11 @@ export interface LaunchDeps {
   exists(path: string): Promise<boolean>
   /** Opens a web game (.html) in a Vanity window. */
   openHtml(game: Game, htmlPath: string): Exitable
+  /**
+   * Starts a game some other way than its launcher's link or its exe, when that applies (an Epic
+   * game Vanity installed itself starts through Legendary). Resolves false when it doesn't apply.
+   */
+  launchOtherwise?(game: Game): Promise<boolean>
 }
 
 export function launchUri(game: Game): string | null {
@@ -61,6 +66,8 @@ function spawnDetached(exe: string, deps: LaunchDeps): Promise<ChildProcess> {
 }
 
 export async function launchGame(game: Game, deps: LaunchDeps): Promise<LaunchResult> {
+  // Tracked like a launcher start: the game shows up as a process in its install folder.
+  if (await deps.launchOtherwise?.(game)) return { method: 'uri' }
   const uri = launchUri(game)
   if (uri) {
     try {

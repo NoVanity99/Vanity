@@ -1,5 +1,8 @@
 import type {
   AccountState,
+  DownloadItem,
+  InstallPlan,
+  StoreAccounts,
   SteamState,
   SteamGame,
   SteamAchievement,
@@ -186,6 +189,34 @@ export interface VanityApi {
     /** Syncs with the cloud now. Resolves with the result (never rejects). */
     syncNow(): Promise<Progress>
   }
+  /** Installing Epic and GOG games inside Vanity (Windows only). */
+  downloads: {
+    list(): Promise<DownloadItem[]>
+    onChange(callback: (items: DownloadItem[]) => void): () => void
+    /** Sizes, the folder and free space, before you confirm. Leave `installDir` out for the last folder used. */
+    plan(gameId: number, installDir?: string): Promise<Result<InstallPlan>>
+    start(gameId: number, installDir: string): Promise<Result<DownloadItem>>
+    pause(id: string): Promise<void>
+    resume(id: string): Promise<void>
+    /** Stops it and deletes what it had downloaded. */
+    cancel(id: string): Promise<void>
+    clearFinished(): Promise<void>
+    /** Shows the downloader's log file in Explorer (for troubleshooting). */
+    showLog(): Promise<void>
+  }
+  /** The Epic and GOG accounts linked on this PC. */
+  stores: {
+    state(): Promise<StoreAccounts>
+    onChange(callback: (state: StoreAccounts) => void): () => void
+    refresh(): Promise<StoreAccounts>
+    /** Opens Epic's sign-in page in a window. */
+    epicLogin(): Promise<Result<StoreAccounts>>
+    /** Signs in with the "authorizationCode" from Epic's sign-in page, pasted by hand. */
+    epicLoginWithCode(code: string): Promise<Result<StoreAccounts>>
+    epicLogout(): Promise<StoreAccounts>
+    gogLogin(): Promise<Result<StoreAccounts>>
+    gogLogout(): Promise<StoreAccounts>
+  }
   /** Your linked Steam account. The Steam key is on the Vanity server, never in the app. */
   steam: {
     state(): Promise<SteamState>
@@ -321,6 +352,23 @@ export const IPC = {
   progressSyncNow: 'progress:sync-now',
   settingsChanged: 'settings:changed',
   sessionsStop: 'sessions:stop',
+  downloadsList: 'downloads:list',
+  downloadsChanged: 'downloads:changed',
+  downloadsPlan: 'downloads:plan',
+  downloadsStart: 'downloads:start',
+  downloadsPause: 'downloads:pause',
+  downloadsResume: 'downloads:resume',
+  downloadsCancel: 'downloads:cancel',
+  downloadsClearFinished: 'downloads:clear-finished',
+  downloadsShowLog: 'downloads:show-log',
+  storesState: 'stores:state',
+  storesChanged: 'stores:changed',
+  storesRefresh: 'stores:refresh',
+  storesEpicLogin: 'stores:epic-login',
+  storesEpicLoginWithCode: 'stores:epic-login-code',
+  storesEpicLogout: 'stores:epic-logout',
+  storesGogLogin: 'stores:gog-login',
+  storesGogLogout: 'stores:gog-logout',
   steamState: 'steam:state',
   steamChanged: 'steam:changed',
   steamLink: 'steam:link',

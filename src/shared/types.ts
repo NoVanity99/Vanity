@@ -650,3 +650,63 @@ export interface SteamState {
   signingIn: boolean
   error: string | null
 }
+
+// ---- In-launcher installs (Epic, GOG) ---------------------------------------------------
+
+/** Stores Vanity can download and install games from by itself. */
+export type DownloadStore = 'epic' | 'gog'
+
+export type DownloadState =
+  | 'queued'
+  /** Working out sizes and getting ready. */
+  | 'preparing'
+  | 'downloading'
+  | 'paused'
+  /** The download is done; the game is being set up (GOG runs its installer here). */
+  | 'installing'
+  | 'done'
+  | 'failed'
+
+export interface DownloadItem {
+  id: string
+  gameId: number
+  name: string
+  store: DownloadStore
+  state: DownloadState
+  /** 0–100. */
+  percent: number
+  downloadedBytes: number
+  /** 0 until known. */
+  totalBytes: number
+  /** Bytes per second right now. */
+  speedBps: number
+  /** Seconds left, or null when unknown. */
+  etaSeconds: number | null
+  /** The folder games are installed into (the game gets its own folder inside). */
+  installDir: string
+  /** Why it failed, in plain words. */
+  error: string | null
+  addedAt: number
+  coverPath: string | null
+}
+
+/** What the install window shows before you confirm. */
+export interface InstallPlan {
+  store: DownloadStore
+  /** Bytes to download and bytes the game takes once installed (0 when the store doesn't say). */
+  downloadBytes: number
+  installBytes: number
+  installDir: string
+  /** Free space on that drive, or null if it can't be read. */
+  freeBytes: number | null
+  /** False when the drive clearly doesn't have room. */
+  enoughSpace: boolean
+}
+
+/** The Epic and GOG accounts linked on this PC (their sign-ins stay on this PC). */
+export interface StoreAccounts {
+  /** False on Android: installing PC games needs a PC. */
+  supported: boolean
+  epic: { available: boolean; signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
+  gog: { signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
+}

@@ -20,6 +20,9 @@ import type { SteamService } from '../steam/service'
 import type { OwnedGames } from '../library/owned'
 import type { Installers } from '../install/installer'
 import type { InstallWatcher } from '../install/watcher'
+import type { DownloadManager } from '../downloads/manager'
+import type { StoreAccountsService } from '../downloads/accounts'
+import type { Legendary } from '../downloads/legendary'
 import { killProcesses, listProcesses } from '../launcher/processes'
 import { stopGame } from '../launcher/stop'
 import { gameKey } from '../account/gameKey'
@@ -80,11 +83,16 @@ export interface IpcDeps {
   owned: OwnedGames
   installers: Installers
   installWatcher: InstallWatcher
+  downloads: DownloadManager
+  stores: StoreAccountsService
+  legendary: Legendary
+  /** The downloader's log file. */
+  downloadLog: string
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -124,7 +132,14 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
         openPath: (p) => shell.openPath(p),
         spawn,
         exists: pathExists,
-        openHtml: (g, html) => gameWindows.open(g, html)
+        openHtml: (g, html) => gameWindows.open(g, html),
+        // An Epic game Vanity installed itself isn't known to the Epic Launcher: Legendary starts it.
+        launchOtherwise: async (g) => {
+          if (g.source !== 'epic' || !legendary.available) return false
+          if (!(await legendary.installed()).some((i) => i.appName === g.externalId)) return false
+          legendary.launch(g.externalId)
+          return true
+        }
       })
       tracker.begin(game, result.method, result.child)
       return null
@@ -317,6 +332,21 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
     await sync.syncNow()
     return sync.progress()
   })
+  ipcMain.handle(IPC.downloadsList, () => downloads.list())
+  ipcMain.handle(IPC.downloadsPlan, (_e, gameId: number, installDir?: string) => wrap(() => downloads.plan(Number(gameId), typeof installDir === 'string' ? text(installDir, 500) : undefined)))
+  ipcMain.handle(IPC.downloadsStart, (_e, gameId: number, installDir: string) => wrap(() => downloads.enqueue(Number(gameId), text(installDir, 500))))
+  ipcMain.handle(IPC.downloadsPause, (_e, id: string) => downloads.pause(text(id)))
+  ipcMain.handle(IPC.downloadsResume, (_e, id: string) => downloads.resume(text(id)))
+  ipcMain.handle(IPC.downloadsCancel, (_e, id: string) => downloads.cancel(text(id)))
+  ipcMain.handle(IPC.downloadsClearFinished, () => downloads.clearFinished())
+  ipcMain.handle(IPC.downloadsShowLog, () => shell.showItemInFolder(downloadLog))
+  ipcMain.handle(IPC.storesState, () => stores.state())
+  ipcMain.handle(IPC.storesRefresh, () => stores.refresh())
+  ipcMain.handle(IPC.storesEpicLogin, () => wrap(() => stores.epicLogin()))
+  ipcMain.handle(IPC.storesEpicLoginWithCode, (_e, code: string) => wrap(() => stores.epicLoginWithCode(text(code, 600))))
+  ipcMain.handle(IPC.storesEpicLogout, () => stores.epicLogout())
+  ipcMain.handle(IPC.storesGogLogin, () => wrap(() => stores.gogLogin()))
+  ipcMain.handle(IPC.storesGogLogout, () => stores.gogLogout())
   ipcMain.handle(IPC.steamState, () => steam.state())
   ipcMain.handle(IPC.steamLink, (_e, input: string) => wrap(() => steam.link(text(input, 300))))
   ipcMain.handle(IPC.steamSignIn, () => wrap(() => steam.signIn()))

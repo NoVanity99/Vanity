@@ -35,6 +35,16 @@ import { SteamService } from './steam/service'
 import { OwnedGames, steamOwnedEntries } from './library/owned'
 import { Installers, SteamClientInstaller } from './install/installer'
 import { InstallWatcher } from './install/watcher'
+import { Legendary } from './downloads/legendary'
+import { Gog } from './downloads/gog'
+import { EpicDriver, GogDriver } from './downloads/drivers'
+import { DownloadManager, freeSpaceOn } from './downloads/manager'
+import { StoreAccountsService } from './downloads/accounts'
+import { createGogVault, epicLoginWindow, gogLoginWindow, killTree, legendaryBinary, runToEnd } from './downloads/desktop'
+import { setLegendaryInstalled } from './scanners/epic'
+import { spawn } from 'node:child_process'
+import { appendFile, mkdir, stat, rename } from 'node:fs/promises'
+import { homedir } from 'node:os' 
 import { createKv } from './db/kv'
 import { runScan } from './library/scan'
 import { scanners } from './scanners'
@@ -55,6 +65,7 @@ let status: StatusService | null = null
 let account: AccountService | null = null
 let sync: SyncService | null = null
 let steam: SteamService | null = null
+let downloads: DownloadManager | null = null
 let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
@@ -341,6 +352,51 @@ app.whenReady().then(() => {
       broadcast(IPC.gamesInstalled, game)
     }
   })
+  // ---- installing Epic and GOG games inside Vanity ----
+  const legendary = new Legendary({ binary: legendaryBinary(), configDir: join(app.getPath('userData'), 'legendary'), spawn, killTree })
+  const gog = new Gog({ fetchFn, vault: createGogVault(join(app.getPath('userData'), 'gog.bin')) })
+  // Epic games Vanity installed are found by the Epic scanner too, so they are never "not found".
+  setLegendaryInstalled(async () =>
+    (await legendary.installed()).map((g) => ({ source: 'epic' as const, externalId: g.appName, name: g.title, installPath: g.installPath, executablePath: g.executable ? join(g.installPath, g.executable) : null }))
+  )
+  const downloadLog = join(app.getPath('userData'), 'logs', 'downloads.log')
+  const writeLog = (id: string, line: string): void => {
+    void (async () => {
+      await mkdir(join(app.getPath('userData'), 'logs'), { recursive: true })
+      // Kept small: when it passes 2 MB the old one is set aside.
+      const size = await stat(downloadLog).then((s) => s.size, () => 0)
+      if (size > 2 * 1024 * 1024) await rename(downloadLog, `${downloadLog}.old`).catch(() => {})
+      await appendFile(downloadLog, `${new Date().toISOString()} [${id}] ${line}\n`)
+    })().catch(() => {})
+  }
+  downloads = new DownloadManager({
+    kv: createKv(db),
+    drivers: [new EpicDriver(legendary), new GogDriver({ gog, tempDir: join(app.getPath('userData'), 'downloads', 'gog'), exec: runToEnd })],
+    getGame: (id) => store.get(id),
+    defaultDir: join(homedir(), 'Games'),
+    freeSpace: freeSpaceOn,
+    onInstalled: async (game) => {
+      // Look for it the same way a scan does, so it becomes an installed game in the library.
+      await runScan({ settings: getSettings(), store, onProgress: () => {}, scannerList: scanners.filter((s) => s.source !== 'custom') })
+      owned.reapply()
+      metadata?.enqueuePending()
+      broadcast(IPC.gamesChanged, null)
+      const now = store.get(game.id)
+      if (now?.installed) broadcast(IPC.gamesInstalled, now)
+    },
+    onChange: (items) => broadcast(IPC.downloadsChanged, items),
+    log: writeLog
+  })
+  const stores = new StoreAccountsService({
+    legendary,
+    gog,
+    epicLoginWindow: () => epicLoginWindow(getMainWindow()),
+    gogLoginWindow: () => gogLoginWindow(getMainWindow()),
+    onOwned: (source, entries) => owned.set(source, entries),
+    onChange: (s) => broadcast(IPC.storesChanged, s)
+  })
+  stores.start()
+
   steam = new SteamService({
     db,
     account,
@@ -388,7 +444,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
@@ -423,6 +479,15 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   signedOff = true
   void account.signOffQuickly().finally(() => app.quit())
+})
+
+// Stop a running download cleanly (it is paused, and continues next time).
+let downloadsStopped = false
+app.on('before-quit', (event) => {
+  if (downloadsStopped || !downloads || !downloads.list().some((i) => i.state === 'downloading' || i.state === 'preparing')) return
+  event.preventDefault()
+  downloadsStopped = true
+  void Promise.race([downloads.shutdown(), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit())
 })
 
 app.on('will-quit', () => {

@@ -87,6 +87,11 @@ jobs:
           MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
           MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
 
+      # The Epic downloader (Legendary) ships inside the installer. It is a pinned release,
+      # checked against its checksum: the step fails if the file is anything else.
+      - name: Fetch the Epic downloader
+        run: node scripts/fetch-legendary.mjs
+
       - name: Build
         run: npm run build
         env:

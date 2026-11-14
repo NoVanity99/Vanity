@@ -3,6 +3,7 @@ import { BadgeCheck, ExternalLink, EyeOff, Gamepad2, Link2, Loader2, LogIn, Refr
 import type { SteamState } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
+import { useStores } from '@/state/downloads'
 import { useToast } from '@/state/toasts'
 
 const input =
@@ -178,14 +179,173 @@ function SteamCard({ steam }: { steam: SteamState }): React.JSX.Element {
 }
 
 /** Account settings: the outside accounts linked to your Vanity account. */
+/** One store whose sign-in lives on this PC (Epic through Legendary, GOG). */
+function StoreCard({
+  name,
+  blurb,
+  tile,
+  account,
+  onSignIn,
+  onSignOut,
+  children
+}: {
+  name: string
+  blurb: string
+  tile: React.ReactNode
+  account: { signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
+  onSignIn: () => Promise<{ error?: string } | unknown>
+  onSignOut: () => Promise<unknown>
+  children?: React.ReactNode
+}): React.JSX.Element {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const run = async (fn: () => Promise<{ error?: string } | unknown>, done?: string): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = (await fn()) as { error?: string } | undefined
+      if (res && typeof res.error === 'string') setError(res.error)
+      else if (done) toast(done)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const working = busy || account.busy
+  return (
+    <div className="rounded-xl border border-border bg-surface-2/60 p-4" data-store={name}>
+      <div className="flex items-center gap-3">
+        {tile}
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">{name}</p>
+          <p className="truncate text-xs text-muted">
+            {account.signedIn ? (
+              <>
+                Signed in as <span className="font-semibold text-text">{account.name ?? 'your account'}</span>
+                {account.games !== null && ` · ${account.games.toLocaleString()} game${account.games === 1 ? '' : 's'}`}
+              </>
+            ) : (
+              blurb
+            )}
+          </p>
+        </div>
+        {account.signedIn ? (
+          <Button onClick={() => run(onSignOut, `Signed out of ${name}`)} disabled={working}>
+            <Unlink className="size-4" /> Unlink
+          </Button>
+        ) : (
+          <Button variant="primary" onClick={() => run(onSignIn)} disabled={working}>
+            {working ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />} {working ? 'Signing in…' : 'Sign in'}
+          </Button>
+        )}
+      </div>
+      {!account.signedIn && children}
+      {(error ?? account.error) && (
+        <p role="alert" className="animate-pop-in mt-3 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+          {error ?? account.error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** If Epic's sign-in window doesn't finish by itself, the code on its last page can be pasted here. */
+function EpicCodeEntry(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-3 text-xs text-muted underline-offset-4 transition hover:text-text hover:underline">
+        Sign-in window didn't work? Enter a code instead
+      </button>
+    )
+  }
+  return (
+    <form
+      className="mt-3 space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        setBusy(true)
+        setError(null)
+        const res = await window.vanity.stores.epicLoginWithCode(code)
+        setBusy(false)
+        if (res.error !== undefined) setError(res.error)
+      }}
+    >
+      <p className="text-xs text-muted">
+        Open{' '}
+        <a href="https://legendary.gl/epiclogin" target="_blank" rel="noreferrer" className="text-text underline underline-offset-4">
+          legendary.gl/epiclogin
+        </a>{' '}
+        in your browser and sign in to Epic. The page ends on a line of text containing <span className="font-mono">"authorizationCode"</span>: copy the value in quotes after it and paste it here.
+      </p>
+      <div className="flex gap-2">
+        <input className={input} placeholder="authorizationCode" value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} aria-label="Epic sign-in code" />
+        <Button type="submit" className="h-11 shrink-0" disabled={busy || !code.trim()}>
+          {busy ? 'Checking…' : 'Use code'}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
+
+/** Account settings: the outside accounts linked to Vanity. */
 export function LinkedAccounts(): React.JSX.Element | null {
   const steam = useSteam()
-  if (!steam?.available) return null
+  const stores = useStores()
+  if (!steam && !stores) return null
+  const onPc = stores?.supported === true
+  // On a phone there is only Steam, and that needs a Vanity account.
+  if (!onPc && !steam?.available) return null
   return (
     <section className="rounded-2xl border border-border bg-surface p-6">
       <h2 className="text-lg font-semibold">Linked accounts</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">Connect your other gaming accounts to your Vanity account. Links are saved to your account, so they follow you to every device.</p>
-      <SteamCard steam={steam} />
+      <p className="mb-4 mt-1 text-sm text-muted">Connect your other gaming accounts, so their games show in your library.</p>
+      <div className="space-y-3">
+        {steam?.available ? (
+          <SteamCard steam={steam} />
+        ) : (
+          <p className="rounded-xl border border-border bg-surface-2/60 px-4 py-3 text-sm text-muted">
+            <span className="font-semibold text-text">Steam</span>: sign in to your Vanity account above to link it (the link is saved to your account, so it follows you to every device).
+          </p>
+        )}
+        {onPc && stores && (
+          <>
+            {stores.epic.available ? (
+              <StoreCard
+                name="Epic Games"
+                blurb="Install and play your Epic games from Vanity."
+                tile={<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#2a2a2a] text-xs font-black tracking-tight text-white">EPIC</span>}
+                account={stores.epic}
+                onSignIn={() => window.vanity.stores.epicLogin()}
+                onSignOut={() => window.vanity.stores.epicLogout()}
+              >
+                <EpicCodeEntry />
+              </StoreCard>
+            ) : (
+              <p className="rounded-xl border border-border bg-surface-2/60 px-4 py-3 text-sm text-muted">
+                <span className="font-semibold text-text">Epic Games</span>: this build of Vanity doesn't include the Epic downloader.
+              </p>
+            )}
+            <StoreCard
+              name="GOG"
+              blurb="Install your GOG games from Vanity."
+              tile={<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-xs font-black tracking-tight text-white">GOG</span>}
+              account={stores.gog}
+              onSignIn={() => window.vanity.stores.gogLogin()}
+              onSignOut={() => window.vanity.stores.gogLogout()}
+            />
+            <p className="text-xs text-muted">Epic and GOG sign-ins stay on this PC: a window opens on the store's own sign-in page, and Vanity never sees your password.</p>
+          </>
+        )}
+      </div>
     </section>
   )
 }

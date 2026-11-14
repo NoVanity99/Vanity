@@ -1,3 +1,4 @@
+import { installsInVanity, openInstallDialog } from './downloads'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Game, GameCandidate, GamePatch, MetadataProgress, ScanProgress, ScanSummary, SessionState } from '@shared/types'
 import { dedupeByName } from '@shared/dedupe'
@@ -55,6 +56,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
   const library = useMemo(() => dedupeByName(allGames), [allGames])
   // Play, Surprise me, Vibe Check, Big Picture and the counts are about games you can start right now.
   const games = useMemo(() => library.filter((g) => g.installed), [library])
+  const allGamesRef = useRef<Game[]>([])
+  allGamesRef.current = allGames
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<ScanProgress[]>([])
@@ -204,6 +207,8 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
 
   const install = useCallback(
     async (id: number) => {
+      const game = allGamesRef.current.find((g) => g.id === id)
+      if (game && installsInVanity(game)) return openInstallDialog(game)
       const res = await window.vanity.games.install(id).catch((err) => ({ error: message(err), data: undefined }))
       if (res.error !== undefined) toast(res.error, 'error')
       else toast(res.data.note)
