@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.8.1 (2026-11-14)
+- New: a small web installer, Vanity-Installer.exe. It always downloads and installs the newest version of Vanity, so the same file can be shared forever.
+
 ## 0.8.0 (2026-11-07)
 - Music player: plays almost any audio format, not just MP3 and the common ones.
   - Newly supported: WMA, Apple Lossless (ALAC) .m4a, AIFF, WavPack, APE, CAF, AC3/E-AC3, DTS, MP2, W64, AMR and more.

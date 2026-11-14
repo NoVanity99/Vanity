@@ -6,7 +6,7 @@ Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v
 
 ## Install (Windows)
 
-Download `Vanity-Setup-<version>.exe` from the repo's [Releases](https://github.com/NoVanity99/Vanity/releases) and run it.
+Download **[Vanity-Installer.exe](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe)** and run it. It's a small web installer that looks up the newest release, downloads that version's setup and runs it, so the same file (and link) always installs the latest Vanity. You can also pick a specific `Vanity-Setup-<version>.exe` from the repo's [Releases](https://github.com/NoVanity99/Vanity/releases).
 
 - **What you get:** a Start Menu entry, a desktop shortcut, and an uninstaller in Windows **Apps & features**.
 - **SmartScreen:** the installer isn't code-signed, so Windows may show "Windows protected your PC". Click **More info → Run anyway**.

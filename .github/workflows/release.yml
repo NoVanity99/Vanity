@@ -78,6 +78,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # The small web installer (installer/Vanity-Installer.exe) always downloads the newest release.
+      # Attaching it to every release keeps this link working forever:
+      # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe
+      - name: Attach the web installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$(node -p "require('./package.json').version")" installer/Vanity-Installer.exe --clobber
+
       - name: Keep the installer as a workflow artifact too
         uses: actions/upload-artifact@v4
         with:

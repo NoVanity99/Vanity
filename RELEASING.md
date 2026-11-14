@@ -52,6 +52,14 @@ That's it: every installed copy picks the update up within an hour (or on its ne
 - **A broken release went out:** ship a fixed one with a higher version (e.g. `1.2.5`). Don't reuse a version number, because installed copies only move forward.
 - **Building the installer locally** (without publishing): `npm run dist:win` → `dist/Vanity-Setup-<version>.exe`.
 
+## The web installer
+
+`installer/Vanity-Installer.exe` is the file to hand out. It reads `latest.yml` from the newest release, downloads the setup it names and runs it, so it never goes out of date.
+
+- **Link that always works:** `https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe` (the release workflow attaches the file to every release).
+- **Rebuilding it** is only needed if `installer/web-installer.nsi` changes: run `npm run dist:win` once (it downloads NSIS), then `node scripts/build-web-installer.mjs`, and commit the new exe.
+- Like the setup itself, it isn't code-signed, so SmartScreen shows the same "More info → Run anyway" prompt.
+
 ## One-time setup
 
 - **The repo is public**, so installed copies download updates from its Releases without a token.
