@@ -34,8 +34,14 @@ import com.getcapacitor.annotation.PermissionCallback;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import androidx.core.content.FileProvider;
+import androidx.core.content.pm.PackageInfoCompat;
+
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -355,6 +361,114 @@ public class VanityNativePlugin extends Plugin {
     /** Android fills unknown artists and albums with "<unknown>". */
     private static Object known(String s) {
         return s == null || s.isEmpty() || s.equals(MediaStore.UNKNOWN_STRING) ? JSObject.NULL : s;
+    }
+
+    // ---- updates ----
+
+    /** Updates only ever come from Vanity's own releases. */
+    private static final String UPDATE_PREFIX = "https://github.com/NoVanity99/Vanity/releases/";
+    private volatile boolean updating = false;
+
+    @PluginMethod
+    public void installUpdate(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !url.startsWith(UPDATE_PREFIX)) {
+            call.reject("That is not a Vanity update");
+            return;
+        }
+        if (updating) {
+            call.reject("An update is already downloading");
+            return;
+        }
+        updating = true;
+        worker.execute(() -> {
+            try {
+                Context ctx = getContext();
+                File dir = new File(ctx.getCacheDir(), "updates");
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                File apk = new File(dir, "Vanity.apk");
+                download(url, apk);
+
+                // Only install what is really a newer Vanity.
+                PackageManager pm = ctx.getPackageManager();
+                PackageInfo next = pm.getPackageArchiveInfo(apk.getAbsolutePath(), 0);
+                PackageInfo mine = pm.getPackageInfo(ctx.getPackageName(), 0);
+                if (next == null || !ctx.getPackageName().equals(next.packageName)) {
+                    throw new IllegalStateException("The downloaded file is not Vanity");
+                }
+                if (PackageInfoCompat.getLongVersionCode(next) <= PackageInfoCompat.getLongVersionCode(mine)) {
+                    throw new IllegalStateException("The downloaded version is not newer");
+                }
+
+                Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", apk);
+                Intent install = new Intent(Intent.ACTION_VIEW);
+                install.setDataAndType(uri, "application/vnd.android.package-archive");
+                install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(install);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Could not download the update", e);
+            } finally {
+                updating = false;
+            }
+        });
+    }
+
+    private void download(String address, File target) throws Exception {
+        HttpURLConnection conn = null;
+        File part = new File(target.getPath() + ".part");
+        try {
+            // GitHub answers with a redirect to its download servers; follow up to five by hand so
+            // every hop is checked to be https.
+            String next = address;
+            for (int hop = 0; ; hop++) {
+                if (!next.startsWith("https://")) throw new IllegalStateException("Update address is not https");
+                conn = (HttpURLConnection) new URL(next).openConnection();
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(20_000);
+                conn.setReadTimeout(30_000);
+                conn.setRequestProperty("User-Agent", "Vanity-Android");
+                int code = conn.getResponseCode();
+                if (code >= 300 && code < 400 && hop < 5) {
+                    String location = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    if (location == null) throw new IllegalStateException("Redirect without an address");
+                    next = new URL(new URL(next), location).toString();
+                    continue;
+                }
+                if (code != 200) throw new IllegalStateException("Download failed (HTTP " + code + ")");
+                break;
+            }
+            long total = conn.getContentLengthLong();
+            long done = 0;
+            int lastPercent = -1;
+            byte[] buf = new byte[64 * 1024];
+            try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                    done += n;
+                    if (total > 0) {
+                        int percent = (int) (done * 100 / total);
+                        if (percent != lastPercent) {
+                            lastPercent = percent;
+                            JSObject progress = new JSObject();
+                            progress.put("percent", percent);
+                            notifyListeners("updateProgress", progress);
+                        }
+                    }
+                }
+            }
+            if (total > 0 && done != total) throw new IllegalStateException("The download was cut off");
+            //noinspection ResultOfMethodCallIgnored
+            target.delete();
+            if (!part.renameTo(target)) throw new IllegalStateException("Could not save the update");
+        } finally {
+            if (conn != null) conn.disconnect();
+            //noinspection ResultOfMethodCallIgnored
+            part.delete();
+        }
     }
 
     // ---- links ----

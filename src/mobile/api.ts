@@ -135,6 +135,16 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       return res.text()
     },
     openUrl,
+    install: native.installUpdate
+      ? async (url, onProgress) => {
+          const sub = await native.addListener?.('updateProgress', (d) => onProgress(d.percent))
+          try {
+            await native.installUpdate!({ url })
+          } finally {
+            void sub?.remove()
+          }
+        }
+      : undefined,
     onUpdate: (s) => updateChanged.emit(s)
   })
 
@@ -181,7 +191,9 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   void tracker.sync()
   // Coming back to Vanity: record what was played, and tell friends we're here.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void tracker.sync()
+    if (document.visibilityState !== 'visible') return
+    void tracker.sync()
+    updater.checkIfStale()
   })
   // Links that would open a new window (news, trailers, store pages) open outside the app.
   document.addEventListener(

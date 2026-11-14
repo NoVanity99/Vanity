@@ -3,6 +3,12 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.9.1 (2026-11-14)
+- Android: Vanity now keeps itself on the newest version, however old the APK you installed is.
+  - It checks for a newer version the moment it opens, and again each time you come back to it.
+  - When there is one, the update window opens by itself. Tap "Update now": Vanity downloads the new version inside the app, shows the progress, and Android asks you to install it.
+  - The download link for the APK always gives the newest version too.
+
 ## 0.9.0 (2026-11-14)
 - New: **Vanity for Android.** Install Vanity.apk on your phone and it finds every game installed on it, the same way the Windows app finds your PC games.
   - Tap a game to play it. Touch and hold a game for its menu (favourite, hide, collections, remove).

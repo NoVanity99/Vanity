@@ -3,7 +3,7 @@
 Vanity ships on GitHub Releases as a Windows installer (`Vanity-Setup-<version>.exe`) and an Android app (`Vanity-<version>.apk`). One release, one version number, both platforms.
 
 - **Windows:** installed copies check GitHub when they start and every hour, download the new version in the background, and show "Update ready: restart to install".
-- **Android:** the app checks the same release, shows the update button, and downloads the new APK for the user to install (Android doesn't let an app replace itself silently).
+- **Android:** the app checks the same release every time it opens, opens the update window, downloads the new APK itself and hands it to Android to install (Android doesn't let an app replace itself silently, so the user taps Install).
 
 ## Ship an update
 

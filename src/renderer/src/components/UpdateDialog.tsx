@@ -21,7 +21,7 @@ export function UpdateDialog({ state, onClose }: { state: UpdateState; onClose: 
       description={
         state.available || busy
           ? state.mode === 'apk'
-            ? 'A new version of Vanity is out. Download it, then open the file and tap Install. Your library is kept.'
+            ? 'A new version of Vanity is out. Tap Update now: Vanity downloads it and Android asks you to install it. Your library is kept.'
             : state.mode === 'release'
               ? 'The new version has been downloaded. Restart Vanity to install it, or it installs by itself the next time you quit.'
               : 'A new version of Vanity is ready to install.'
@@ -39,13 +39,17 @@ export function UpdateDialog({ state, onClose }: { state: UpdateState; onClose: 
         <div className="mt-5 flex flex-wrap gap-3">
           <Button variant="primary" onClick={approve} disabled={busy || !state.available}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            {busy ? state.applying : state.mode === 'apk' ? 'Download update' : state.mode === 'release' ? 'Restart to install' : 'Update and restart'}
+            {busy ? state.applying : state.mode === 'apk' ? 'Update now' : state.mode === 'release' ? 'Restart to install' : 'Update and restart'}
           </Button>
           <Button onClick={onClose} disabled={busy}>
             <X className="size-4" /> Not now
           </Button>
         </div>
-        {busy && <p className="mt-3 text-xs text-muted">Keep Vanity open. It restarts by itself when the update is installed.</p>}
+        {busy && (
+          <p className="mt-3 text-xs text-muted">
+            {state.mode === 'apk' ? 'Keep Vanity open. Android asks you to install as soon as the download finishes.' : 'Keep Vanity open. It restarts by itself when the update is installed.'}
+          </p>
+        )}
         {(error ?? state.error) && !busy && <p className="mt-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm">{error ?? state.error}</p>}
 
         <h3 className="mb-3 mt-7 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted">

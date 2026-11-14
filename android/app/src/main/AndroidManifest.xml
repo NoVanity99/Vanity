@@ -53,6 +53,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Playtime: the user switches this on under Settings > Usage access. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Updates: Vanity downloads its new version and asks Android to install it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- The music player: songs stored on the phone. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

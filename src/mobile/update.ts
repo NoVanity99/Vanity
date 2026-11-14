@@ -12,6 +12,8 @@ export interface MobileUpdateDeps {
   currentVersion: string
   fetchText(url: string): Promise<string>
   openUrl(url: string): Promise<void>
+  /** Downloads the APK inside the app and opens Android's install screen. Missing or failing: the browser downloads it instead. */
+  install?(url: string, onProgress: (percent: number) => void): Promise<void>
   onUpdate(state: UpdateState): void
   now?: () => number
 }
@@ -55,7 +57,8 @@ export class MobileUpdater {
 
   start(): void {
     if (this.timer) return
-    setTimeout(() => void this.check(), 5000)
+    // Straight away: an old APK that was passed around offers the newest version the first time it opens.
+    setTimeout(() => void this.check(), 1500)
     this.timer = setInterval(() => void this.check(), CHECK_EVERY_MS)
   }
 
@@ -90,9 +93,29 @@ export class MobileUpdater {
     return this.checking
   }
 
-  /** Starts the APK download; Android then offers to install it. */
+  /** Checks again if the last check is older than `maxAgeMs` (used each time Vanity comes back on screen). */
+  checkIfStale(maxAgeMs = 60_000): void {
+    const now = (this.deps.now ?? Date.now)()
+    if (!this.s.applying && (this.s.lastChecked === null || now - this.s.lastChecked > maxAgeMs)) void this.check()
+  }
+
+  /** Downloads the newest APK and hands it to Android to install. */
   async apply(): Promise<void> {
     if (!this.s.available) throw new Error('There is no update to install.')
-    await this.deps.openUrl(APK_URL)
+    if (this.s.applying) return
+    if (!this.deps.install) return this.deps.openUrl(APK_URL)
+    this.set({ applying: 'Downloading…', progress: 0, error: null })
+    try {
+      await this.deps.install(APK_URL, (percent) => {
+        const p = Math.max(0, Math.min(100, Math.round(percent)))
+        if (p !== this.s.progress) this.set({ applying: `Downloading ${p}%`, progress: p })
+      })
+      this.set({ applying: null, progress: null })
+    } catch (err) {
+      console.warn('[update]', err)
+      this.set({ applying: null, progress: null })
+      // The in-app download didn't work on this phone: let the browser download the same file.
+      await this.deps.openUrl(APK_URL)
+    }
   }
 }

@@ -20,7 +20,7 @@ On your phone, download **[Vanity.apk](https://github.com/NoVanity99/Vanity/rele
 - **Finding games:** Vanity lists every app Android labels as a game, each time it opens. For anything it misses, use **Add a game** and pick the app.
 - **Playtime:** for exact times, switch on **Usage access** for Vanity (Settings → Playtime tracking takes you there). Without it, Vanity counts from when you tap Play until you come back.
 - **Music:** the player plays the songs stored on the phone, after you allow access to music.
-- **Updates:** Vanity shows the update button when a new version is out and downloads the new APK; tap it to install over the old one. Your library is kept.
+- **Updates:** Vanity checks for a newer version every time it opens, even if the APK you installed was an old one. When there is one, the update window opens: tap **Update now**, Vanity downloads it and Android asks you to install it (allow "Install unknown apps" for Vanity the first time). Your library is kept.
 - **Not on Android:** the Steam store tab, Discord status, Big Picture, break reminders, and .exe or web games.
 
 ## Getting started (from source)

@@ -6,12 +6,21 @@ import { checkForUpdate, onOpenUpdateDialog, openUpdateDialog, pendingCount, use
 import { useToast } from '@/state/toasts'
 import { UpdateDialog } from './UpdateDialog'
 
+/** Android: the update window opens by itself, once per new version each time the app is started. */
+let autoShownFor: string | null = null
+
 /** Small round button in the title bar: checks for updates, or shows a red count when one is waiting. */
 export function UpdateButton(): React.JSX.Element | null {
   const state = useUpdate()
   const toast = useToast()
   const [open, setOpen] = useState(false)
   useEffect(() => onOpenUpdateDialog(() => setOpen(true)), [])
+  const offer = state?.mode === 'apk' && state.available ? state.latest : null
+  useEffect(() => {
+    if (!offer || autoShownFor === offer) return
+    autoShownFor = offer
+    setOpen(true)
+  }, [offer])
 
   if (!state || state.mode === 'unsupported') return null
   const count = pendingCount(state)
