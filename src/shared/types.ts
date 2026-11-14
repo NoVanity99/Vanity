@@ -332,11 +332,18 @@ export interface GameLive {
 // ---- Accounts and friends ------------------------------------------------------
 
 export interface AccountState {
-  /** A server URL is set (in Settings or built in). */
-  serverConfigured: boolean
-  serverUrl: string
+  /** This build knows where Vanity's account service is (src/shared/backend.ts). */
+  available: boolean
   signedIn: boolean
+  email: string | null
+  /** The public name friends add you by. */
   username: string | null
+  /** Signed in, but the account hasn't picked a username yet. */
+  needsUsername: boolean
+  /** The last session ended by itself (it expired, or was signed out elsewhere). */
+  sessionExpired: boolean
+  /** This device keeps you signed in after Vanity closes. */
+  remembered: boolean
 }
 
 export interface FriendStatus {

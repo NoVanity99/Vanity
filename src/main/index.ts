@@ -30,6 +30,8 @@ import { steamArtworkUrl } from './metadata/steamStore'
 import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
+import { createSessionVault, nodeAuthHttp } from './account/desktop'
+import { backendConfig } from '@shared/backend'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -285,13 +287,15 @@ app.whenReady().then(() => {
   account = new AccountService({
     store,
     fetchFn,
-    getSettings,
-    saveSettings: updateSettings,
-    serverUrl: () => accountServerUrl(),
+    authHttp: nodeAuthHttp,
+    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }),
+    vault: createSessionVault(join(app.getPath('userData'), 'session.bin')),
     runningGame: () => tracker?.running() ?? null,
     onChange: (s) => broadcast(IPC.accountChanged, s)
   })
-  account.start()
+  void account.load()
+  // Sessions of the old account server were kept in settings: they no longer work, so forget them.
+  if (getSettings().accountToken) void updateSettings({ accountToken: '', accountUsername: '' })
 
   const devServer = is.dev && !!process.env['ELECTRON_RENDERER_URL']
   // Installed with the Windows installer: updates come from GitHub Releases (electron-updater).

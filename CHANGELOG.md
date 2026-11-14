@@ -3,6 +3,17 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.10.0 (2026-11-14)
+- Accounts have moved to Neon, with proper sign-in (stage 1 of the accounts and cloud update).
+  - Create an account with your email, a username and a password. Friends still add you by username; your email stays private.
+  - "Stay signed in" keeps you signed in between launches. Turn it off on a shared PC and Vanity forgets you when it closes.
+  - Forgot your password? Vanity emails you a 6-digit code to choose a new one.
+  - Your sign-in is stored in the device's protected storage (Windows credential protection, Android Keystore), never in a plain file.
+  - Clear messages when you're offline, when your session has expired, for a wrong password, or when a username is taken.
+  - Works the same on Windows and Android.
+- Accounts from before this version don't carry over: create a new one with your email. Your library, playtime and settings on this device are untouched.
+- Friends, "now playing" and shared stats work as before, now on the new accounts.
+
 ## 0.9.2 (2026-11-14)
 - New: **Vanity Installer for Android** (Vanity-Installer.apk), a small app to hand out. It always downloads the newest Vanity from GitHub Releases and installs it, so the same file can be shared forever.
   - Open it and it finds the newest version, downloads it with a progress bar, and Android asks you to install.

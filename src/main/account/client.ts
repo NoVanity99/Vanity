@@ -1,47 +1,48 @@
 import type { FriendsList, FriendStats, GameFriend } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
+import { AccountError } from './errors'
+import { OFFLINE_MESSAGE } from './neonAuth'
 
-/** A failure with a message that can be shown to the user. `signedOut` means the token is no longer valid. */
-export class AccountError extends Error {
-  constructor(
-    message: string,
-    readonly signedOut = false
-  ) {
-    super(message)
-  }
+export { AccountError }
+
+export interface Me {
+  id: string
+  email: string | null
+  /** Null until the account has picked a username. */
+  username: string | null
 }
 
-export interface Session {
-  token: string
-  user: { id: string; username: string }
-}
-
-/** Thin client for the Vanity account server (server/README.md). */
+/**
+ * Thin client for the Vanity server (server/README.md). Every signed-in call carries a short-lived
+ * token from Neon Auth: `getToken(true)` must return a brand-new one.
+ */
 export class AccountClient {
   constructor(
     private baseUrl: string,
     private fetchFn: FetchFn,
-    private token: string | null = null
+    private getToken: (fresh: boolean) => Promise<string | null> = async () => null
   ) {}
 
-  private async call<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
-    if (!this.baseUrl) throw new AccountError('No account server is set. Add its URL on the Account page.')
-    let res: Response
+  private async send(method: string, path: string, body: unknown, token: string | null): Promise<Response> {
     try {
-      res = await this.fetchFn(`${this.baseUrl}${path}`, {
+      return await this.fetchFn(`${this.baseUrl}${path}`, {
         method,
-        headers: {
-          'content-type': 'application/json',
-          ...(auth && this.token ? { authorization: `Bearer ${this.token}` } : {})
-        },
+        headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(15_000)
       })
     } catch {
-      throw new AccountError(`Couldn't reach the Vanity server at ${this.baseUrl}.`)
+      throw new AccountError(OFFLINE_MESSAGE, false, true)
     }
+  }
+
+  private async call<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
+    if (!this.baseUrl) throw new AccountError('Accounts are not set up in this build of Vanity.')
+    let res = await this.send(method, path, body, auth ? await this.getToken(false) : null)
+    // The token may have expired a moment ago: get a new one and try once more.
+    if (res.status === 401 && auth) res = await this.send(method, path, body, await this.getToken(true))
     if (res.status === 204) return undefined as T
-    let data: { error?: string } & Record<string, unknown> = {}
+    let data: { error?: string; code?: string } & Record<string, unknown> = {}
     try {
       data = (await res.json()) as typeof data
     } catch {
@@ -49,20 +50,15 @@ export class AccountClient {
     }
     if (!res.ok) {
       if (res.status === 401 && auth) throw new AccountError(data.error ?? 'Please sign in again.', true)
+      if (res.status >= 500) throw new AccountError(data.error ?? 'The Vanity server is having trouble. Try again in a moment.', false, true)
       throw new AccountError(data.error ?? `The Vanity server answered with an error (HTTP ${res.status}).`)
     }
     return data as T
   }
 
-  /** Checks that the URL is a Vanity server. */
-  async ping(): Promise<void> {
-    const r = await this.call<{ name?: string }>('GET', '/', undefined, false)
-    if (r?.name !== 'vanity-api') throw new AccountError("That address answered, but it isn't a Vanity account server.")
-  }
-
-  register = (username: string, password: string) => this.call<Session>('POST', '/auth/register', { username, password }, false)
-  login = (username: string, password: string) => this.call<Session>('POST', '/auth/login', { username, password }, false)
-  me = () => this.call<{ user: { id: string; username: string } }>('GET', '/me')
+  usernameAvailable = async (username: string) => (await this.call<{ available: boolean }>('GET', `/usernames/${encodeURIComponent(username)}`, undefined, false)).available
+  me = async () => (await this.call<{ user: Me }>('GET', '/me')).user
+  setUsername = async (username: string) => (await this.call<{ user: Me }>('PUT', '/me/username', { username })).user
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>

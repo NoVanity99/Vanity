@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { schemaStatements } from './schema'
 
 export type Row = Record<string, unknown>
 
@@ -9,4 +10,12 @@ export type Sql = <T = Row>(strings: TemplateStringsArray, ...values: unknown[])
 export function neonSql(databaseUrl: string): Sql {
   const run = neon(databaseUrl)
   return (strings, ...values) => run(strings, ...values) as never
+}
+
+/** Creates Vanity's tables on a Neon database if they aren't there yet. */
+export function neonMigrate(databaseUrl: string): () => Promise<void> {
+  const run = neon(databaseUrl)
+  return async () => {
+    for (const statement of schemaStatements()) await run.query(statement)
+  }
 }

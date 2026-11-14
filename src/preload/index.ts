@@ -86,10 +86,12 @@ const api: VanityApi = {
       ipcRenderer.on(IPC.accountChanged, listener)
       return () => ipcRenderer.removeListener(IPC.accountChanged, listener)
     },
-    setServer: (url) => ipcRenderer.invoke(IPC.accountSetServer, url),
-    register: (u, p) => ipcRenderer.invoke(IPC.accountRegister, u, p),
-    login: (u, p) => ipcRenderer.invoke(IPC.accountLogin, u, p),
-    logout: () => ipcRenderer.invoke(IPC.accountLogout),
+    signUp: (email, username, password, remember) => ipcRenderer.invoke(IPC.accountSignUp, email, username, password, remember),
+    signIn: (email, password, remember) => ipcRenderer.invoke(IPC.accountSignIn, email, password, remember),
+    signOut: () => ipcRenderer.invoke(IPC.accountSignOut),
+    setUsername: (username) => ipcRenderer.invoke(IPC.accountSetUsername, username),
+    sendResetCode: (email) => ipcRenderer.invoke(IPC.accountSendResetCode, email),
+    resetPassword: (email, code, password) => ipcRenderer.invoke(IPC.accountResetPassword, email, code, password),
     deleteAccount: () => ipcRenderer.invoke(IPC.accountDelete)
   },
   friends: {

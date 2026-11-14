@@ -148,11 +148,17 @@ export interface VanityApi {
   account: {
     state(): Promise<AccountState>
     onChange(callback: (state: AccountState) => void): () => void
-    /** Sets (and checks) the account server URL. Signs out of the previous server. */
-    setServer(url: string): Promise<Result<AccountState>>
-    register(username: string, password: string): Promise<Result<AccountState>>
-    login(username: string, password: string): Promise<Result<AccountState>>
-    logout(): Promise<AccountState>
+    /** Creates an account (email + password at Neon Auth) with a public username. */
+    signUp(email: string, username: string, password: string, remember: boolean): Promise<Result<AccountState>>
+    /** `remember` false: signed in only until Vanity closes. */
+    signIn(email: string, password: string, remember: boolean): Promise<Result<AccountState>>
+    signOut(): Promise<AccountState>
+    /** Picks the username of a new account, or renames it. */
+    setUsername(username: string): Promise<Result<AccountState>>
+    /** Emails a 6-digit code for choosing a new password. */
+    sendResetCode(email: string): Promise<Result<true>>
+    resetPassword(email: string, code: string, password: string): Promise<Result<true>>
+    /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
   }
   friends: {
@@ -267,10 +273,12 @@ export const IPC = {
   statsGet: 'stats:get',
   accountState: 'account:state',
   accountChanged: 'account:changed',
-  accountSetServer: 'account:set-server',
-  accountRegister: 'account:register',
-  accountLogin: 'account:login',
-  accountLogout: 'account:logout',
+  accountSignUp: 'account:sign-up',
+  accountSignIn: 'account:sign-in',
+  accountSignOut: 'account:sign-out',
+  accountSetUsername: 'account:set-username',
+  accountSendResetCode: 'account:send-reset-code',
+  accountResetPassword: 'account:reset-password',
   accountDelete: 'account:delete',
   friendsList: 'friends:list',
   friendsAdd: 'friends:add',

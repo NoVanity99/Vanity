@@ -98,13 +98,13 @@ export function GameDetailPage(): React.JSX.Element {
 
   useEffect(() => {
     setFriendsPlayed(null)
-    if (!account?.signedIn) return
+    if (!account?.username) return
     let cancelled = false
     window.vanity.friends.forGame(Number(id)).then((r) => !cancelled && setFriendsPlayed(r.error === undefined ? r.data : []), () => {})
     return () => {
       cancelled = true
     }
-  }, [id, account?.signedIn])
+  }, [id, account?.username])
 
   useEffect(() => {
     setLive(null)
@@ -387,7 +387,7 @@ export function GameDetailPage(): React.JSX.Element {
             {details && <NewsSection news={details.news} delay={640} />}
             {playStats && <SessionHistory history={playStats.history} delay={660} />}
 
-            {account?.signedIn && (
+            {account?.username && (
               <Section icon={Users} title="Friends who played" delay={680}>
                 {friendsPlayed === null ? (
                   <div className="shimmer h-14 rounded-xl bg-white/[0.03]" />

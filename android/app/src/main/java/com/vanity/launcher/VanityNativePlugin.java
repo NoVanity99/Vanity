@@ -37,9 +37,23 @@ import org.json.JSONException;
 import androidx.core.content.FileProvider;
 import androidx.core.content.pm.PackageInfoCompat;
 
+import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.util.Iterator;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
@@ -469,6 +483,142 @@ public class VanityNativePlugin extends Plugin {
             //noinspection ResultOfMethodCallIgnored
             part.delete();
         }
+    }
+
+    // ---- account: sign-in requests and the saved session ----
+
+    private final ExecutorService network = Executors.newFixedThreadPool(2);
+
+    /**
+     * One https request made here instead of in the web view, so the caller decides the Cookie and
+     * Origin headers (the web view would not allow that). Android stores nothing about it.
+     */
+    @PluginMethod
+    public void http(PluginCall call) {
+        final String url = call.getString("url");
+        final String method = call.getString("method", "GET");
+        final JSObject headers = call.getObject("headers", new JSObject());
+        final String body = call.getString("body");
+        if (url == null || !url.startsWith("https://")) {
+            call.reject("Only https addresses are allowed");
+            return;
+        }
+        network.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setInstanceFollowRedirects(false);
+                conn.setUseCaches(false);
+                conn.setConnectTimeout(15_000);
+                conn.setReadTimeout(15_000);
+                conn.setRequestMethod(method);
+                for (Iterator<String> it = headers.keys(); it.hasNext(); ) {
+                    String name = it.next();
+                    conn.setRequestProperty(name, headers.getString(name));
+                }
+                if (body != null) {
+                    conn.setDoOutput(true);
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(bytes.length);
+                    try (OutputStream out = conn.getOutputStream()) {
+                        out.write(bytes);
+                    }
+                }
+                int status = conn.getResponseCode();
+                JSObject outHeaders = new JSObject();
+                JSArray setCookie = new JSArray();
+                for (Map.Entry<String, List<String>> e : conn.getHeaderFields().entrySet()) {
+                    if (e.getKey() == null || e.getValue() == null) continue;
+                    String name = e.getKey().toLowerCase(java.util.Locale.ROOT);
+                    if (name.equals("set-cookie")) {
+                        for (String v : e.getValue()) setCookie.put(v);
+                    } else if (!e.getValue().isEmpty()) {
+                        outHeaders.put(name, e.getValue().get(e.getValue().size() - 1));
+                    }
+                }
+                InputStream in = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                if (in != null) {
+                    try (InputStream stream = in) {
+                        byte[] chunk = new byte[8192];
+                        int n;
+                        while ((n = stream.read(chunk)) != -1 && buf.size() < 2_000_000) buf.write(chunk, 0, n);
+                    }
+                }
+                JSObject res = new JSObject();
+                res.put("status", status);
+                res.put("headers", outHeaders);
+                res.put("setCookie", setCookie);
+                res.put("body", buf.toString("UTF-8"));
+                call.resolve(res);
+            } catch (Exception e) {
+                call.reject("Could not reach the server", e);
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    private static final String VAULT_KEY = "vanity-vault";
+    private static final String VAULT_PREFS = "vanity-vault";
+
+    /** An AES key that lives in the Android Keystore: it can be used by Vanity but never read out. */
+    private static SecretKey vaultKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        if (ks.containsAlias(VAULT_KEY)) return (SecretKey) ks.getKey(VAULT_KEY, null);
+        KeyGenerator gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        gen.init(new KeyGenParameterSpec.Builder(VAULT_KEY, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build());
+        return gen.generateKey();
+    }
+
+    /** Saves a small secret, encrypted (AES-GCM) with the Keystore key. A null value forgets it. */
+    @PluginMethod
+    public void secureSet(PluginCall call) {
+        String key = call.getString("key");
+        String value = call.getString("value");
+        if (key == null || key.isEmpty()) {
+            call.reject("No key given");
+            return;
+        }
+        try {
+            SharedPreferences prefs = getContext().getSharedPreferences(VAULT_PREFS, Context.MODE_PRIVATE);
+            if (value == null) {
+                prefs.edit().remove(key).apply();
+            } else {
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.ENCRYPT_MODE, vaultKey());
+                byte[] iv = cipher.getIV();
+                byte[] data = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
+                prefs.edit().putString(key, Base64.encodeToString(iv, Base64.NO_WRAP) + "." + Base64.encodeToString(data, Base64.NO_WRAP)).apply();
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not save to the phone's secure storage", e);
+        }
+    }
+
+    @PluginMethod
+    public void secureGet(PluginCall call) {
+        String key = call.getString("key");
+        JSObject res = new JSObject();
+        res.put("value", JSObject.NULL);
+        try {
+            String stored = key == null ? null : getContext().getSharedPreferences(VAULT_PREFS, Context.MODE_PRIVATE).getString(key, null);
+            if (stored != null && stored.contains(".")) {
+                String[] parts = stored.split("\\.", 2);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, vaultKey(), new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
+                res.put("value", new String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            // Unreadable (for example after restoring the app onto another phone): treated as not saved.
+        }
+        call.resolve(res);
     }
 
     // ---- links ----

@@ -2,6 +2,8 @@ import type { Result, VanityApi } from '@shared/ipc'
 import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
 import { AccountService } from '../main/account/service'
+import { backendConfig } from '@shared/backend'
+import { mobileAuthHttp, mobileSessionVault } from './account'
 import type { Db } from '../main/db/database'
 import { DetailsService } from '../main/details/service'
 import { createCollectionsStore } from '../main/library/collections'
@@ -17,7 +19,7 @@ import { TrendingService } from '../main/trending/service'
 import { MobileMedia } from './media'
 import { native, type NativeApp, type NativeTrack } from './native'
 import { addApp, appsNotInLibrary, scanAndroid } from './scan'
-import { accountServerUrl, getSettings, updateSettings } from './settings'
+import { getSettings, updateSettings } from './settings'
 import { MobileTracker } from './tracker'
 import { MobileUpdater } from './update'
 
@@ -120,9 +122,9 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   const account: AccountService = new AccountService({
     store,
     fetchFn,
-    getSettings,
-    saveSettings: updateSettings,
-    serverUrl: accountServerUrl,
+    authHttp: mobileAuthHttp,
+    backend: () => backendConfig(),
+    vault: mobileSessionVault,
     runningGame: () => tracker.running(),
     onChange: (s) => accountChanged.emit(s)
   })
@@ -183,7 +185,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   if (localStorage.getItem('vanity-music-on')) void loadMusic()
 
   // ---- start background work ----
-  account.start()
+  void account.load()
   trending.start()
   status.start()
   updater.start()
@@ -300,10 +302,12 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     account: {
       state: async () => account.state(),
       onChange: (cb) => accountChanged.on(cb),
-      setServer: (url) => wrap(() => account.setServer(text(url, 500))),
-      register: (u, p) => wrap(() => account.register(text(u), text(p))),
-      login: (u, p) => wrap(() => account.login(text(u), text(p))),
-      logout: () => account.logout(),
+      signUp: (email, u, p, remember) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)),
+      signIn: (email, p, remember) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)),
+      signOut: () => account.signOut(),
+      setUsername: (u) => wrap(() => account.setUsername(text(u))),
+      sendResetCode: (email) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)),
+      resetPassword: (email, code, p) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)),
       deleteAccount: () => wrap(() => account.deleteAccount())
     },
     friends: {

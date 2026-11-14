@@ -1,101 +1,58 @@
-# Vanity account server
+# Vanity backend (on Neon)
 
-A small API for Vanity's accounts, friends, "now playing" presence and shared playtime stats. It stores everything in **Neon** (serverless Postgres).
-
-The Vanity app never talks to the database directly. A database connection string inside an installed app could be extracted and used to read or change every account, so only this server holds it.
+Everything online in Vanity runs on **Neon**:
 
 ```
-Vanity app  ──HTTPS──▶  this API (Vercel, or any Node host)  ──▶  Neon Postgres
+Vanity app ──▶ Neon Auth          sign-up, sign-in, sessions, password-reset emails
+     │
+     └───────▶ Vanity server      a Neon Function: usernames, friends, "now playing", shared stats
+                    │
+                    └──▶ Neon Postgres   the database (only the server can reach it)
 ```
 
-## 1. Create the Neon database
+- **No password code here.** Passwords go from the app straight to Neon Auth (a hosted [Better Auth](https://better-auth.com) server). This server only ever sees short-lived tokens that Neon Auth signs, and checks them against Neon Auth's public keys.
+- **No secrets in the app or this repository.** The app knows two public addresses (`src/shared/backend.ts`). The database password stays inside Neon. Later stages add a Steam Web API key: it will live here as a Neon Function secret, never in the app.
 
-1. Sign up at [console.neon.tech](https://console.neon.tech) and create a project. Pick the region closest to you; the default Postgres version is fine.
-2. On the project dashboard, click **Connect**. Choose **Pooled connection** and copy the connection string. It looks like:
-   `postgresql://neondb_owner:…@ep-something-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require`
-3. Create the tables, in either of two ways:
-   - **From this folder:**
-     ```bash
-     cd server
-     npm install
-     cp .env.example .env      # then paste DATABASE_URL into .env
-     npm run migrate
-     ```
-   - **In Neon:** open **SQL Editor**, paste the contents of [`schema.sql`](schema.sql) and run it.
+## Set it up (once)
 
-   `schema.sql` is safe to run again later. It only creates what's missing.
+You need a free [Neon](https://console.neon.tech) account and this GitHub repository. No tools to install.
 
-## 2. Configure
+1. **Create a Neon project** (or reuse the one you have). Pick an **AWS** region from this list, because Neon Functions only run there for now: `US East (Ohio)`, `US East (N. Virginia)`, `Europe (Frankfurt)`, `Asia Pacific (Singapore)`.
+2. **Copy the project ID:** Neon console → your project → **Settings** → *Project ID* (it looks like `cool-lab-12345678`).
+3. **Create an API key:** Neon console → click your avatar → **Account settings** → **API keys** → *Create new API key*. Copy it now: it is shown once.
+4. **Give both to GitHub:** this repository → **Settings** → **Secrets and variables** → **Actions** → *New repository secret*. Add two secrets:
+   - `NEON_PROJECT_ID`: the project ID from step 2
+   - `NEON_API_KEY`: the key from step 3
+5. **Deploy:** this repository → **Actions** → **Deploy backend** → **Run workflow**.
 
-`server/.env` (never commit it; it's git-ignored):
+The workflow turns on Neon Auth, deploys the server, signs up a throwaway account to check everything works (and removes it again), and saves the two public addresses into `src/shared/backend.ts`. The next Vanity release has accounts switched on. It runs again by itself whenever `server/` changes.
 
-```
-DATABASE_URL=<your pooled Neon connection string>
-JWT_SECRET=<long random string>
-UPDATE_KEY=<optional: long random string, needed to download app updates>
-PORT=8787
-```
+### Things to know
 
-Generate a `JWT_SECRET` with:
+- **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*.
+- **Email confirmation at sign-up** is off by default in Neon Auth, and Vanity expects that: a new account is signed in straight away. If you turn it on in the Neon console, new users must confirm their address before they can sign in.
+- **Trusted origins.** Neon Auth only answers requests from origins it trusts, and local addresses are trusted by default. The app sends `http://localhost:5173` (`BACKEND.origin` in `src/shared/backend.ts`). If you ever switch *Allow localhost* off in the Neon console (Auth → Domains), sign-in stops working until you add that origin as a trusted domain.
+- **The old server.** Vanity used to keep accounts itself (usernames and password hashes in `public.users`, with its own tokens). That is gone. The old tables in the `public` schema are not used or touched: everything now lives in the `vanity` schema, and you can drop the old tables whenever you like.
 
-```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-```
+## How sign-in works
 
-Changing `JWT_SECRET` later signs everyone out.
-
-## 3. Run it
-
-**Locally**, for trying it out on your PC:
-
-```bash
-cd server
-npm run dev          # http://localhost:8787
-```
-
-**Online**, so friends on other PCs can connect. With [Vercel](https://vercel.com) (free hobby tier):
-
-```bash
-npm i -g vercel
-cd server
-vercel                              # link a new project; accept the defaults
-vercel env add DATABASE_URL         # paste the Neon string (Production)
-vercel env add JWT_SECRET           # paste your secret (Production)
-vercel --prod                       # prints https://<your-project>.vercel.app
-```
-
-**Or from the repo root, as a Vercel project with services.** The root [`vercel.json`](../vercel.json) defines a `server` service (this folder, Hono). It's public under `/api/*`, so the URL to use in Vanity is `https://<your-project>.vercel.app/api`. Import the repo on Vercel, add `DATABASE_URL` and `JWT_SECRET` as project environment variables, and deploy. `vercel dev` at the repo root runs it locally. The entry point is [`src/index.ts`](src/index.ts). Every route works with or without the `/api` prefix.
-
-Any Node 20+ host works too (Render, Fly.io, Railway, a VPS): run `npm start` with the two environment variables set.
-
-## 4. Point Vanity at it
-
-In Vanity, open **Account** (below Settings) → **Server**, and enter the URL: `http://localhost:8787` for local, or your `https://….vercel.app` URL (add `/api` if you deployed from the repo root with services). To build it in, add `MAIN_VITE_VANITY_API_URL=<url>` to the app's `.env.local`.
-
-Everyone who wants to be friends must use the same server URL.
-
-## App updates
-
-The server also hands out Vanity updates, so the desktop app updates from here instead of GitHub.
-
-- **Packing:** `npm run build` (Vercel runs it on every deploy) packs the app in the repo root into `src/generated/update-bundle.ts`. That's the version, `CHANGELOG.md`, and a zip of the source without `node_modules`, builds, git data or `.env` files. The committed placeholder means "no bundle".
-- **Endpoints:**
-  - `GET /update` returns `{ version, changelog, sha, builtAt, size }`.
-  - `GET /update/download` returns the zip.
-  - Both also work under `/api`.
-- **Optional `UPDATE_KEY` environment variable:** when set, both endpoints need it in an `X-Update-Key` header. The app sends the key from Settings → Updates. Without it, anyone with the URL can download the app's source.
-- **Files outside `server/`:** on Vercel, keep **Include files outside the root directory** on (the default), so the build can see the app. If it can't, the deploy still succeeds, but serves no updates.
+1. The app posts the email and password to Neon Auth (`/sign-in/email`). Neon Auth answers with a session cookie.
+2. The app keeps that cookie in the operating system's protected storage: DPAPI on Windows (`session.bin`, readable only by that Windows user on that PC) and a Keystore-encrypted value on Android. With "Stay signed in" off it is kept in memory only.
+3. To talk to this server, the app trades the cookie for a 15-minute token (a JWT signed with Ed25519) and sends it as `Authorization: Bearer …`. When the token runs out it gets a new one by itself.
+4. If Neon Auth says the session is over (expired, or signed out), the app forgets it and asks you to sign in again.
+5. **Forgot password:** Neon Auth emails a 6-digit code; the app sends the code and the new password back to Neon Auth.
 
 ## API
 
-All routes except `/auth/*` need `Authorization: Bearer <token>`.
+Send `Authorization: Bearer <Neon Auth token>` on everything except the first two rows. Every route also works under `/api`.
 
 | Method | Path | What it does |
 | --- | --- | --- |
-| POST | `/auth/register` | `{ username, password }` → `{ token, user }`. Usernames are 3–20 letters, numbers or `_`, unique ignoring case; passwords at least 8 characters. |
-| POST | `/auth/login` | `{ username, password }` → `{ token, user }` |
-| GET | `/me` | The signed-in user |
-| DELETE | `/me` | Deletes the account and all its data |
+| GET | `/` | `{ name: "vanity-api", ok: true }` |
+| GET | `/usernames/:name` | `{ available }`: whether a username is free (rate-limited per IP) |
+| GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
+| PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
+| DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
 | PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing |
 | DELETE | `/presence` | Signed out / closed: shows as offline |
 | PUT | `/stats` | `{ games: [{ gameKey, gameName, playtimeSeconds, lastPlayedAt }] }` (up to 5000) |
@@ -107,28 +64,30 @@ All routes except `/auth/*` need `Authorization: Bearer <token>`.
 | GET | `/friends/:id/stats` | A friend's playtime totals, top games and recent games (friends only) |
 | GET | `/games/:gameKey/friends` | Friends who've played a game |
 
+Routes after `/me` answer `409` with `code: "needs_username"` until the account has a username.
+
 `gameKey` is `g:<normalised-title>` (e.g. `g:the-witcher-3-wild-hunt`, ignoring punctuation, ™ and edition words), so the same game matches across friends' libraries whichever store they own it on.
 
-**Security notes:**
-- **Passwords:** hashed with scrypt.
-- **Sessions:** HMAC-signed tokens that last 30 days.
-- **Rate limits:** sign-in and registration are limited per IP, per server instance.
-- **Database access:** every query is parameterised.
+**Security notes**
+- **Tokens:** verified against Neon Auth's published keys (`NEON_AUTH_JWKS_URL`, injected by Neon), EdDSA only, with the expiry enforced.
+- **Database:** every query is parameterised, and the tables hold no passwords or emails (`src/schema.ts`). The server creates its tables by itself on first use.
+- **Deleting an account** removes what Vanity stores. The sign-in record at Neon Auth stays until you remove it in the Neon console (Auth → Users).
 
-There is no email or password reset. To add one later, add an `email` column and a reset flow.
-
-## Trying it without Neon
+## Working on it
 
 ```bash
-DATABASE_URL=pglite: JWT_SECRET=any-32-plus-character-secret-for-local-use npm run dev
+cd server
+npm install
+npm test             # every route on an in-process Postgres (PGlite), plus the app's account code
+                     # signing in at a local stand-in for Neon Auth, end to end
+npm run typecheck
 ```
 
-This runs on an in-memory Postgres (PGlite), with no Neon account needed, and the data is gone when it stops. Use `pglite:./data` to keep it in a folder.
+- **Try the app's account screens without Neon:** `npx tsx test/support/local-stack.ts` starts a stand-in for Neon Auth and this server on one local port (reset codes are printed in that terminal). Then, in the repo root:
+  `MAIN_VITE_NEON_AUTH_URL=http://127.0.0.1:8791/neondb/auth MAIN_VITE_VANITY_BACKEND_URL=http://127.0.0.1:8791/api npm run dev`
+- **Deploy by hand** instead of the workflow: `NEON_API_KEY=… npx neon deploy --project-id <id>`, then `node scripts/smoke.mjs` with `NEON_AUTH_URL` and `VANITY_API_URL` set.
+- **Files:** `neon.ts` (what Neon should run), `src/function.ts` (Neon Function entry), `src/app.ts` (routes), `src/auth.ts` (token check), `src/schema.ts` (tables).
 
-## Tests
+## App updates (run-from-source copies only)
 
-```bash
-npm test
-```
-
-The tests run the real `schema.sql` and every route against an in-process Postgres (PGlite), so no Neon connection is needed. `test/app-client.test.ts` also runs the desktop app's account service against this server end to end.
+Unrelated to accounts: `src/index.ts` is a second entry for hosting this same app on Vercel, where `npm run build` packs the Vanity source into an update bundle served at `/update` and `/update/download` (optionally protected by `UPDATE_KEY`). Only copies of Vanity that are run from source use it (`MAIN_VITE_VANITY_API_URL`). Installed copies update from GitHub Releases and don't need it.

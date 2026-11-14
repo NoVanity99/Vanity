@@ -40,6 +40,14 @@ export interface VanityNative {
    */
   installUpdate?(opts: { url: string }): Promise<void>
   addListener?(event: 'updateProgress', cb: (data: { percent: number }) => void): Promise<{ remove(): Promise<void> }> | { remove(): Promise<void> }
+  /**
+   * One https request made by the app itself, not the web view, so the Cookie and Origin headers
+   * can be set (sign-in with Neon Auth needs both). Nothing is stored by Android.
+   */
+  http?(opts: { url: string; method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; setCookie: string[]; body: string }>
+  /** A small secret kept encrypted with a key from the Android Keystore. */
+  secureSet?(opts: { key: string; value: string | null }): Promise<void>
+  secureGet?(opts: { key: string }): Promise<{ value: string | null }>
   /** Opens a web address (or a file download) outside Vanity. */
   openUrl(opts: { url: string }): Promise<void>
 }

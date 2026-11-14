@@ -158,11 +158,11 @@ export function FriendsPage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (!account?.signedIn) return
+    if (!account?.username) return
     void load()
     const t = setInterval(() => void load(), REFRESH_MS)
     return () => clearInterval(t)
-  }, [account?.signedIn, load])
+  }, [account?.username, load])
 
   const groups = useMemo(() => {
     const f = list?.friends ?? []
@@ -196,7 +196,7 @@ export function FriendsPage(): React.JSX.Element {
 
   if (!account) return <div className="h-full" />
 
-  if (!account.signedIn) {
+  if (!account.username) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-10 text-center">
         <div className="animate-pop-in mb-6 flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-accent to-accent-2 shadow-2xl shadow-accent/30">
@@ -205,7 +205,7 @@ export function FriendsPage(): React.JSX.Element {
         <h1 className="text-3xl font-bold tracking-tight">Play together</h1>
         <p className="mt-2 max-w-md text-muted">Sign in to your Vanity account to see your friends, what they're playing right now, and their stats.</p>
         <Button variant="primary" className="mt-7 h-11 px-6" onClick={() => navigate('/account')}>
-          <LogIn className="size-4" /> {account.serverConfigured ? 'Sign in or create an account' : 'Set up accounts'}
+          <LogIn className="size-4" /> Sign in or create an account
         </Button>
       </div>
     )

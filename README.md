@@ -186,7 +186,12 @@ Requests go through Electron's network stack, so Windows proxy settings apply. R
 
 ## Accounts and friends
 
-Friends, presence ("Playing X · 23 min") and shared stats use a small account server in [`server/`](server/README.md), backed by **Neon** Postgres. That README walks through creating the Neon database, running the server locally or on Vercel, and pointing Vanity at it, either on the Account page or with `MAIN_VITE_VANITY_API_URL` in `.env.local`. The app only talks to that server, never to the database, so no database credentials ship with the app.
+Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the one-time setup: two keys pasted into GitHub, then one click).
+
+- **Sign-in** is handled by Neon Auth: email and password, "stay signed in", and "forgot password" with a 6-digit code sent by email. Vanity has no password code of its own.
+- **Your session** is kept in the operating system's protected storage (DPAPI on Windows, the Keystore on Android), never in a plain-text file. With "Stay signed in" off, it is forgotten when Vanity closes.
+- **Friends, presence ("Playing X · 23 min") and shared stats** use the Vanity server, a Neon Function. The app only talks to that server, never to the database, and nothing secret ships with the app.
+- **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
 
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
@@ -277,7 +282,7 @@ When run from source, Vanity updates itself from your **Vanity server on Vercel*
 
 - **Checking:** every minute, in the background. When a new version is out, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
 - **Where updates come from:** every Vercel deploy of the server runs `npm run build` in `server/`. That packs the app, the version from `package.json` and `CHANGELOG.md` into the deployment (`server/scripts/build-update-bundle.mjs`). The server hands them out at `/api/update` (version and notes) and `/api/update/download` (the files). So pushing a new version and letting Vercel deploy is all it takes.
-- **Which server:** the one set on the **Account** page, or `MAIN_VITE_VANITY_API_URL` in `.env.local` (e.g. `https://<project>.vercel.app/api`). Settings → Updates shows which one it uses.
+- **Which server:** `MAIN_VITE_VANITY_API_URL` in `.env.local` (e.g. `https://<project>.vercel.app/api`). This is separate from accounts, which run on Neon. Settings → Updates shows which one it uses.
 - **Keeping it private:** the bundle is the full app source. To stop anyone else downloading it, set `UPDATE_KEY` (any long random string) in the Vercel project's environment variables. Put the same key in **Settings → Updates** (or `MAIN_VITE_UPDATE_KEY` in `.env.local`).
 - **Installing:** Vanity downloads the new files over its own, keeping `node_modules`, your `.env.local` and your data. It runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
 - **Without a server address:** Vanity falls back to GitHub. A git clone updates with git and your GitHub login; a downloaded copy needs a GitHub token in Settings → Updates. The branch is `vanity.updateBranch` in `package.json`.
