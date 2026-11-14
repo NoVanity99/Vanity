@@ -14,8 +14,9 @@ export function nameKey(name: string): string {
 /** When two copies tie on everything else, the one from the launcher higher in this list is shown. */
 const SOURCE_ORDER: GameSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'android', 'custom', 'manual']
 
-/** Higher is better: installed, then the copy you've played most, your favourite, then by launcher. */
+/** Higher is better: installed on this device, found by the last scan, then the copy you've played most, your favourite, then by launcher. */
 function better(a: Game, b: Game): Game {
+  if (a.installed !== b.installed) return a.installed ? a : b
   if (a.missing !== b.missing) return a.missing ? b : a
   if (a.hidden !== b.hidden) return a.hidden ? b : a
   if (a.playtimeSeconds !== b.playtimeSeconds) return a.playtimeSeconds > b.playtimeSeconds ? a : b

@@ -17,6 +17,8 @@ export interface SteamDeps {
   account: AccountService
   /** Opens a web address in the system browser. */
   openExternal(url: string): Promise<void>
+  /** The linked account's games (null: unlinked, signed out, or not shared). Used to show owned games in the library. */
+  onOwnedGames?(games: SteamGame[] | null): void
   /** Achievement XP changed: recompute progress (and sync). */
   onProgress(): void
   onChange(state: SteamState): void
@@ -86,6 +88,7 @@ export class SteamService {
       this.s = { ...EMPTY }
       this.kv.delete(STATE_KEY)
       this.setAchievements(0)
+      this.deps.onOwnedGames?.(null)
       this.deps.onChange(this.state())
       return
     }
@@ -108,6 +111,7 @@ export class SteamService {
       if (!link) {
         this.set({ configured, link: null, gamesPrivate: false, privateMessage: null, ownedGames: null, achievements: null, error: null })
         this.setAchievements(0)
+        this.deps.onOwnedGames?.(null)
         return this.state()
       }
       this.set({ configured, link, error: null })
@@ -126,13 +130,17 @@ export class SteamService {
       this.set({ gamesPrivate: false, privateMessage: null, ownedGames: summary.gamesTotal, achievements: { unlocked: summary.unlocked, total: summary.total, complete: summary.complete } })
       this.setAchievements(summary.unlocked)
       const owned = await this.deps.account.guard((c) => c.steamOwnedGames()).catch(() => null)
-      if (owned) this.set({ ownedGames: owned.length })
+      if (owned) {
+        this.set({ ownedGames: owned.length })
+        this.deps.onOwnedGames?.(owned)
+      }
       // A big library is counted a batch at a time: keep asking until it's done.
       if (!summary.complete) this.retry = setTimeout(() => void this.refresh(), COUNTING_RETRY_MS)
     } catch (err) {
       if (err instanceof AccountError && err.code === 'steam_private') {
         this.set({ gamesPrivate: true, privateMessage: err.message, ownedGames: null, achievements: null })
         this.setAchievements(0)
+        this.deps.onOwnedGames?.(null)
         return
       }
       throw err
@@ -152,6 +160,7 @@ export class SteamService {
     this.signInRun++
     this.set({ link: null, gamesPrivate: false, privateMessage: null, ownedGames: null, achievements: null, signingIn: false, error: null })
     this.setAchievements(0)
+    this.deps.onOwnedGames?.(null)
     return this.state()
   }
 

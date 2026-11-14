@@ -18,6 +18,15 @@ export interface LibraryStore {
   update(id: number, patch: GamePatch): Game | null
   /** Removes a game and remembers it, so scans don't add it back. */
   remove(id: number): void
+  /**
+   * Makes the library's "owned, not installed" games of `source` match `owned`:
+   * adds the ones that aren't in the library, turns owned games that were uninstalled into
+   * "not installed" (instead of "not found"), and drops ones no longer owned.
+   * Installed games and games the user removed are left alone. Returns true if anything changed.
+   */
+  syncOwned(source: GameSource, owned: { externalId: string; name: string; coverUrl: string | null; heroUrl: string | null }[]): boolean
+  /** The account was unlinked: takes its "not installed" games out again. Returns true if anything changed. */
+  clearOwned(source: GameSource): boolean
   /** Games the user removed that scans are skipping. */
   removed(): { source: GameSource; externalId: string; name: string }[]
   /** Forgets the removed list, so the next scan can add those games again. Returns how many. */
@@ -34,6 +43,7 @@ interface GameRow {
   favorite: number
   hidden: number
   missing: number
+  not_installed: number
   added_at: number
   last_played_at: number | null
   playtime_seconds: number
@@ -81,6 +91,7 @@ function toGame(r: GameRow): Game {
     favorite: r.favorite === 1,
     hidden: r.hidden === 1,
     missing: r.missing === 1,
+    installed: r.not_installed !== 1,
     addedAt: r.added_at,
     lastPlayedAt: r.last_played_at,
     // Shown everywhere as one number: this device plus your other devices (cloud sync).
@@ -131,12 +142,23 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
          install_path = @installPath,
          executable_path = CASE WHEN executable_locked = 1 THEN executable_path ELSE @executablePath END,
          missing = 0,
+         not_installed = 0,
          last_seen_at = @now
        WHERE id = @id`
     ),
+    // Games that are known not to be installed can't go "missing".
     sourceIds: db.prepare<[string], { id: number; external_id: string; missing: number }>(
-      'SELECT id, external_id, missing FROM games WHERE source = ?'
+      'SELECT id, external_id, missing FROM games WHERE source = ? AND not_installed = 0'
     ),
+    ownedRows: db.prepare<[string], { id: number; external_id: string; missing: number; not_installed: number; played: number }>(
+      'SELECT id, external_id, missing, not_installed, (playtime_seconds + cloud_playtime_seconds > 0 OR last_played_at IS NOT NULL OR favorite = 1 OR user_updated_at > 0) AS played FROM games WHERE source = ?'
+    ),
+    insertOwned: db.prepare(
+      `INSERT INTO games (source, external_id, name, cover_path, hero_path, not_installed, added_at, last_seen_at)
+       VALUES (@source, @externalId, @name, @coverUrl, @heroUrl, 1, @now, @now)`
+    ),
+    setNotInstalled: db.prepare<[number]>('UPDATE games SET not_installed = 1, missing = 0, install_path = NULL, executable_path = CASE WHEN executable_locked = 1 THEN executable_path ELSE NULL END WHERE id = ?'),
+    setUninstalledMissing: db.prepare<[number]>('UPDATE games SET not_installed = 0, missing = 1 WHERE id = ?'),
     setMissing: db.prepare<[number, number]>('UPDATE games SET missing = ? WHERE id = ?'),
     remove: db.prepare<[number]>('DELETE FROM games WHERE id = ?'),
     isRemoved: db.prepare<[string, string], { n: number }>('SELECT 1 AS n FROM removed_games WHERE source = ? AND external_id = ?'),
@@ -274,6 +296,44 @@ export function createSqliteStore(db: Db, now: () => number = Date.now): Library
       const game = get(id)
       if (game) q.remember.run(game.source, game.externalId, game.name, now())
       q.remove.run(id)
+    }),
+    syncOwned: db.transaction((source: GameSource, owned: { externalId: string; name: string; coverUrl: string | null; heroUrl: string | null }[]) => {
+      let changed = false
+      const rows = new Map(q.ownedRows.all(source).map((r) => [r.external_id, r]))
+      const ownedIds = new Set<string>()
+      const t = now()
+      for (const o of owned) {
+        if (!o.externalId || !o.name) continue
+        ownedIds.add(o.externalId)
+        const row = rows.get(o.externalId)
+        if (!row) {
+          if (q.isRemoved.get(source, o.externalId)) continue
+          q.insertOwned.run({ source, externalId: o.externalId, name: o.name, coverUrl: o.coverUrl, heroUrl: o.heroUrl, now: t })
+          changed = true
+        } else if (row.missing === 1 && row.not_installed === 0) {
+          // Uninstalled, but you still own it: it can be installed again.
+          q.setNotInstalled.run(row.id)
+          changed = true
+        }
+      }
+      for (const row of rows.values()) {
+        if (row.not_installed !== 1 || ownedIds.has(row.external_id)) continue
+        // No longer owned (a refund, or family sharing ended). Keep it only if it has history.
+        if (row.played) q.setUninstalledMissing.run(row.id)
+        else q.remove.run(row.id)
+        changed = true
+      }
+      return changed
+    }),
+    clearOwned: db.transaction((source: GameSource) => {
+      let changed = false
+      for (const row of q.ownedRows.all(source)) {
+        if (row.not_installed !== 1) continue
+        if (row.played) q.setUninstalledMissing.run(row.id)
+        else q.remove.run(row.id)
+        changed = true
+      }
+      return changed
     }),
     removed: () => q.removedList.all(),
     restoreRemoved: () => q.forgetAll.run().changes

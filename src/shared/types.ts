@@ -31,6 +31,8 @@ export interface Game {
   hidden: boolean
   /** The last scan of this game's source no longer found it (uninstalled or moved). */
   missing: boolean
+  /** False for a game you own on a linked account (Steam) but haven't installed on this device. */
+  installed: boolean
   addedAt: number
   lastPlayedAt: number | null
   playtimeSeconds: number

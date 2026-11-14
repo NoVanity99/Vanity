@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { EyeOff, Eye, FolderOpen, Image, Layers, Pencil, Play, RefreshCw, Star, StarOff, Trash2 } from 'lucide-react'
+import { Download, EyeOff, Eye, FolderOpen, Image, Layers, Pencil, Play, RefreshCw, Star, StarOff, Trash2 } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
@@ -16,7 +16,7 @@ export function useGameMenu(): {
   openMenu: (e: React.MouseEvent, game: Game) => void
   menu: React.JSX.Element | null
 } {
-  const { updateGame, removeGame, openFolder, launch, sessions, replaceGame } = useLibrary()
+  const { updateGame, removeGame, openFolder, launch, install, sessions, replaceGame } = useLibrary()
   const toast = useToast()
   const [state, setState] = useState<{ x: number; y: number; game: Game } | null>(null)
   const [editing, setEditing] = useState<Game | null>(null)
@@ -51,7 +51,9 @@ export function useGameMenu(): {
     const items: MenuItem[] = [
       sessions[g.id]
         ? { label: sessions[g.id] === 'running' ? 'Playing' : 'Starting…', icon: Play, onSelect: () => {}, disabled: true }
-        : { label: 'Play', icon: Play, onSelect: () => launch(g.id) },
+        : g.installed
+          ? { label: 'Play', icon: Play, onSelect: () => launch(g.id) }
+          : { label: 'Install', icon: Download, onSelect: () => install(g.id) },
       {
         label: g.favorite ? 'Remove from favorites' : 'Add to favorites',
         icon: g.favorite ? StarOff : Star,

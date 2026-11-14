@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.13.0 (2026-11-14)
+- New: **your library now shows games you own but haven't installed** (stage 4 of the accounts and cloud update). With a Steam account linked, every game in your Steam library appears.
+  - Games that aren't installed are greyed out, marked "Not installed", and have an **Install** button instead of Play.
+  - New filter at the top of the Library: **All / Installed / Not installed**, with a count on each.
+  - Install hands the game to Steam (Steam games install through Steam; Vanity says so). When Steam finishes, the game moves to Installed by itself and Vanity tells you.
+  - Uninstall a Steam game you still own and it goes back to "Not installed", keeping its playtime, instead of showing as "Not found".
+  - They use Steam's own cover art straight away. You can favourite them and put them in collections.
+  - If you have the same game installed from another launcher, you see that one copy, not two.
+  - Unlink Steam and they leave the library again. Removing one by hand keeps it away.
+- Play, Surprise me, Vibe Check, Big Picture and the game count in the sidebar still only use games you can start right now.
+- On Android the library stays as it is: PC games can't be installed on a phone.
+
 ## 0.12.0 (2026-11-14)
 - New: **link your Steam account** (stage 3 of the accounts and cloud update). On the Account page there is a new "Linked accounts" section.
   - Paste any of: your SteamID (17 digits), your profile link (steamcommunity.com/profiles/… or steamcommunity.com/id/yourname), or just your custom URL name.

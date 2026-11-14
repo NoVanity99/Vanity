@@ -1,12 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
-import type { AccountState, SteamState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
+import type { AccountState, Game, SteamState, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
   platform: 'desktop',
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
+    onChanged: (callback) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(IPC.gamesChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.gamesChanged, listener)
+    },
+    install: (id) => ipcRenderer.invoke(IPC.gamesInstall, id),
+    onInstalled: (callback) => {
+      const listener = (_: Electron.IpcRendererEvent, game: Game): void => callback(game)
+      ipcRenderer.on(IPC.gamesInstalled, listener)
+      return () => ipcRenderer.removeListener(IPC.gamesInstalled, listener)
+    },
     update: (id, patch) => ipcRenderer.invoke(IPC.gamesUpdate, id, patch),
     remove: (id) => ipcRenderer.invoke(IPC.gamesRemove, id),
     removed: () => ipcRenderer.invoke(IPC.gamesRemoved),

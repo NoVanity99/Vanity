@@ -17,6 +17,9 @@ import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
 import type { SyncService } from '../sync/service'
 import type { SteamService } from '../steam/service'
+import type { OwnedGames } from '../library/owned'
+import type { Installers } from '../install/installer'
+import type { InstallWatcher } from '../install/watcher'
 import { killProcesses, listProcesses } from '../launcher/processes'
 import { stopGame } from '../launcher/stop'
 import { gameKey } from '../account/gameKey'
@@ -74,11 +77,14 @@ export interface IpcDeps {
   account: AccountService
   sync: SyncService
   steam: SteamService
+  owned: OwnedGames
+  installers: Installers
+  installWatcher: InstallWatcher
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -86,6 +92,15 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
 
   ipcMain.handle(IPC.gamesList, () => store.list())
   ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
+  ipcMain.handle(IPC.gamesInstall, (_e, id: number) =>
+    wrap(async () => {
+      const game = store.get(Number(id))
+      if (!game) throw new Error('This game is no longer in your library.')
+      const started = await installers.install(game)
+      installWatcher.watch(game.id)
+      return { note: started.note }
+    })
+  )
   ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => {
     const game = store.update(id, patch)
     sync.touch()
@@ -102,6 +117,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.gamesLaunch, async (_e, id: number) => {
     const game = store.get(id)
     if (!game) return 'This game is no longer in your library.'
+    if (!game.installed) return `${game.name} isn't installed on this PC yet. Use Install first.`
     try {
       const result = await launchGame(game, {
         openExternal: (url) => shell.openExternal(url),
@@ -182,6 +198,8 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
       }
     })
       .then((summary) => {
+        // An owned game the scan found is installed now; one it lost is "not installed" again.
+        owned.reapply()
         // Fetch artwork and details for anything new.
         metadata.enqueuePending()
         return summary

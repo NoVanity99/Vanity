@@ -218,6 +218,17 @@ Account → **Linked accounts** links a Steam account to your Vanity account.
 - **Achievements** unlocked on Steam count towards XP (`perSteamAchievement` in `src/shared/xpConfig.ts`).
 - **The Steam Web API key is never in the app or this repository.** It is a secret of the Vanity server on Neon. The app calls the server with your sign-in token; the server adds the key, asks Steam and answers. See [server/README.md](server/README.md) for where the key goes.
 
+## Owned games in the library
+
+With a Steam account linked, the Library shows every game you own, installed or not.
+
+- **Not installed** games are greyed out with an **Install** button, and the Library gets an **All / Installed / Not installed** filter.
+- **How they get there:** the Vanity server lists your Steam games (`/steam/owned-games`); `src/main/library/owned.ts` keeps the library's "not installed" entries in step with that list, re-applying it after every scan. A scan that finds the game installed turns the same entry into an installed one, so favourites, collections and playtime carry over.
+- **Installing** goes through `src/main/install/installer.ts`. Each store has an `Installer` (`canInstall`, `install`). Steam's is `SteamClientInstaller`: it opens `steam://install/<appid>` and Steam does the rest. A SteamCMD-based installer can be added later as another class and placed ahead of it in the list in `src/main/index.ts`; nothing else needs to change.
+- **After Install**, `src/main/install/watcher.ts` re-scans the launchers every 30 seconds until the game shows up as installed.
+- **Artwork** for not-installed games comes straight from Steam's image servers; the full artwork look-up runs once a game is installed.
+- **Windows only.** PC games can't be installed on a phone, so the Android library doesn't list them.
+
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
 - **Stats:** your playtime syncs after each session and every 15 minutes.

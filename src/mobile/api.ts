@@ -246,6 +246,9 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     games: {
       list: async () => store.list(),
       get: async (id) => store.get(id),
+      onChanged: () => () => {},
+      install: async () => ({ error: NOT_ON_ANDROID }),
+      onInstalled: () => () => {},
       update: async (id, patch: GamePatch) => {
         const game = store.update(id, patch)
         progress.touch()

@@ -30,9 +30,11 @@ interface Prefs {
   /** Minimum card width in px (the size slider). */
   cardWidth: number
   layout: 'grid' | 'list'
+  /** All games, only installed ones, or only ones you own but haven't installed. */
+  installed: 'all' | 'installed' | 'not-installed'
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168, layout: 'grid' }
+const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168, layout: 'grid', installed: 'all' }
 const CARD_MIN = 128
 const CARD_MAX = 260
 
@@ -88,7 +90,7 @@ export function CollectionPage(): React.JSX.Element {
 }
 
 export function LibraryPage({ view, collection }: { view: View; collection?: { id: number; name: string } }): React.JSX.Element {
-  const { games, loading, scan, addManually, sessions, launch } = useLibrary()
+  const { games, library, loading, scan, addManually, sessions, launch, install } = useLibrary()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -133,10 +135,15 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   // The games this view is about, before search and filters.
   const base = useMemo(() => {
     if (view === 'recent') return games.filter((g) => g.lastPlayedAt !== null)
-    if (view === 'favorites') return games.filter((g) => g.favorite)
-    if (view === 'collection') return games.filter((g) => collection && g.collections.includes(collection.id))
-    return games
-  }, [games, view, collection])
+    // Games you own but haven't installed can still be favourites and sit in collections.
+    if (view === 'favorites') return library.filter((g) => g.favorite)
+    if (view === 'collection') return library.filter((g) => collection && g.collections.includes(collection.id))
+    return library
+  }, [games, library, view, collection])
+
+  const notInstalledCount = useMemo(() => base.filter((g) => !g.installed).length, [base])
+  // The filter only matters when there is something that isn't installed.
+  const installedFilter = notInstalledCount > 0 ? prefs.installed : 'all'
 
   const sources = useMemo(() => [...new Set(base.map((g) => g.source))].sort(), [base])
   const genres = useMemo(() => [...new Set(base.flatMap((g) => g.genres))].sort(), [base])
@@ -152,23 +159,25 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
     const sort = view === 'recent' ? 'recent' : prefs.sort
     return base
       .filter((g) => prefs.showHidden || !g.hidden)
+      .filter((g) => installedFilter === 'all' || (installedFilter === 'installed') === g.installed)
       .filter((g) => source === 'all' || g.source === source)
       .filter((g) => genre === 'all' || g.genres.includes(genre))
       .filter((g) => status === 'all' || (status === 'none' ? g.playStatus === null : g.playStatus === status))
       .filter((g) => !q || searchKey(g.name).includes(q))
       .sort(SORTERS[sort] ?? SORTERS.name)
-  }, [base, query, prefs.showHidden, prefs.sort, source, genre, status, view])
+  }, [base, query, prefs.showHidden, prefs.sort, source, genre, status, view, installedFilter])
 
-  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all' || status !== 'all'
+  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all' || status !== 'all' || installedFilter !== 'all'
   const cardWidth = Math.min(CARD_MAX, Math.max(CARD_MIN, prefs.cardWidth || DEFAULT_PREFS.cardWidth))
   const gridStyle = { gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))` }
   const clearFilters = (): void => {
     setQuery('')
-    patch({ source: 'all', genre: 'all', status: 'all' })
+    patch({ source: 'all', genre: 'all', status: 'all', installed: 'all' })
   }
 
   const openGame = useCallback((g: Game): void => void navigate(`/game/${g.id}`), [navigate])
   const playGame = useCallback((g: Game): void => void launch(g.id), [launch])
+  const installGame = useCallback((g: Game): void => void install(g.id), [install])
 
   // "Jump back in": the three most recent, on the main Library view when nothing is filtered.
   const recent = useMemo(
@@ -277,6 +286,29 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
               onChange={(v) => patch({ genre: v })}
               options={[{ value: 'all', label: 'All genres' }, ...genres.map((g) => ({ value: g, label: g }))]}
             />
+          )}
+
+          {notInstalledCount > 0 && (
+            <div className="flex h-9 rounded-lg border border-border bg-surface-2 p-0.5 text-sm" role="radiogroup" aria-label="Installed">
+              {(
+                [
+                  ['all', 'All', base.length],
+                  ['installed', 'Installed', base.length - notInstalledCount],
+                  ['not-installed', 'Not installed', notInstalledCount]
+                ] as const
+              ).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={installedFilter === value}
+                  onClick={() => patch({ installed: value })}
+                  className={cn('flex items-center gap-1.5 rounded-md px-3 transition', installedFilter === value ? 'bg-accent font-semibold text-white shadow' : 'text-muted hover:text-text')}
+                >
+                  {label}
+                  <span className={cn('text-xs tabular-nums', installedFilter === value ? 'text-white/80' : 'text-muted/70')}>{count}</span>
+                </button>
+              ))}
+            </div>
           )}
 
           {hiddenCount > 0 && (
@@ -399,6 +431,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                       players={players[g.id]}
                       onOpen={openGame}
                       onPlay={playGame}
+                      onInstall={installGame}
                       onMenu={openMenu}
                     />
                   ))}
@@ -415,6 +448,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                     players={players[g.id]}
                     onOpen={openGame}
                     onPlay={playGame}
+                    onInstall={installGame}
                     onMenu={openMenu}
                   />
                 ))}

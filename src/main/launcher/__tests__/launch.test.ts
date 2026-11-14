@@ -13,7 +13,7 @@ const game = (over: Partial<Game>): Game => ({
   executablePath: 'C:\\Games\\Celeste\\Celeste.exe',
   favorite: false,
   hidden: false,
-  missing: false,
+  missing: false, installed: true,
   addedAt: 0,
   lastPlayedAt: null,
   playtimeSeconds: 0,

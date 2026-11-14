@@ -110,5 +110,9 @@ export const migrations: string[] = [
     id           TEXT PRIMARY KEY,
     unlocked_at  INTEGER NOT NULL
   );
+  `,
+  // 9: games you own on a linked account but haven't installed on this device
+  `
+  ALTER TABLE games ADD COLUMN not_installed INTEGER NOT NULL DEFAULT 0;
   `
 ]

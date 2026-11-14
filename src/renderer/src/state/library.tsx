@@ -5,7 +5,10 @@ import { useToast } from './toasts'
 
 interface LibraryState {
   /** Your library, one entry per game name (the same game found twice is shown once). */
+  /** The games you can play here: installed on this device, one entry per name. */
   games: Game[]
+  /** Everything in the library, one entry per name: installed games plus ones you own but haven't installed. */
+  library: Game[]
   /** Every stored game, including duplicate copies that aren't shown. For looking a game up by ID. */
   allGames: Game[]
   loading: boolean
@@ -17,6 +20,8 @@ interface LibraryState {
   /** Launch state per game ID; absent means not running. */
   sessions: Record<number, Exclude<SessionState, 'stopped'>>
   launch(id: number): Promise<void>
+  /** Installs a game you own but haven't installed (Steam games install through Steam). */
+  install(id: number): Promise<void>
   /** Cancels a game that is starting, or force-closes one that is running. */
   stop(id: number): Promise<void>
   pickExecutable(id: number): Promise<void>
@@ -47,7 +52,9 @@ const message = (err: unknown): string => (err instanceof Error ? err.message : 
 export function LibraryProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const toast = useToast()
   const [allGames, setGames] = useState<Game[]>([])
-  const games = useMemo(() => dedupeByName(allGames), [allGames])
+  const library = useMemo(() => dedupeByName(allGames), [allGames])
+  // Play, Surprise me, Vibe Check, Big Picture and the counts are about games you can start right now.
+  const games = useMemo(() => library.filter((g) => g.installed), [library])
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<ScanProgress[]>([])
@@ -174,6 +181,16 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     [toast]
   )
 
+  // Owned games arrive from linked accounts, and installs finish, in the background.
+  useEffect(() => {
+    const offChanged = window.vanity.games.onChanged(() => void refresh())
+    const offInstalled = window.vanity.games.onInstalled((game) => toast(`${game.name} is installed and ready to play`))
+    return () => {
+      offChanged()
+      offInstalled()
+    }
+  }, [refresh, toast])
+
   // Playtime is saved while a game runs; refresh it so the numbers tick up.
   const runningIds = Object.entries(sessions)
     .filter(([, state]) => state === 'running')
@@ -184,6 +201,15 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     const timer = setInterval(() => runningIds.split(',').forEach((id) => reloadGame(Number(id))), 15_000)
     return () => clearInterval(timer)
   }, [runningIds, reloadGame])
+
+  const install = useCallback(
+    async (id: number) => {
+      const res = await window.vanity.games.install(id).catch((err) => ({ error: message(err), data: undefined }))
+      if (res.error !== undefined) toast(res.error, 'error')
+      else toast(res.data.note)
+    },
+    [toast]
+  )
 
   /** Cancels a game that is starting, or force-closes one that is running. */
   const stop = useCallback(
@@ -234,6 +260,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
   const value = useMemo<LibraryState>(
     () => ({
       games,
+      library,
       allGames,
       loading,
       refresh,
@@ -243,6 +270,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       openFolder,
       sessions,
       launch,
+      install,
       stop,
       pickExecutable,
       scan: { running, progress, last, start },
@@ -253,6 +281,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
     }),
     [
       games,
+      library,
       allGames,
       loading,
       refresh,
@@ -262,6 +291,7 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       openFolder,
       sessions,
       launch,
+      install,
       stop,
       pickExecutable,
       running,

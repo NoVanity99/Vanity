@@ -70,6 +70,15 @@ export interface VanityApi {
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
+    /** The library changed in the background (owned games arrived, an install finished). */
+    onChanged(callback: () => void): () => void
+    /**
+     * Installs a game you own but haven't installed. Resolves with a sentence about what happens
+     * next (Steam games install through the Steam client).
+     */
+    install(id: number): Promise<Result<{ note: string }>>
+    /** A game whose install was started from Vanity is installed now. */
+    onInstalled(callback: (game: Game) => void): () => void
     update(id: number, patch: GamePatch): Promise<Game | null>
     /** Removes a game from the library. Scans skip it from then on, until it's restored. */
     remove(id: number): Promise<void>
@@ -269,6 +278,9 @@ export interface VanityApi {
 export const IPC = {
   gamesList: 'games:list',
   gamesGet: 'games:get',
+  gamesChanged: 'games:changed',
+  gamesInstall: 'games:install',
+  gamesInstalled: 'games:installed',
   gamesUpdate: 'games:update',
   gamesRemove: 'games:remove',
   gamesRemoved: 'games:removed',

@@ -27,8 +27,13 @@ function Placeholder({ game, showTitle }: { game: Game; showTitle: boolean }): R
  * the image then fades in. Without a cover, the placeholder stays.
  */
 export function CoverArt({ game, className }: { game: Game; className?: string }): React.JSX.Element {
-  const src = mediaUrl(game.coverPath)
+  // Owned Steam games use Steam's own cover. Newer games don't have one at the usual address:
+  // their wide store image is tried next, before falling back to the name tile.
+  const [fallback, setFallback] = useState(false)
+  const steamApp = /\/steam\/apps\/(\d+)\/library_600x900\.jpg$/.exec(game.coverPath ?? '')?.[1]
+  const src = fallback && steamApp ? `https://shared.steamstatic.com/store_item_assets/steam/apps/${steamApp}/header.jpg` : mediaUrl(game.coverPath)
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading')
+  useEffect(() => setFallback(false), [game.coverPath])
   const img = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
@@ -61,7 +66,7 @@ export function CoverArt({ game, className }: { game: Game; className?: string }
           loading="lazy"
           decoding="async"
           onLoad={() => setState('loaded')}
-          onError={() => setState('failed')}
+          onError={() => (steamApp && !fallback ? setFallback(true) : setState('failed'))}
           className={cn(
             'absolute inset-0 size-full object-cover transition-[opacity,transform] duration-500 ease-out',
             state === 'loaded' ? 'opacity-100' : 'scale-[1.02] opacity-0'
