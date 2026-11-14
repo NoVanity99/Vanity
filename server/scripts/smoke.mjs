@@ -104,7 +104,13 @@ try {
   } else if (!steamLink.json?.configured) {
     console.log('note  Steam linking is off: the server has no Steam key yet (add the STEAM_WEB_API_KEY repository secret and deploy again)')
   } else {
-    const looked = await api('POST', '/steam/resolve', jwt, { input: '76561197960287930' })
+    // Right after a deploy, some requests can still reach the previous copy of the server (without
+    // the key) for a few seconds: give the new one a moment before judging.
+    let looked = await api('POST', '/steam/resolve', jwt, { input: '76561197960287930' })
+    for (let i = 0; i < 12 && looked.json?.code === 'steam_not_configured'; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      looked = await api('POST', '/steam/resolve', jwt, { input: '76561197960287930' })
+    }
     step('the Steam key works (looked up a public Steam profile)', looked.status === 200 && looked.json?.profile?.steamId === '76561197960287930', `HTTP ${looked.status} ${looked.status === 200 ? looked.json?.profile?.name : (looked.json?.code ?? looked.text.slice(0, 120))}`)
     const noLink = await api('GET', '/steam/owned-games', jwt)
     step('Steam games need a linked account', noLink.status === 409 && noLink.json?.code === 'steam_not_linked', `HTTP ${noLink.status}`)
