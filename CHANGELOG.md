@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.16.3 (2026-11-15)
+- Changed: **verified and admin badges now arrive live.** When a badge is granted (or taken away) on the server, every running copy of Vanity picks it up within about a minute, with no app update and no restart: the app's once-a-minute check-in with the server now brings the account's badges back with it. Friends see it the next time their Friends list refreshes (every 30 seconds while it is open).
+- **Max** is now a verified account.
+
 ## 0.16.2 (2026-11-15)
 - Changed: **the Account page fills the whole page too.** Your account (or the sign-in form) is on the left and Linked accounts on the right, instead of one narrow column in the middle. On a small window or a phone they stack as before.
 

@@ -231,7 +231,9 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       VALUES (${c.get('userId')}, ${gameKey}, ${gameName}, CASE WHEN ${startedAt}::float8 IS NULL THEN NULL ELSE to_timestamp(${startedAt}::float8) END, false, now())
       ON CONFLICT (user_id) DO UPDATE SET game_key = excluded.game_key, game_name = excluded.game_name,
         started_at = excluded.started_at, signed_off = false, updated_at = now()`
-    return c.body(null, 204)
+    // The app checks in here about once a minute, so the answer carries the account's official
+    // badges: one granted or taken away in roles.ts reaches every running app without an update.
+    return c.json(rolesFor(c.get('username')))
   })
 
   app.delete('/presence', requireAuth, requireUser, async (c) => {

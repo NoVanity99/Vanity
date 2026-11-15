@@ -2,10 +2,13 @@
 // give themselves one from the app. Names are matched without regard to capitals.
 //
 // To add someone, put their Vanity username in the list and deploy the server
-// (pushing this file runs the "Deploy backend" workflow by itself).
+// (pushing this file runs the "Deploy backend" workflow by itself). Nobody has to update the
+// app: every running copy of Vanity checks in with the server about once a minute, and the
+// answer carries that account's badges, so a new badge shows up within a minute or so, for
+// the person and for their friends.
 
 /** The blue check: this account is officially who it says it is. */
-export const VERIFIED_USERNAMES = ['SBCVanity']
+export const VERIFIED_USERNAMES = ['SBCVanity', 'Max']
 
 /** The gold crown: this account runs Vanity. */
 export const ADMIN_USERNAMES = ['SBCVanity']

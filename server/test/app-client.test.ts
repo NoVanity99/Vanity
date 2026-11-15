@@ -1,6 +1,7 @@
 // End to end: the app's AccountService signing in at a real Better Auth server (the software
 // Neon Auth runs, configured the way Neon documents it) and talking to this server with the
 // tokens it gets (real routes, real token checks, real SQL on PGlite).
+import { VERIFIED_USERNAMES } from '../src/roles'
 import { PGlite } from '@electric-sql/pglite'
 import { betterAuth } from 'better-auth'
 import { memoryAdapter } from 'better-auth/adapters/memory'
@@ -143,6 +144,36 @@ describe('app ↔ Neon Auth ↔ server', () => {
 
     await friend.service.signOut()
     expect((await me.service.guard((c) => c.friends())).friends[0].status.state).toBe('offline')
+  })
+
+  it('shows a badge granted on the server within a check-in, with no app update, and takes it away the same way', async () => {
+    const { env } = await world()
+    const me = vanity(env)
+    const friend = vanity(env)
+    await me.service.signUp('late@example.com', 'latecomer', 'correct horse', true)
+    await friend.service.signUp('pal@example.com', 'pal', 'battery staple', true)
+    me.service.stop()
+    friend.service.stop()
+    await me.service.guard((c) => c.addFriend('pal'))
+    const req = await friend.service.guard((c) => c.friends())
+    await friend.service.guard((c) => c.accept(req.incoming[0].id))
+    expect(me.service.state()).toMatchObject({ verified: false, admin: false })
+
+    // The server's list changes while both apps are running.
+    VERIFIED_USERNAMES.push('LateComer')
+    try {
+      await me.service.heartbeat() // the app's once-a-minute check-in
+      expect(me.service.state()).toMatchObject({ verified: true, admin: false })
+      expect(me.states.at(-1)).toMatchObject({ verified: true }) // the screens were told
+      expect(me.vault.saved).toMatchObject({ verified: true }) // and it is remembered
+      // Friends see it the next time their list refreshes (every 30 seconds while it is open).
+      expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ username: 'latecomer', verified: true })
+    } finally {
+      VERIFIED_USERNAMES.pop()
+    }
+    await me.service.heartbeat()
+    expect(me.service.state()).toMatchObject({ verified: false })
+    expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ verified: false })
   })
 
   it('sends every sign-in request with a trusted origin, and the password only to the auth server', async () => {

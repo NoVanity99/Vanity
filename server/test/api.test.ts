@@ -197,6 +197,15 @@ describe('profile picture, bio and official badges', () => {
     expect(DEFAULT_STYLE).toEqual(DEFAULT_PROFILE_STYLE)
   })
 
+  it('tells a running app its badges every time it checks in, so new ones arrive without an update', async () => {
+    const max = await register('max') // capitals don't matter
+    const bob = await register('bob')
+    const beat = await call('PUT', '/presence', max.token, { gameKey: null })
+    expect([beat.status, beat.json]).toEqual([200, { verified: true, admin: false }])
+    expect((await call('PUT', '/presence', bob.token, { gameKey: 'steam:620', gameName: 'Portal 2', startedAt: Date.now() })).json).toEqual({ verified: false, admin: false })
+    expect((await call('GET', '/me', max.token)).json.user).toMatchObject({ verified: true, admin: false })
+  })
+
   it('cannot be claimed from the app: badges come only from the server list', async () => {
     const a = await register('alice')
     const r = await call('PUT', '/me/profile', a.token, { bio: 'hi', verified: true, admin: true })

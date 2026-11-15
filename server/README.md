@@ -77,7 +77,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | GET | `/steam/achievements-summary` | Total achievements unlocked; ask again while `complete` is false |
 | POST | `/steam/openid/start` | `{ url }`: Steam's sign-in page, to open in a browser |
 | GET | `/steam/openid/return` | Where Steam sends the browser back (no token: the one-time `state` identifies who started it). Checks the answer with Steam, links the account, shows a small page |
-| PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing |
+| PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing. Answers with the account's `{ verified, admin }` |
 | DELETE | `/presence` | Signed out / closed: shows as offline |
 | PUT | `/stats` | `{ games: [{ gameKey, gameName, playtimeSeconds, lastPlayedAt }] }` (up to 5000) |
 | GET | `/friends` | Friends with status (playing / online / offline) and totals, plus incoming and outgoing requests |
@@ -103,7 +103,7 @@ Routes after `/me` answer `409` with `code: "needs_username"` until the account 
 
 `/me`, the friends list, friend requests and friend stats all carry `verified` and `admin` for each account. They come from one place only: the two lists in [`src/roles.ts`](src/roles.ts), matched against the username without regard to capitals. Nothing the app sends can set them.
 
-To give someone a badge, add their Vanity username to the list in `src/roles.ts` and push: the "Deploy backend" workflow puts it live. Because badges follow the username, the account must keep that name: if it is ever renamed or deleted, the name becomes free and whoever takes it would get the badge, so remove it from the list first.
+To give someone a badge, add their Vanity username to the list in `src/roles.ts` and push: the "Deploy backend" workflow puts it live. Nobody has to update the app: `PUT /presence`, which every running app calls about once a minute, answers with that account's `{ verified, admin }`, so the badge shows within a minute or so for the person, and for their friends when their list next refreshes. Because badges follow the username, the account must keep that name: if it is ever renamed or deleted, the name becomes free and whoever takes it would get the badge, so remove it from the list first.
 
 ## Working on it
 

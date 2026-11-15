@@ -96,6 +96,13 @@ try {
   }
   step('a profile look can be saved', look.status === 200 && look.json?.user?.style?.frame === 'gold', `HTTP ${look.status} ${look.text.slice(0, 200)}`)
   step('a look that is not on the list is refused', (await api('PUT', '/me/profile', jwt, { style: { banner: 'url(x)' } })).status === 400)
+  // The app's once-a-minute check-in brings the account's badges back (the new copy of the server only).
+  let beat = await api('PUT', '/presence', jwt, { gameKey: null })
+  for (let i = 0; i < 12 && beat.status === 204; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    beat = await api('PUT', '/presence', jwt, { gameKey: null })
+  }
+  step('checking in answers with the badges (none for a throwaway account)', beat.status === 200 && beat.json?.verified === false && beat.json?.admin === false, `HTTP ${beat.status} ${beat.text.slice(0, 120)}`)
   step('friends list loads', (await api('GET', '/friends', jwt)).status === 200)
   const synced = await api('POST', '/sync', jwt, {
     deviceId: `smoke-${tag}`,

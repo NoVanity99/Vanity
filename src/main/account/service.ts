@@ -325,12 +325,15 @@ export class AccountService {
     this.heartbeatTimer = this.statsTimer = null
   }
 
-  /** Tells the server what you're playing (or that you're online). Never throws. */
+  /** Tells the server what you're playing (or that you're online), and picks up your badges from its answer. Never throws. */
   async heartbeat(): Promise<void> {
     if (!this.social) return
     const running = this.deps.runningGame()
     const game = running ? this.deps.store.get(running.id) : null
-    await this.guard((c) => c.heartbeat(game ? { gameKey: gameKey(game.name), gameName: game.name, startedAt: running!.startedAt } : null)).catch(() => {})
+    const cookie = this.saved?.cookie
+    const roles = await this.guard((c) => c.heartbeat(game ? { gameKey: gameKey(game.name), gameName: game.name, startedAt: running!.startedAt } : null)).catch(() => undefined)
+    // A badge granted or taken away on the server shows here within a minute, without an update.
+    if (roles && typeof roles.verified === 'boolean' && typeof roles.admin === 'boolean' && this.saved?.cookie === cookie) await this.update({ verified: roles.verified, admin: roles.admin })
   }
 
   /** Uploads playtime for every game you've played. Never throws. */

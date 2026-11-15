@@ -71,7 +71,8 @@ export class AccountClient {
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>
-    this.call<void>('PUT', '/presence', game ?? { gameKey: null })
+    // The answer carries the account's official badges (nothing, from a server older than that).
+    this.call<{ verified?: boolean; admin?: boolean } | undefined>('PUT', '/presence', game ?? { gameKey: null })
   signOff = () => this.call<void>('DELETE', '/presence')
   syncStats = (games: { gameKey: string; gameName: string; playtimeSeconds: number; lastPlayedAt: number | null }[]) =>
     this.call<{ synced: number }>('PUT', '/stats', { games })
