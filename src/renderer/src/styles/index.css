@@ -722,3 +722,27 @@ html[data-status-badges='false'] [data-status-badge],
 html[data-game-names='false'] [data-game-name] {
   display: none;
 }
+
+/* Settings: the cards fill the page. On a wide window they flow into two columns (three on a
+   very wide one), each card staying in one piece; on a narrow one they stack. */
+.settings-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+@media (min-width: 1280px) {
+  .settings-columns {
+    display: block;
+    columns: 2;
+    column-gap: 1.5rem;
+  }
+  .settings-columns > * {
+    break-inside: avoid;
+    margin-bottom: 1.5rem;
+  }
+}
+@media (min-width: 2200px) {
+  .settings-columns {
+    columns: 3;
+  }
+}

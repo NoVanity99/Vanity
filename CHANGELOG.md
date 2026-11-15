@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.16.1 (2026-11-15)
+- Changed: **Settings fills the whole page.** It used to sit in a narrow column in the middle with empty space either side. Now the cards use the full width: two columns side by side on a normal window (three on a very wide one), and the skin and font pickers show more per row. On a small window or a phone they stack as before.
+
 ## 0.16.0 (2026-11-15)
 - New: **a round rescan button next to the Library title.** One click rescans your launchers; it spins while scanning and tells you when your library is already up to date. It is on Library, Recently Played and Favorites.
 - New: **profile looks.** On the Account page, under your picture and bio, pick a banner (12), a frame around your picture (8, three of them slowly turning), an effect for your name (7, including an animated rainbow) and an emoji next to it (20). A preview shows the result as you pick. The look is saved to your account and shows to you and your friends everywhere your name appears: sidebar, Profile, Friends, friend requests and "friends who played this". The server only accepts looks from Vanity's own lists.

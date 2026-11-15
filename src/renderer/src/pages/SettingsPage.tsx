@@ -379,7 +379,7 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="stagger mx-auto max-w-3xl space-y-6 px-10 pb-16 pt-12">
+      <div className="stagger mx-auto w-full max-w-[1700px] space-y-6 px-10 pb-16 pt-12">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
         <div role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 -mx-2 flex gap-1 max-md:mx-0 overflow-x-auto rounded-2xl border border-border bg-surface/90 p-1.5 backdrop-blur [scrollbar-width:none]">
@@ -406,7 +406,7 @@ export function SettingsPage(): React.JSX.Element {
         {tab === 'look' && (
         <Section title="Appearance" description="Make Vanity yours: a colour skin, a font, and a little ambience.">
           <h3 className="mb-3 text-sm font-semibold text-muted">Skin</h3>
-          <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2">
+          <div className="grid grid-cols-4 gap-3 max-md:grid-cols-2 xl:grid-cols-6 2xl:grid-cols-8">
             {THEMES.map((t) => {
               const active = (settings.theme ?? 'midnight') === t.id
               return (
@@ -451,7 +451,7 @@ export function SettingsPage(): React.JSX.Element {
           {FONT_GROUPS.map((group) => (
             <div key={group} className="mb-5 last:mb-0">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted/80">{group}</h4>
-              <div className="grid grid-cols-3 gap-3 max-md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-3 gap-3 max-md:grid-cols-2 xl:grid-cols-5 2xl:grid-cols-6">
                 {FONT_THEMES.filter((f) => f.group === group).map((f) => {
                   const active = (settings.font ?? 'system') === f.id
                   return (
@@ -495,10 +495,14 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
         )}
 
-        {tab === 'customize' && <CustomizeSettings options={settings.interface} onChange={(next, note) => save({ interface: next }, note)} />}
+        {tab === 'customize' && (
+          <div className="settings-columns">
+            <CustomizeSettings options={settings.interface} onChange={(next, note) => save({ interface: next }, note)} />
+          </div>
+        )}
 
         {tab === 'playing' && (
-          <>
+          <div className="settings-columns">
 
         <Section
           title="Controller"
@@ -543,7 +547,7 @@ export function SettingsPage(): React.JSX.Element {
         {!android && <DiscordSection settings={settings} save={save} />}
 
         {android && <PlaytimeSection />}
-          </>
+          </div>
         )}
 
         {tab === 'updates' && (
@@ -555,7 +559,7 @@ export function SettingsPage(): React.JSX.Element {
         )}
 
         {tab === 'library' && (
-          <>
+          <div className="settings-columns">
 
         <Section
           title="Library scan"
@@ -698,7 +702,7 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           </Section>
         )}
-          </>
+          </div>
         )}
       </div>
     </div>
