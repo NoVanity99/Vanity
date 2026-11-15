@@ -313,7 +313,7 @@ export function LinkedAccounts(): React.JSX.Element | null {
           <SteamCard steam={steam} />
         ) : (
           <p className="rounded-xl border border-border bg-surface-2/60 px-4 py-3 text-sm text-muted">
-            <span className="font-semibold text-text">Steam</span>: sign in to your Vanity account above to link it (the link is saved to your account, so it follows you to every device).
+            <span className="font-semibold text-text">Steam</span>: sign in to your Vanity account to link it (the link is saved to your account, so it follows you to every device).
           </p>
         )}
         {onPc && stores && (

@@ -266,7 +266,7 @@ export function AccountPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="stagger mx-auto max-w-xl space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-6">
+      <div className="stagger mx-auto w-full max-w-[1700px] space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-6">
         <h1 className="text-3xl font-bold tracking-tight">Account</h1>
 
         {!online && (
@@ -275,6 +275,8 @@ export function AccountPage(): React.JSX.Element {
           </p>
         )}
 
+        {/* The page is filled: your account on the left, linked accounts on the right (stacked on a narrow window). */}
+        <div className="grid items-start gap-6 xl:grid-cols-2 [&>*:only-child]:col-span-full">
         {!account.available ? (
           <section className="rounded-2xl border border-border bg-surface p-6">
             <div className="flex items-center gap-3">
@@ -324,6 +326,7 @@ export function AccountPage(): React.JSX.Element {
         )}
 
         <LinkedAccounts />
+        </div>
       </div>
 
       {confirmDelete && (
