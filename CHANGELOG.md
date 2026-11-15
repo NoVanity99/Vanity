@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## Server update (2026-11-15)
+- **chefdal** is now a verified account and an admin. No app update is needed: the badges appear by themselves.
+
 ## 0.18.0 (2026-11-15)
 - New: **many more profile looks to pick on the Account page.**
   - **Banners: 26** (was 12). New: Lava, Mint, Midnight, Rose, Toxic, Arctic, Royal, Peach, Carbon, Nebula, Retro grid, Blood moon, Matrix and Cotton sky.
