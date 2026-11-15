@@ -349,6 +349,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       },
       onUpdate: (cb) => trendingUpdated.on(cb),
       installed: async () => trending.installed(),
+      stores: (igdbId, name) => wrap(() => trending.storesFor(Number(igdbId), typeof name === 'string' ? name : '')),
       open: (gameId, launcher) => wrap(() => trending.open(Number(gameId), launcher)),
       follow: async (gameId, on) => trending.follow(Number(gameId), on === true)
     },

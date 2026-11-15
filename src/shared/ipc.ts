@@ -1,5 +1,6 @@
 import type { ProfileStyle } from './profileStyle'
 import type {
+  GameStores,
   AccountState,
   DownloadItem,
   InstallPlan,
@@ -162,6 +163,8 @@ export interface VanityApi {
     onUpdate(callback: (state: TrendingState) => void): () => void
     /** Which launchers are installed on this PC. */
     installed(): Promise<Record<StoreLauncher, boolean>>
+    /** The stores a game is sold on, by its IGDB id (for games that aren't on the Trending lists). Open one with `open`. */
+    stores(igdbId: number, name: string): Promise<Result<GameStores>>
     /** Opens a trending game in a store: the launcher if installed, otherwise the browser. */
     open(gameId: number, launcher: StoreLauncher): Promise<Result<'launcher' | 'browser'>>
     /** Follows (or unfollows) an upcoming game: Vanity reminds you when it comes out. */
@@ -348,6 +351,7 @@ export const IPC = {
   trendingUpdated: 'trending:updated',
   trendingInstalled: 'trending:installed',
   trendingOpen: 'trending:open',
+  trendingStores: 'trending:stores',
   trendingFollow: 'trending:follow',
   statsGet: 'stats:get',
   progressGet: 'progress:get',

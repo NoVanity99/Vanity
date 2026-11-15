@@ -438,6 +438,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   })
   ipcMain.handle(IPC.trendingFollow, (_e, gameId: number, on: boolean) => trending.follow(Number(gameId), on === true))
   ipcMain.handle(IPC.trendingInstalled, () => trending.installed())
+  ipcMain.handle(IPC.trendingStores, (_e, igdbId: number, name: string) => wrap(() => trending.storesFor(Number(igdbId), typeof name === 'string' ? name : '')))
   ipcMain.handle(IPC.trendingOpen, (_e, gameId: number, launcher: StoreLauncher) =>
     wrap(() => trending.open(Number(gameId), launcher))
   )

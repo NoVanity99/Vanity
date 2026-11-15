@@ -1,10 +1,10 @@
-import type { Settings, StoreLauncher, TrendingGame, TrendingState, UpcomingGame } from '@shared/types'
+import type { GameStores, Settings, StoreLauncher, TrendingGame, TrendingState, UpcomingGame } from '@shared/types'
 import type { Db } from '../db/database'
 import { NetworkError, type FetchFn } from '../metadata/http'
 import { Igdb } from '../metadata/igdb'
 import { TwitchAppToken, TwitchHelix } from '../metadata/twitch'
-import { rankTrending, toUpcoming, type Signals } from './aggregate'
-import { ALL_LAUNCHERS, LAUNCHERS, openStore } from './launcherLinks'
+import { extractStores, rankTrending, toUpcoming, type Signals } from './aggregate'
+import { ALL_LAUNCHERS, buildStoreLink, LAUNCHERS, openStore } from './launcherLinks'
 import { fetchIgdbGames, fetchIgdbPopularity, fetchIgdbUpcoming, fetchSteamPlayers, fetchTwitchTop, fetchTwitchViewers } from './sources'
 
 /** Cached lists older than this are refreshed when the tab opens; the timer refreshes on the same cadence. */
@@ -230,12 +230,44 @@ export class TrendingService {
     }
   }
 
+  /** Stores looked up for games that aren't on the Trending lists (e.g. "If you like this" on a game page). */
+  private lookups = new Map<number, GameStores>()
+
+  /**
+   * The stores a game (by its IGDB id) is sold on, so its page can be opened to buy it.
+   * When the game's own store pages aren't known (no keys, offline, or IGDB lists none), the
+   * answer is a Steam search for its name instead, marked `exact: false`.
+   */
+  async storesFor(igdbId: number, name: string): Promise<GameStores> {
+    const hit = this.lookups.get(igdbId)
+    if (hit?.exact) return hit
+    let found: GameStores | null = null
+    const s = this.deps.getSettings()
+    if (s.igdbClientId && s.igdbClientSecret && Number.isInteger(igdbId) && igdbId > 0) {
+      try {
+        const auth = new TwitchAppToken(s.igdbClientId, s.igdbClientSecret, this.deps.fetchFn, this.now)
+        const game = (await fetchIgdbGames(new Igdb(s.igdbClientId, s.igdbClientSecret, this.deps.fetchFn, this.now, auth), [igdbId])).find((g) => g.id === igdbId)
+        const stores = game ? extractStores(game) : []
+        if (game && stores.length) found = { title: game.name, stores, exact: true }
+      } catch (err) {
+        console.warn('[trending] store lookup failed:', err)
+      }
+    }
+    const title = name.trim().slice(0, 200)
+    if (!found && !title) throw new Error("This game's store page isn't known.")
+    found ??= { title, stores: [buildStoreLink('steam', null, `https://store.steampowered.com/search/?term=${encodeURIComponent(title)}`)], exact: false }
+    this.lookups.set(igdbId, found)
+    // Only what the page is showing needs remembering.
+    if (this.lookups.size > 200) this.lookups.delete(this.lookups.keys().next().value!)
+    return found
+  }
+
   /**
    * Opens a trending game's page in the given store: its launcher if installed
    * and linkable, else the browser. Links come from our own cache, not the UI.
    */
   async open(gameId: number, launcher: StoreLauncher): Promise<'launcher' | 'browser'> {
-    const game = this.cache?.games.find((g) => g.id === gameId) ?? this.cache?.upcoming?.find((g) => g.id === gameId)
+    const game = this.cache?.games.find((g) => g.id === gameId) ?? this.cache?.upcoming?.find((g) => g.id === gameId) ?? this.lookups.get(gameId)
     const link = game?.stores.find((s) => s.launcher === launcher)
     if (!link) throw new Error('That store link is no longer available. Refresh Trending and try again.')
     return openStore(link, { isInstalled: (l) => this.isInstalled(l), openExternal: this.deps.openExternal })

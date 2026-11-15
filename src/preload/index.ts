@@ -85,6 +85,7 @@ const api: VanityApi = {
       return () => ipcRenderer.removeListener(IPC.trendingUpdated, listener)
     },
     installed: () => ipcRenderer.invoke(IPC.trendingInstalled),
+    stores: (igdbId, name) => ipcRenderer.invoke(IPC.trendingStores, igdbId, name),
     open: (gameId, launcher) => ipcRenderer.invoke(IPC.trendingOpen, gameId, launcher),
     follow: (gameId, on) => ipcRenderer.invoke(IPC.trendingFollow, gameId, on)
   },

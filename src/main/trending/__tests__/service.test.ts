@@ -137,6 +137,34 @@ describe('TrendingService', () => {
     expect(opened).toEqual(['steam://store/4242'])
   })
 
+  it('finds where any game is sold, and opens the store you pick', async () => {
+    const { service, opened } = setup(apis().fetch)
+    // A game that isn't on the Trending lists (nothing was refreshed).
+    expect(await service.storesFor(2, 'Fortnite')).toMatchObject({ title: 'Fortnite', exact: true, stores: [{ launcher: 'epic', webUrl: 'https://store.epicgames.com/p/fortnite' }] })
+    expect(await service.open(2, 'epic')).toBe('browser') // the Epic launcher isn't installed here
+    expect((await service.storesFor(1, 'Counter-Strike 2')).stores.map((s) => s.launcher)).toEqual(['steam'])
+    expect(await service.open(1, 'steam')).toBe('launcher')
+    expect(opened).toEqual(['https://store.epicgames.com/p/fortnite', 'steam://store/730'])
+    await expect(service.open(1, 'gog')).rejects.toThrow(/no longer available/)
+  })
+
+  it('searches Steam for a game whose store pages are not known', async () => {
+    const { service, opened } = setup(apis().fetch)
+    // IGDB has no PC store page for it.
+    const found = await service.storesFor(555, 'Odd Game: "Deluxe" & More')
+    expect(found).toMatchObject({ title: 'Odd Game: "Deluxe" & More', exact: false })
+    expect(found.stores).toEqual([{ launcher: 'steam', storeId: null, deepLink: null, webUrl: 'https://store.steampowered.com/search/?term=Odd%20Game%3A%20%22Deluxe%22%20%26%20More' }])
+    expect(await service.open(555, 'steam')).toBe('browser')
+    expect(opened).toEqual([found.stores[0].webUrl])
+    // Without keys, or offline, it still gets you to a store.
+    const noKeys = setup(apis().fetch, { igdbClientId: '', igdbClientSecret: '' })
+    expect(await noKeys.service.storesFor(2, 'Fortnite')).toMatchObject({ exact: false, stores: [{ launcher: 'steam' }] })
+    const offline = setup(async () => { throw new TypeError('fetch failed') })
+    expect(await offline.service.storesFor(2, 'Fortnite')).toMatchObject({ exact: false })
+    // Nothing to search for: a clear error instead of an empty search.
+    await expect(offline.service.storesFor(3, '   ')).rejects.toThrow(/isn't known/)
+  })
+
   it('follows upcoming games and reminds once when they come out', async () => {
     let t = Date.UTC(2026, 0, 1)
     const notify = vi.fn()

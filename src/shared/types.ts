@@ -264,6 +264,14 @@ export interface StoreLink {
   webUrl: string
 }
 
+/** Where a game can be bought. */
+export interface GameStores {
+  title: string
+  stores: StoreLink[]
+  /** False when the game's own store pages aren't known and `stores` is a store search for its name instead. */
+  exact: boolean
+}
+
 export interface PopularityStat {
   kind: 'players' | 'viewers' | 'igdb'
   /** Current Steam players or Twitch viewers; null for 'igdb'. */
