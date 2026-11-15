@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ProfileBanner, ProfileName } from '@/components/ProfileCard'
 import { useNavigate } from 'react-router-dom'
 import {
   Award,
@@ -234,11 +235,13 @@ export function ProfilePage(): React.JSX.Element {
       <div className="stagger mx-auto max-w-5xl space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-14">
         {/* Who you are, and your level */}
         <section className="relative overflow-hidden rounded-3xl border border-border bg-surface p-7 max-md:p-5">
+          {/* Your banner and effect (Settings → Profile) across the top of the card. */}
+          {account?.signedIn && <ProfileBanner style={account.style} className="-mx-7 -mt-7 mb-5 h-24 max-md:-mx-5 max-md:-mt-5" />}
           <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent/25 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-28 left-1/3 size-64 rounded-full bg-accent-2/15 blur-3xl" />
           <div className="relative flex flex-wrap items-center gap-6">
             {account?.username ? (
-              <Avatar name={name} src={account.avatar} size="xl" />
+              <Avatar name={name} src={account.avatar} size="xl" frame={account.style?.frame} />
             ) : (
               <span className="flex size-20 items-center justify-center rounded-full bg-white/5 text-muted ring-2 ring-bg">
                 <UserCircle2 className="size-10" />
@@ -247,9 +250,10 @@ export function ProfilePage(): React.JSX.Element {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>
               <h1 className="flex items-center gap-3 font-display text-4xl font-black tracking-tight max-md:text-3xl">
-                <span className="truncate">{name}</span>
+                <ProfileName name={name} style={account?.style} />
                 <UserBadges verified={account?.verified} admin={account?.admin} size="lg" />
               </h1>
+              {account?.style?.tagline && <p className="mt-1 text-sm font-medium text-text/80">{account.style.tagline}</p>}
               {account?.bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{account.bio}</p>}
               <p className="mt-1 text-sm text-muted">
                 {earned.length} of {progress.badges.length} badges · {totals.gamesPlayed.toLocaleString()} {totals.gamesPlayed === 1 ? 'game' : 'games'} played

@@ -18,6 +18,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower ON vanity.profiles (lo
 -- The profile picture (a small image the app shrinks before sending, kept as a data: address) and a short bio.
 ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS avatar text;
 ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
+-- How the profile is styled: IDs of a banner, frame, name style and effect, one emoji and a tagline.
+ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS style jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 -- One row per friend request. The status becomes 'accepted' when the other side accepts.
 CREATE TABLE IF NOT EXISTS vanity.friendships (

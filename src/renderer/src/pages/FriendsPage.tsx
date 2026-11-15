@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ProfileBanner, ProfileName } from '@/components/ProfileCard'
 import { useNavigate } from 'react-router-dom'
 import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
@@ -33,10 +34,10 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
         playing && !selected && 'border-accent/25 bg-gradient-to-r from-accent/10 to-transparent'
       )}
     >
-      <Avatar name={friend.username} src={friend.avatar} status={friend.status.state} />
+      <Avatar name={friend.username} src={friend.avatar} status={friend.status.state} frame={friend.style?.frame} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate font-semibold">{friend.username}</span>
+          <ProfileName name={friend.username} style={friend.style} className="font-semibold" />
           <UserBadges verified={friend.verified} admin={friend.admin} />
           <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent" title={`Level ${friend.level} (${friend.xp.toLocaleString()} XP)`}>
             Lv {friend.level}
@@ -70,13 +71,16 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
 
   return (
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 rounded-2xl border border-border bg-surface p-6">
+      {/* Their banner and effect across the top of the card, the way they styled it. */}
+      <ProfileBanner style={stats?.style ?? friend.style} className="-mx-6 -mt-6 mb-1 h-20 rounded-t-2xl" />
       <div className="flex items-center gap-4">
-        <Avatar name={friend.username} src={friend.avatar} size="lg" status={friend.status.state} />
+        <Avatar name={friend.username} src={friend.avatar} size="lg" status={friend.status.state} frame={(stats?.style ?? friend.style)?.frame} />
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-display text-2xl font-bold">
-            <span className="truncate">{friend.username}</span>
+            <ProfileName name={friend.username} style={stats?.style ?? friend.style} />
             <UserBadges verified={friend.verified} admin={friend.admin} size="md" />
           </p>
+          {(stats?.style ?? friend.style)?.tagline && <p className="truncate text-sm text-text/80">{(stats?.style ?? friend.style)?.tagline}</p>}
           <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
           <p className="mt-1 text-xs font-semibold text-accent">
             Level {stats?.level ?? friend.level}

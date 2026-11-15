@@ -47,7 +47,7 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
       <div ref={tilt.ref} className="tilt">
       <div
         className={cn(
-          'relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
+          'game-cover relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
           'transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
           'group-hover:-translate-y-1.5 group-hover:scale-[1.03] group-hover:shadow-2xl group-hover:shadow-black/70 group-hover:ring-white/25',
           'group-focus-visible:ring-2 group-focus-visible:ring-accent group-active:scale-[1.01]',

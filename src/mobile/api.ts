@@ -1,3 +1,4 @@
+import { sanitizeProfile } from '@shared/profile'
 import type { Result, VanityApi } from '@shared/ipc'
 import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, StoreAccounts, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
@@ -397,7 +398,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       signIn: (email, p, remember) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)),
       signOut: () => account.signOut(),
       setUsername: (u) => wrap(() => account.setUsername(text(u))),
-      setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}) })),
+      setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.style && typeof patch.style === 'object' ? { style: sanitizeProfile(patch.style) } : {}), ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}) })),
       sendResetCode: (email) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)),
       resetPassword: (email, code, p) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)),
       deleteAccount: () => wrap(() => account.deleteAccount())

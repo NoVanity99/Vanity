@@ -402,7 +402,7 @@ export function GameDetailPage(): React.JSX.Element {
                         style={{ '--i': i } as React.CSSProperties}
                         className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4"
                       >
-                        <Avatar name={f.username} src={f.avatar} size="sm" />
+                        <Avatar name={f.username} src={f.avatar} size="sm" frame={f.style?.frame} />
                         <span>
                           <span className="flex items-center gap-1.5 text-sm font-semibold">
                             {f.username}

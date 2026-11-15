@@ -1,4 +1,7 @@
 import { UserBadges } from '@/components/UserBadges'
+import { ProfileName } from '@/components/ProfileCard'
+import { orderedNav, sanitizeUi } from '@shared/ui'
+import { useSettings } from '@/state/settings'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -57,8 +60,8 @@ function NavItem({
               isActive ? 'text-accent' : 'text-muted group-hover:text-text'
             )}
           />
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          {count !== undefined && count > 0 && <span className="text-xs tabular-nums text-muted">{count}</span>}
+          <span className="nav-label min-w-0 flex-1 truncate">{label}</span>
+          {count !== undefined && count > 0 && <span className="nav-label text-xs tabular-nums text-muted">{count}</span>}
         </>
       )}
     </NavLink>
@@ -120,10 +123,10 @@ function AccountItem(): React.JSX.Element {
     >
       {account?.signedIn && account.username ? (
         <>
-          <Avatar key={played} name={account.username} src={account.avatar} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
-          <span className="min-w-0 flex-1">
+          <Avatar key={played} name={account.username} src={account.avatar} size="sm" status="online" frame={account.style?.frame} className={cn(played > 0 && 'icon-bounce')} />
+          <span className="nav-label min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-text">
-              <span className="truncate">{account.username}</span>
+              <ProfileName name={account.username} style={account.style} />
               <UserBadges verified={account.verified} admin={account.admin} />
             </span>
             <span className="block text-[11px] text-muted">Account</span>
@@ -132,7 +135,7 @@ function AccountItem(): React.JSX.Element {
       ) : (
         <>
           <UserCircle2 key={played} className={cn('size-[18px]', played > 0 && 'icon-bounce')} />
-          <span className="flex-1">Sign in</span>
+          <span className="nav-label flex-1">Sign in</span>
         </>
       )}
     </NavLink>
@@ -153,6 +156,19 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const collections = useCollections()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  // Which parts of the sidebar are on, and in what order (Settings → Customize).
+  const ui = sanitizeUi(useSettings()?.ui)
+  const NAV: Record<string, { icon: LucideIcon; animation: IconAnimation; count?: number; desktopOnly?: boolean }> = {
+    '/library': { icon: LayoutGrid, animation: 'bounce', count: visible.length },
+    '/trending': { icon: Flame, animation: 'flame' },
+    '/store': { icon: ShoppingBag, animation: 'swing', desktopOnly: true },
+    '/friends': { icon: Users, animation: 'wave' },
+    '/recent': { icon: Clock, animation: 'rewind' },
+    '/favorites': { icon: Star, animation: 'star', count: visible.filter((g) => g.favorite).length },
+    '/stats': { icon: BarChart3, animation: 'bounce' },
+    '/profile': { icon: Award, animation: 'bounce' },
+    '/downloads': { icon: Download, animation: 'bounce', count: queued || undefined, desktopOnly: true }
+  }
 
   return (
     <>
@@ -162,6 +178,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       ref={sidebarRef}
       className={cn(
         'relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl',
+        ui.compactSidebar && 'sidebar-compact',
         'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:bg-bg max-md:pb-[env(safe-area-inset-bottom)] max-md:pt-[env(safe-area-inset-top)] max-md:transition-transform max-md:duration-300',
         !open && 'max-md:-translate-x-full'
       )}
@@ -171,42 +188,47 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
-        <span className="flex-1 text-lg font-bold tracking-tight">Vanity</span>
+        <span className="nav-label flex-1 text-lg font-bold tracking-tight">Vanity</span>
         <NavLink
           to="/big"
           title="Big Picture mode: full screen, for the couch"
           aria-label="Big Picture mode"
-          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
+          className="sidebar-wide-only rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
         >
           <Tv className="size-[18px]" />
         </NavLink>
       </div>
 
-      <LevelBadge />
+      {ui.showLevel && (
+        <div className="sidebar-wide-only">
+          <LevelBadge />
+        </div>
+      )}
 
-      <button
-        onClick={() => {
-          onClose?.()
-          openCommandPalette()
-        }}
-        className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
-      >
-        <Search className="size-4" />
-        <span className="flex-1 text-left">Search</span>
-        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
-      </button>
+      {ui.showSearch && (
+        <button
+          onClick={() => {
+            onClose?.()
+            openCommandPalette()
+          }}
+          title="Search (Ctrl K)"
+          className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
+        >
+          <Search className="size-4" />
+          <span className="nav-label flex-1 text-left">Search</span>
+          <kbd className="nav-label rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
+        </button>
+      )}
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
-        <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
-        {!isAndroid() && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
-        <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />
-        <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
-        <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
-        <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
-        <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />
-        {!isAndroid() && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
+        {orderedNav(ui)
+          .filter((m) => !(NAV[m.path].desktopOnly && isAndroid()))
+          .map((m) => (
+            <NavItem key={m.path} to={m.path} icon={NAV[m.path].icon} label={m.label} count={NAV[m.path].count} animation={NAV[m.path].animation} />
+          ))}
 
+        {ui.showCollections && (
+        <div className="sidebar-wide-only">
         <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>
           <button onClick={() => setCreating(true)} title="New collection" aria-label="New collection" className="rounded p-0.5 text-muted transition hover:bg-white/10 hover:text-text">
@@ -222,6 +244,8 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
             <NavItem key={c.id} to={`/collection/${c.id}`} icon={Layers} label={c.name} count={visible.filter((g) => g.collections.includes(c.id)).length} animation="bounce" />
           ))
         )}
+        </div>
+        )}
       </nav>
 
       <div className="space-y-1 px-3 pb-4 pt-2">
@@ -235,7 +259,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
               <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
             </span>
-            <span className="min-w-0">
+            <span className="nav-label min-w-0">
               <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Starting'}</span>
               <span className="block truncate text-sm font-medium text-text">{g.name}</span>
             </span>
@@ -279,7 +303,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-text"
         >
           <Plus key={addPlayed} className={cn('size-[18px]', addPlayed > 0 && 'icon-plus')} />
-          Add a game
+          <span className="nav-label">Add a game</span>
         </button>
         <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
         <AccountItem />

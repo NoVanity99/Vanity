@@ -3,6 +3,22 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## Parked work (not released; superseded by the real 0.16.0)
+- New: **profile looks.** Settings has a new Profile page where you style your profile, with a live preview. The look is saved to your account, follows you to every device, and your friends see it.
+  - **Banner:** 12 choices, including Aurora, Galaxy, Cyber grid, Gold and Rainbow flow.
+  - **Picture frame:** 8 choices, including Neon glow, Gold, Spinning rainbow, Fire and Ice.
+  - **Name style:** Gradient, Gold shine, Rainbow, Glow, Glitch and more.
+  - **Effect:** Shimmer, Sparkles, Starfield, Scanlines or Bubbles moving over your banner.
+  - **Flair and tagline:** an emoji beside your name and a short line under it.
+  - Your look shows on your Profile and Account pages and in the sidebar. Friends' looks show in the Friends list, on the card that opens when you click a friend, and around their picture on game pages.
+- New: **Customize.** A new Settings page to build the launcher your way.
+  - Your own accent colour over any skin, sharp, soft or round corners, and a size slider for the whole interface (85% to 125%).
+  - Backgrounds: Soft glow, Aurora, Cyber grid, Starfield or Plain.
+  - Game covers: choose what they do when you point at them (Lift, Zoom, Glow, 3D tilt or Stay still).
+  - Sidebar: switch entries on or off and reorder them, hide the level, search or collections, or use a compact icons-only sidebar.
+  - Choose the page Vanity opens on, hide the music player or launcher status at the top, use solid panels, or reduce motion.
+- Friends see profile looks once the account server has been updated; until then your look shows only to you.
+
 ## 0.15.0 (2026-11-14)
 - New: **profile picture and bio.** On the Account page you can add a picture (Vanity crops and shrinks it), change it, remove it, and write a bio of up to 200 characters. Both are saved to your account, follow you to every device, and show to your friends. Works on Windows and Android.
 - New: **verified and admin badges.** A blue bubble with a check mark for verified accounts and a gold bubble with a crown for admins, side by side when an account has both, each with a light that sweeps across it. They show next to the name everywhere: sidebar, Account, Profile, Friends, friend requests and "friends who played this". Only Vanity's server hands them out (`server/src/roles.ts`); for now that is SBCVanity.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { applyFont, applyTheme } from './lib/theme'
+import { applyFont, applyTheme, applyUi } from './lib/theme'
+import { sanitizeUi } from '@shared/ui'
 import { AmbientBackground } from './components/AmbientBackground'
 import { useSettings } from './state/settings'
 import { CandidateReview } from './components/CandidateReview'
@@ -42,7 +43,10 @@ function Shell(): React.JSX.Element {
     if (!settings) return
     applyTheme(settings.theme)
     applyFont(settings.font)
-  }, [settings?.theme, settings?.font]) // eslint-disable-line react-hooks/exhaustive-deps
+    applyUi(settings.ui, settings.theme)
+  }, [settings?.theme, settings?.font, settings?.ui]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Launcher options from Settings → Customize.
+  const ui = sanitizeUi(settings?.ui)
 
   // Cloud sync brought something in from another device: show it.
   const appliedAt = useProgress()?.sync.appliedAt ?? 0
@@ -58,16 +62,18 @@ function Shell(): React.JSX.Element {
 
   return (
     <div className="relative flex h-full">
-      {settings?.ambientBackground !== false && <AmbientBackground />}
+      {settings?.ambientBackground !== false && <AmbientBackground kind={ui.background} />}
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <main className="relative z-10 min-w-0 flex-1 max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] max-md:pt-[env(safe-area-inset-top)]">
         {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
         <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] max-md:top-[env(safe-area-inset-top)] max-md:px-3 [-webkit-app-region:drag]">
-          <div className="max-md:hidden">
-            <LauncherStatusBar />
-          </div>
+          {ui.showLauncherStatus && (
+            <div className="max-md:hidden">
+              <LauncherStatusBar />
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
-            <MusicPlayer />
+            {ui.showMusicPlayer && <MusicPlayer />}
             <UpdateButton />
           </div>
         </div>
@@ -88,7 +94,8 @@ function Shell(): React.JSX.Element {
             <Route path="/downloads" element={<DownloadsPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/library" replace />} />
+            {/* The page Vanity opens on is your choice; wait for settings so it isn't the Library by mistake. */}
+            <Route path="*" element={settings ? <Navigate to={`/${ui.startPage}`} replace /> : null} />
           </Routes>
         </div>
       </main>

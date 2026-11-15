@@ -68,7 +68,7 @@ describe('/api prefix', () => {
 describe('accounts', () => {
   it('knows a signed-in account before and after it picks a username', async () => {
     const before = await call('GET', '/me', 't:u1')
-    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', verified: false, admin: false })
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: {}, verified: false, admin: false })
     // Everything social needs a username first, and says so in a way the app can act on.
     const friends = await call('GET', '/friends', 't:u1')
     expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])
@@ -81,7 +81,7 @@ describe('accounts', () => {
   it('never stores passwords or emails', async () => {
     await register('alice')
     const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'username'])
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'style', 'username'])
   })
 
   it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {
@@ -135,6 +135,27 @@ describe('profile picture, bio and official badges', () => {
     expect((await call('PUT', '/me/profile', a.token, { bio: 'New bio' })).json.user).toMatchObject({ avatar: PNG, bio: 'New bio' })
     expect((await call('PUT', '/me/profile', a.token, { avatar: null })).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
     expect((await call('GET', '/me', a.token)).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
+  })
+
+  it('saves a profile look and shows it to friends', async () => {
+    const a = await register('styled_a')
+    const b = await register('styled_b')
+    // Only known kinds of values are kept: markup, long text and non-emoji flair are dropped or trimmed.
+    const saved = await call('PUT', '/me/profile', a.token, {
+      style: { banner: 'galaxy', frame: 'rainbow', nameStyle: '<b>bold</b>', effect: 'sparkle', flair: '\u{1F451}', tagline: '  gg   <script>wp</script>  ', extra: 'ignored' }
+    })
+    expect(saved.status).toBe(200)
+    expect(saved.json.user.style).toEqual({ banner: 'galaxy', frame: 'rainbow', effect: 'sparkle', flair: '\u{1F451}', tagline: 'gg script wp /script' })
+    expect((await call('PUT', '/me/profile', a.token, { style: { flair: 'abc' } })).json.user.style).toEqual({})
+    expect((await call('PUT', '/me/profile', a.token, { style: 'gold' })).status).toBe(400)
+    // The look is its own field: changing the bio leaves it alone, and the other way round.
+    await call('PUT', '/me/profile', a.token, { style: { banner: 'gold', frame: 'gold', tagline: 'gg' } })
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'hi' })).json.user).toMatchObject({ bio: 'hi', style: { banner: 'gold', frame: 'gold', tagline: 'gg' } })
+
+    await call('POST', '/friends/requests', a.token, { username: 'styled_b' })
+    await call('POST', `/friends/requests/${a.id}/accept`, b.token)
+    expect((await call('GET', '/friends', b.token)).json.friends[0].style).toEqual({ banner: 'gold', frame: 'gold', tagline: 'gg' })
+    expect((await call('GET', `/friends/${a.id}/stats`, b.token)).json.style).toEqual({ banner: 'gold', frame: 'gold', tagline: 'gg' })
   })
 
   it('refuses anything that is not a small image, and bios that are too long', async () => {
@@ -280,7 +301,7 @@ describe('presence and stats', () => {
 
     expect((await call('GET', `/friends/${b.id}/stats`, c.token)).status).toBe(403)
     expect((await call('GET', '/games/steam%3A620/friends', a.token)).json.friends).toEqual([
-      { id: b.id, username: 'bob', avatar: null, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
+      { id: b.id, username: 'bob', avatar: null, style: {}, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
     ])
     expect((await call('GET', '/games/steam%3A620/friends', c.token)).json.friends).toEqual([])
   })

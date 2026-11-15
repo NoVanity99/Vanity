@@ -1,3 +1,4 @@
+import { sanitizeProfile } from '@shared/profile'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
@@ -361,7 +362,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.accountSignIn, (_e, email: string, p: string, remember: boolean) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)))
   ipcMain.handle(IPC.accountSignOut, () => account.signOut())
   ipcMain.handle(IPC.accountSetUsername, (_e, u: string) => wrap(() => account.setUsername(text(u))))
-  ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}) })))
+  ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string; style?: unknown }) => wrap(() => account.setProfile({ ...(patch?.style && typeof patch.style === 'object' ? { style: sanitizeProfile(patch.style) } : {}), ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}) })))
   ipcMain.handle(IPC.accountSendResetCode, (_e, email: string) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)))
   ipcMain.handle(IPC.accountResetPassword, (_e, email: string, code: string, p: string) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)))
   ipcMain.handle(IPC.accountDelete, () => wrap(() => account.deleteAccount()))

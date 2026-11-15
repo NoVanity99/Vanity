@@ -1,3 +1,4 @@
+import { DEFAULT_UI } from '@shared/ui'
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -28,7 +29,8 @@ const settings = (keys: boolean): Settings =>
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  ui: DEFAULT_UI
   }) as Settings
 
 function apis() {

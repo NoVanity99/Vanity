@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { SlidersHorizontal, UserRound } from 'lucide-react'
+import { CustomizeSettings, ProfileSettings } from './settings/Customize'
 import type { DiscordStatus } from '@shared/types'
 import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
@@ -23,9 +25,11 @@ import { loadPref, savePref } from '@/lib/storage'
 const SHOW_API_KEYS = false
 
 /** Settings are split into a few short pages instead of one long one. */
-type SettingsTab = 'look' | 'library' | 'playing' | 'updates'
+type SettingsTab = 'look' | 'profile' | 'custom' | 'library' | 'playing' | 'updates'
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'look', label: 'Appearance', icon: Palette },
+  { id: 'profile', label: 'Profile', icon: UserRound },
+  { id: 'custom', label: 'Customize', icon: SlidersHorizontal },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'playing', label: 'Playing', icon: Gamepad2 },
   { id: 'updates', label: 'Updates', icon: ArrowDownToLine }
@@ -421,7 +425,7 @@ export function SettingsPage(): React.JSX.Element {
                 aria-selected={active}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  'relative flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition max-md:px-2 max-md:text-[13px]',
+                  'relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2.5 text-sm font-semibold transition max-md:px-2 max-md:text-[13px]',
                   active ? 'bg-accent text-white shadow-lg shadow-accent/25' : 'text-muted hover:bg-white/5 hover:text-text'
                 )}
               >
@@ -431,6 +435,16 @@ export function SettingsPage(): React.JSX.Element {
             )
           })}
         </div>
+        {tab === 'profile' && (
+          <Section title="Profile" description="Make your profile yours. It's saved to your account, and your friends see it next to your name.">
+            <ProfileSettings />
+          </Section>
+        )}
+        {tab === 'custom' && (
+          <Section title="Customize" description="Build the launcher your way: colours, shapes, the background, what the sidebar holds and more.">
+            <CustomizeSettings settings={settings} save={save} />
+          </Section>
+        )}
         {tab === 'look' && (
         <Section title="Appearance" description="Make Vanity yours: a colour skin, a font, and a little ambience.">
           <h3 className="mb-3 text-sm font-semibold text-muted">Skin</h3>

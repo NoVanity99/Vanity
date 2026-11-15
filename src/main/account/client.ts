@@ -1,3 +1,4 @@
+import type { ProfileStyle } from '@shared/profile'
 import type { SyncRequest, SyncResponse } from '@shared/sync'
 import type { FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
@@ -13,6 +14,8 @@ export interface Me {
   username: string | null
   avatar: string | null
   bio: string
+  /** The profile look as the server keeps it; missing from servers that don't have it yet. */
+  style?: unknown
   verified: boolean
   admin: boolean
 }
@@ -65,7 +68,7 @@ export class AccountClient {
   me = async () => (await this.call<{ user: Me }>('GET', '/me')).user
   setUsername = async (username: string) => (await this.call<{ user: Me }>('PUT', '/me/username', { username })).user
   /** Sets the picture (null removes it) and/or the bio; fields left out stay as they are. */
-  setProfile = async (patch: { avatar?: string | null; bio?: string }) => (await this.call<{ user: Me }>('PUT', '/me/profile', patch)).user
+  setProfile = async (patch: { avatar?: string | null; bio?: string; style?: ProfileStyle }) => (await this.call<{ user: Me }>('PUT', '/me/profile', patch)).user
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>

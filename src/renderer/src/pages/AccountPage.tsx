@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ProfileName } from '@/components/ProfileCard'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, AtSign, Check, CloudOff, KeyRound, LogOut, Mail, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
@@ -295,11 +296,11 @@ export function AccountPage(): React.JSX.Element {
           <section className="relative overflow-clip rounded-2xl border border-border bg-surface p-6">
             <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/20 blur-3xl" />
             <div className="relative flex items-center gap-5">
-              <Avatar name={account.username ?? '?'} src={account.avatar} size="xl" status="online" />
+              <Avatar name={account.username ?? '?'} src={account.avatar} size="xl" status="online" frame={account.style?.frame} />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted">Signed in as</p>
                 <p className="flex items-center gap-2.5 font-display text-3xl font-bold">
-                  <span className="truncate">{account.username}</span>
+                  <ProfileName name={account.username ?? ''} style={account.style} />
                   <UserBadges verified={account.verified} admin={account.admin} size="lg" />
                 </p>
                 {account.email && <p className="truncate text-sm text-muted">{account.email}</p>}

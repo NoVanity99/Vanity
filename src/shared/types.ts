@@ -207,6 +207,8 @@ export interface Settings {
   updateKey: string
   /** Remind you to take a break every this many minutes of play; 0 = off. */
   breakReminderMinutes: number
+  /** Launcher layout and behaviour options (src/shared/ui.ts). */
+  ui: import('./ui').UiPrefs
 }
 
 /** Fields the user can change on a game. */
@@ -352,6 +354,8 @@ export interface AccountState {
   /** Official badges. Only Vanity's server grants them. */
   verified: boolean
   admin: boolean
+  /** How you've styled your profile (banner, frame, name style…): see src/shared/profile.ts. */
+  style: import('./profile').ProfileStyle
 }
 
 /** What everyone may see of another account. */
@@ -359,6 +363,8 @@ export interface PublicUser {
   id: string
   username: string
   avatar: string | null
+  /** Their profile look; missing from servers that don't have it yet. */
+  style?: import('./profile').ProfileStyle
   verified: boolean
   admin: boolean
 }
@@ -401,6 +407,7 @@ export interface FriendGameStat {
 
 export interface FriendStats {
   username: string
+  style?: import('./profile').ProfileStyle
   avatar: string | null
   bio: string
   verified: boolean

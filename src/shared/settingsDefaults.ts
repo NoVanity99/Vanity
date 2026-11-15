@@ -1,5 +1,6 @@
 import { DEFAULT_FONT } from './fonts'
 import { DEFAULT_THEME } from './themes'
+import { DEFAULT_UI } from './ui'
 import { SCAN_SOURCES, type Settings } from './types'
 
 /** Settings for a fresh install, on every platform. */
@@ -24,5 +25,6 @@ export const DEFAULT_SETTINGS: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  ui: DEFAULT_UI
 }
