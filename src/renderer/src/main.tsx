@@ -37,14 +37,18 @@ import '@fontsource/russo-one/400.css'
 import '@fontsource/bebas-neue/400.css'
 import '@fontsource/press-start-2p/400.css'
 import '@fontsource/audiowide/400.css'
+import { ready } from '@platform'
 import { applySavedFont, applySavedTheme } from './lib/theme'
 import './styles/index.css'
 
 applySavedTheme()
 applySavedFont()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
+// On Android, `ready` resolves once window.vanity (the app's backend) is set up; on desktop the preload already did it.
+void ready.then(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  )
 )

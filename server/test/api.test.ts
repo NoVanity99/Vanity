@@ -1,22 +1,26 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
+import { exportJWK, generateKeyPair, SignJWT, createLocalJWKSet } from 'jose'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
-import { signToken, verifyToken } from '../src/auth'
+import { neonAuthVerifier, type VerifyToken } from '../src/auth'
 import type { Sql } from '../src/db'
+import { SCHEMA, schemaStatements } from '../src/schema'
 
-const SECRET = 'test-secret-that-is-at-least-32-characters-long'
+/** Stands in for Neon Auth: a token "t:<id>" belongs to user <id>. The real verifier is tested below. */
+const verifyToken: VerifyToken = async (token) => (token.startsWith('t:') ? { id: token.slice(2), email: `${token.slice(2)}@example.com` } : null)
 
-/** Real Postgres (PGlite, in-process) with the real schema. */
-async function freshDb(): Promise<{ db: PGlite; sql: Sql }> {
+/** Real Postgres (PGlite, in-process). The app creates its own tables on first use. */
+async function freshDb(): Promise<{ db: PGlite; sql: Sql; migrate: () => Promise<void> }> {
   const db = new PGlite()
-  await db.exec(readFileSync(join(__dirname, '..', 'schema.sql'), 'utf8'))
   const sql: Sql = async (strings, ...values) => {
     const text = strings.reduce((acc, s, i) => acc + s + (i < values.length ? `$${i + 1}` : ''), '')
     return (await db.query(text, values)).rows as never
   }
-  return { db, sql }
+  // One statement at a time, the way the Neon HTTP driver has to run them.
+  const migrate = async (): Promise<void> => {
+    for (const statement of schemaStatements()) await db.query(statement)
+  }
+  return { db, sql, migrate }
 }
 
 let app: ReturnType<typeof createApp>
@@ -32,10 +36,12 @@ async function call(method: string, path: string, token?: string, body?: unknown
   return { status: res.status, json: text ? JSON.parse(text) : null }
 }
 
-async function register(username: string, password = 'hunter2hunter2'): Promise<{ token: string; id: string }> {
-  const r = await call('POST', '/auth/register', undefined, { username, password })
-  expect(r.status).toBe(201)
-  return { token: r.json.token, id: r.json.user.id }
+/** A signed-in account that has picked its username. */
+async function register(username: string): Promise<{ token: string; id: string }> {
+  const id = `id-${username.toLowerCase()}`
+  const r = await call('PUT', '/me/username', `t:${id}`, { username })
+  expect(r.status).toBe(200)
+  return { token: `t:${id}`, id }
 }
 
 async function befriend(a: { token: string; id: string }, b: { token: string; id: string }, bName: string): Promise<void> {
@@ -46,60 +52,65 @@ async function befriend(a: { token: string; id: string }, b: { token: string; id
 beforeEach(async () => {
   const fresh = await freshDb()
   db = fresh.db
-  app = createApp({ sql: fresh.sql, jwtSecret: SECRET, authRateLimit: 1000 })
+  app = createApp({ sql: fresh.sql, verifyToken, migrate: fresh.migrate, lookupRateLimit: 1000 })
 })
 
 describe('/api prefix', () => {
   it('serves every route under /api too, with the same auth and errors', async () => {
-    const r = await call('POST', '/api/auth/register', undefined, { username: 'prefixed', password: 'hunter2hunter2' })
-    expect(r.status).toBe(201)
-    expect((await call('GET', '/api/me', r.json.token)).json.user.username).toBe('prefixed')
-    expect((await call('GET', '/me', r.json.token)).json.user.username).toBe('prefixed')
+    const { token } = await register('prefixed')
+    expect((await call('GET', '/api/me', token)).json.user.username).toBe('prefixed')
+    expect((await call('GET', '/me', token)).json.user.username).toBe('prefixed')
     expect((await call('GET', '/api/me')).status).toBe(401)
     expect((await call('GET', '/api')).json).toMatchObject({ name: 'vanity-api', ok: true })
   })
 })
 
 describe('accounts', () => {
-  it('registers, logs in and identifies the user', async () => {
-    const { token } = await register('Jordan_99')
-    expect((await call('GET', '/me', token)).json.user.username).toBe('Jordan_99')
-    const login = await call('POST', '/auth/login', undefined, { username: 'jordan_99', password: 'hunter2hunter2' })
-    expect(login.status).toBe(200)
-    expect(login.json.user.username).toBe('Jordan_99')
+  it('knows a signed-in account before and after it picks a username', async () => {
+    const before = await call('GET', '/me', 't:u1')
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', verified: false, admin: false })
+    // Everything social needs a username first, and says so in a way the app can act on.
+    const friends = await call('GET', '/friends', 't:u1')
+    expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])
+
+    expect((await call('PUT', '/me/username', 't:u1', { username: 'Jordan_99' })).json.user.username).toBe('Jordan_99')
+    expect((await call('GET', '/me', 't:u1')).json.user.username).toBe('Jordan_99')
+    expect((await call('GET', '/friends', 't:u1')).status).toBe(200)
   })
 
-  it('stores scrypt hashes, never the password', async () => {
+  it('never stores passwords or emails', async () => {
     await register('alice')
-    const { rows } = await db.query<{ password_hash: string }>('SELECT password_hash FROM users')
-    expect(rows[0].password_hash).toMatch(/^scrypt\$/)
-    expect(rows[0].password_hash).not.toContain('hunter2')
+    const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'username'])
   })
 
-  it('rejects bad input, taken names and wrong passwords with clear messages', async () => {
+  it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {
     await register('alice')
-    expect((await call('POST', '/auth/register', undefined, { username: 'ALICE', password: 'longenough1' })).status).toBe(409)
-    expect((await call('POST', '/auth/register', undefined, { username: 'a', password: 'longenough1' })).json.error).toMatch(/3–20/)
-    expect((await call('POST', '/auth/register', undefined, { username: 'bob', password: 'short' })).json.error).toMatch(/8 characters/)
-    const wrong = await call('POST', '/auth/login', undefined, { username: 'alice', password: 'nope-nope-nope' })
-    const unknown = await call('POST', '/auth/login', undefined, { username: 'nobody', password: 'nope-nope-nope' })
-    expect([wrong.status, unknown.status]).toEqual([401, 401])
-    expect(wrong.json.error).toBe(unknown.json.error) // can't probe usernames
+    expect((await call('PUT', '/me/username', 't:other', { username: 'ALICE' })).status).toBe(409)
+    expect((await call('PUT', '/me/username', 't:other', { username: 'a' })).json.error).toMatch(/3–20/)
+    expect((await call('PUT', '/me/username', 't:id-alice', { username: 'Alice' })).status).toBe(200) // own name, new capitals
+    expect((await call('PUT', '/me/username', 't:id-alice', { username: 'alicia' })).json.user.username).toBe('alicia')
+    expect((await call('PUT', '/me/username', 't:other', { username: 'alice' })).status).toBe(200) // now free
   })
 
-  it('refuses missing, forged and expired tokens', async () => {
-    expect((await call('GET', '/me')).status).toBe(401)
-    const { id } = await register('alice')
-    expect((await call('GET', '/me', signToken({ sub: id, username: 'alice' }, 'another-secret-another-secret-123', 60))).status).toBe(401)
-    expect((await call('GET', '/me', signToken({ sub: id, username: 'alice' }, SECRET, -1))).status).toBe(401)
-    expect(verifyToken('a.b.c', SECRET)).toBeNull()
+  it('says whether a username is free, without signing in', async () => {
+    await register('alice')
+    expect((await call('GET', '/usernames/Alice')).json).toEqual({ available: false })
+    expect((await call('GET', '/usernames/bob')).json).toEqual({ available: true })
+    expect((await call('GET', '/usernames/no')).status).toBe(400)
   })
 
-  it('rate-limits sign-in attempts', async () => {
+  it('rate-limits username look-ups', async () => {
     const fresh = await freshDb()
-    app = createApp({ sql: fresh.sql, jwtSecret: SECRET, authRateLimit: 3 })
-    for (let i = 0; i < 3; i++) await call('POST', '/auth/login', undefined, { username: 'x', password: 'y' })
-    expect((await call('POST', '/auth/login', undefined, { username: 'x', password: 'y' })).status).toBe(429)
+    app = createApp({ sql: fresh.sql, verifyToken, migrate: fresh.migrate, lookupRateLimit: 3 })
+    for (let i = 0; i < 3; i++) await call('GET', '/usernames/someone')
+    expect((await call('GET', '/usernames/someone')).status).toBe(429)
+  })
+
+  it('refuses missing and invalid tokens', async () => {
+    expect((await call('GET', '/me')).status).toBe(401)
+    expect((await call('GET', '/me', 'nonsense')).status).toBe(401)
+    expect((await call('PUT', '/me/username', 'nonsense', { username: 'mallory' })).status).toBe(401)
   })
 
   it('deletes an account and everything with it', async () => {
@@ -107,8 +118,75 @@ describe('accounts', () => {
     const b = await register('bob')
     await befriend(a, b, 'bob')
     expect((await call('DELETE', '/me', a.token)).status).toBe(204)
-    expect((await call('GET', '/me', a.token)).status).toBe(401)
+    expect((await call('GET', '/me', a.token)).json.user.username).toBeNull()
     expect((await call('GET', '/friends', b.token)).json.friends).toEqual([])
+  })
+})
+
+describe('profile picture, bio and official badges', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
+  it('saves, changes and removes a picture and a bio', async () => {
+    const a = await register('alice')
+    const set = await call('PUT', '/me/profile', a.token, { avatar: PNG, bio: '  Hello\n\nthere  ' })
+    expect(set.status).toBe(200)
+    expect(set.json.user).toMatchObject({ username: 'alice', avatar: PNG, bio: 'Hello there' })
+    // Only what is sent changes.
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'New bio' })).json.user).toMatchObject({ avatar: PNG, bio: 'New bio' })
+    expect((await call('PUT', '/me/profile', a.token, { avatar: null })).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
+    expect((await call('GET', '/me', a.token)).json.user).toMatchObject({ avatar: null, bio: 'New bio' })
+  })
+
+  it('refuses anything that is not a small image, and bios that are too long', async () => {
+    const a = await register('alice')
+    for (const avatar of ['https://example.com/a.png', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,' + 'A'.repeat(70_000), 42]) {
+      expect((await call('PUT', '/me/profile', a.token, { avatar })).status).toBe(400)
+    }
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'x'.repeat(201) })).status).toBe(400)
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'x'.repeat(200) })).status).toBe(200)
+    expect((await call('PUT', '/me/profile', 't:nobody', { bio: 'hi' })).status).toBe(409) // no username yet
+    expect((await call('PUT', '/me/profile', undefined, { bio: 'hi' })).status).toBe(401)
+  })
+
+  it('shows pictures, bios and badges to friends', async () => {
+    const boss = await register('sbcvanity') // capitals don't matter
+    const bob = await register('bob')
+    await call('PUT', '/me/profile', boss.token, { avatar: PNG, bio: 'I make Vanity.' })
+    expect((await call('GET', '/me', boss.token)).json.user).toMatchObject({ verified: true, admin: true })
+    expect((await call('GET', '/me', bob.token)).json.user).toMatchObject({ verified: false, admin: false })
+
+    await call('POST', '/friends/requests', boss.token, { username: 'bob' })
+    expect((await call('GET', '/friends', bob.token)).json.incoming[0]).toMatchObject({ username: 'sbcvanity', avatar: PNG, verified: true, admin: true })
+    expect((await call('GET', '/friends', boss.token)).json.outgoing[0]).toMatchObject({ username: 'bob', avatar: null, verified: false, admin: false })
+    await call('POST', `/friends/requests/${boss.id}/accept`, bob.token)
+    expect((await call('GET', '/friends', bob.token)).json.friends[0]).toMatchObject({ username: 'sbcvanity', avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
+    expect((await call('GET', `/friends/${boss.id}/stats`, bob.token)).json).toMatchObject({ avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
+    expect((await call('GET', `/friends/${bob.id}/stats`, boss.token)).json).toMatchObject({ avatar: null, bio: '', verified: false, admin: false })
+  })
+
+  it('cannot be claimed from the app: badges come only from the server list', async () => {
+    const a = await register('alice')
+    const r = await call('PUT', '/me/profile', a.token, { bio: 'hi', verified: true, admin: true })
+    expect(r.json.user).toMatchObject({ verified: false, admin: false })
+    // The badge name is taken by its owner, so nobody can rename themselves into it.
+    await register('SBCVanity')
+    expect((await call('PUT', '/me/username', a.token, { username: 'sbcvanity' })).status).toBe(409)
+  })
+})
+
+describe('Neon Auth tokens', () => {
+  it('accepts tokens signed by the auth server and nothing else', async () => {
+    const { publicKey, privateKey } = await generateKeyPair('EdDSA', { crv: 'Ed25519' })
+    const other = await generateKeyPair('EdDSA', { crv: 'Ed25519' })
+    const verify = neonAuthVerifier(createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), kid: 'k1', alg: 'EdDSA' }] }))
+    const sign = (key: Parameters<SignJWT['sign']>[0], exp: string | number, sub = 'user-1') =>
+      new SignJWT({ email: 'a@b.co', name: 'Ann' }).setProtectedHeader({ alg: 'EdDSA', kid: 'k1' }).setSubject(sub).setIssuedAt().setExpirationTime(exp).sign(key)
+
+    expect(await verify(await sign(privateKey, '15m'))).toEqual({ id: 'user-1', email: 'a@b.co' })
+    expect(await verify(await sign(other.privateKey, '15m'))).toBeNull() // someone else's key
+    expect(await verify(await sign(privateKey, Math.floor(Date.now() / 1000) - 60))).toBeNull() // expired
+    expect(await verify('a.b.c')).toBeNull()
+    expect(await verify(await sign(privateKey, '15m', ''))).toBeNull() // no user id
   })
 })
 
@@ -173,7 +251,7 @@ describe('presence and stats', () => {
 
     // A heartbeat older than 3 minutes counts as offline.
     await call('PUT', '/presence', b.token, { gameKey: 'steam:620', gameName: 'Portal 2', startedAt: Date.now() })
-    await db.query("UPDATE presence SET updated_at = now() - interval '10 minutes'")
+    await db.query("UPDATE vanity.presence SET updated_at = now() - interval '10 minutes'")
     expect((await call('GET', '/friends', a.token)).json.friends[0].status.state).toBe('offline')
   })
 
@@ -202,7 +280,7 @@ describe('presence and stats', () => {
 
     expect((await call('GET', `/friends/${b.id}/stats`, c.token)).status).toBe(403)
     expect((await call('GET', '/games/steam%3A620/friends', a.token)).json.friends).toEqual([
-      { id: b.id, username: 'bob', playtimeSeconds: 7300, lastPlayedAt: null }
+      { id: b.id, username: 'bob', avatar: null, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
     ])
     expect((await call('GET', '/games/steam%3A620/friends', c.token)).json.friends).toEqual([])
   })
@@ -216,31 +294,30 @@ describe('presence and stats', () => {
 })
 
 describe('setup', () => {
-  it('refuses a short JWT secret', () => {
-    expect(() => createApp({ sql: (async () => []) as Sql, jwtSecret: 'short' })).toThrow(/32 characters/)
+  it('creates its tables once, and the schema is safe to apply again', async () => {
+    let runs = 0
+    const fresh = await freshDb()
+    app = createApp({ sql: fresh.sql, verifyToken, migrate: async () => (runs++, fresh.migrate()) })
+    await register('alice')
+    await register('bob')
+    expect(runs).toBe(1)
+    await fresh.db.exec(SCHEMA)
+    expect((await call('GET', '/me', 't:id-alice')).json.user.username).toBe('alice')
   })
 
-  it('saves a profile style and shows it to friends', async () => {
-    const a = await register('styled_a')
-    const b = await register('styled_b')
-    // Nothing set yet.
-    expect((await call('GET', '/me', a.token)).json.profile).toEqual({})
-    // Only known kinds of values are kept; markup and long text are dropped or trimmed.
-    const saved = await call('PUT', '/profile', a.token, {
-      banner: 'galaxy', frame: 'rainbow', nameStyle: '<b>bold</b>', effect: 'sparkle', flair: '\u{1F451}',
-      tagline: '  hello   <script>there</script>  ', extra: 'ignored'
+  it('tries again after a failed start', async () => {
+    let broken = true
+    const fresh = await freshDb()
+    app = createApp({
+      sql: fresh.sql,
+      verifyToken,
+      migrate: async () => {
+        if (broken) throw new Error('database asleep')
+        await fresh.migrate()
+      }
     })
-    expect(saved.status).toBe(200)
-    expect(saved.json.profile).toEqual({ banner: 'galaxy', frame: 'rainbow', effect: 'sparkle', flair: '\u{1F451}', tagline: 'hello scriptthere/script' })
-    expect((await call('PUT', '/profile', a.token, { flair: 'abc' })).json.profile.flair).toBeUndefined()
-    await call('PUT', '/profile', a.token, { banner: 'galaxy', frame: 'rainbow', flair: '\u{1F451}', tagline: 'gg' })
-    expect((await call('GET', '/me', a.token)).json.profile.tagline).toBe('gg')
-    expect((await call('PUT', '/profile', undefined, { banner: 'gold' })).status).toBe(401)
-
-    await call('POST', '/friends/requests', a.token, { username: 'styled_b' })
-    await call('POST', `/friends/requests/${a.id}/accept`, b.token)
-    const list = await call('GET', '/friends', b.token)
-    expect(list.json.friends[0].profile).toEqual({ banner: 'galaxy', frame: 'rainbow', flair: '\u{1F451}', tagline: 'gg' })
-    expect((await call('GET', `/friends/${a.id}/stats`, b.token)).json.profile.banner).toBe('galaxy')
+    expect((await call('GET', '/me', 't:u1')).status).toBe(500)
+    broken = false
+    expect((await call('GET', '/me', 't:u1')).status).toBe(200)
   })
 })

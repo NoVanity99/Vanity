@@ -47,7 +47,7 @@ describe('update routes', () => {
   const bundle: UpdateBundle = { version: '9.9.9', changelog: '## 9.9.9\n- New', sha: 'abc', builtAt: 1, size: 3, zipBase64: Buffer.from('ZIP').toString('base64') }
 
   it('serves the manifest and the zip, at / and /api', async () => {
-    const app = createApp({ sql: noSql, jwtSecret: SECRET, updates: async () => bundle })
+    const app = createApp({ sql: noSql, verifyToken: async () => null, updates: async () => bundle })
     for (const prefix of ['', '/api']) {
       const manifest = await app.request(`${prefix}/update`)
       expect(manifest.status).toBe(200)
@@ -59,14 +59,14 @@ describe('update routes', () => {
   })
 
   it('needs the update key when one is set', async () => {
-    const app = createApp({ sql: noSql, jwtSecret: SECRET, updates: async () => bundle, updateKey: 'sesame' })
+    const app = createApp({ sql: noSql, verifyToken: async () => null, updates: async () => bundle, updateKey: 'sesame' })
     expect((await app.request('/update')).status).toBe(401)
     expect((await app.request('/update', { headers: { 'x-update-key': 'wrong' } })).status).toBe(401)
     expect((await app.request('/update', { headers: { 'x-update-key': 'sesame' } })).status).toBe(200)
   })
 
   it('says when this deployment has no bundle', async () => {
-    const res = await createApp({ sql: noSql, jwtSecret: SECRET, updates: async () => null }).request('/update')
+    const res = await createApp({ sql: noSql, verifyToken: async () => null, updates: async () => null }).request('/update')
     expect(res.status).toBe(404)
     expect(((await res.json()) as { error: string }).error).toMatch(/no update bundle/)
   })

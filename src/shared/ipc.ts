@@ -1,5 +1,12 @@
 import type {
   AccountState,
+  DownloadItem,
+  InstallPlan,
+  StoreAccounts,
+  SteamState,
+  SteamGame,
+  SteamAchievement,
+  Progress,
   FriendsList,
   FriendStats,
   GameFriend,
@@ -52,13 +59,36 @@ export interface MusicState {
 export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
 /** The API the preload script exposes to the renderer as `window.vanity`. */
+/** An app installed on the phone that could be added as a game (Android). */
+export interface InstalledApp {
+  packageName: string
+  name: string
+  /** A file:// path to the app's icon, if available. */
+  icon: string | null
+}
+
 export interface VanityApi {
+  /** Which version of Vanity this is: the Windows desktop app or the Android app. */
+  platform: 'desktop' | 'android'
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
+    /** The library changed in the background (owned games arrived, an install finished). */
+    onChanged(callback: () => void): () => void
+    /**
+     * Installs a game you own but haven't installed. Resolves with a sentence about what happens
+     * next (Steam games install through the Steam client).
+     */
+    install(id: number): Promise<Result<{ note: string }>>
+    /** A game whose install was started from Vanity is installed now. */
+    onInstalled(callback: (game: Game) => void): () => void
     update(id: number, patch: GamePatch): Promise<Game | null>
-    /** Removes a game from the library. A launcher game comes back on the next scan if it is still installed. */
+    /** Removes a game from the library. Scans skip it from then on, until it's restored. */
     remove(id: number): Promise<void>
+    /** Names of the games you removed (which scans are skipping). */
+    removed(): Promise<string[]>
+    /** Lets scans add removed games back. Resolves to how many were restored. */
+    restoreRemoved(): Promise<number>
     /** Opens the game's install folder in Explorer. Resolves to an error message, or null on success. */
     openFolder(id: number): Promise<string | null>
     /** Starts the game. Resolves to an error message, or null on success. */
@@ -69,6 +99,10 @@ export interface VanityApi {
     confirmCandidates(accepted: GameCandidate[], rejected: GameCandidate[]): Promise<Game[]>
     /** Opens a file picker for an .exe. Resolves to null if cancelled. */
     addManually(): Promise<Game | null>
+    /** Android: apps on the phone that aren't in the library yet (for "Add a game"). Empty on desktop. */
+    installedApps(): Promise<InstalledApp[]>
+    /** Android: adds an installed app to the library as a game. */
+    addApp(packageName: string): Promise<Game | null>
     /** Sessions, averages and rank for one game. */
     playStats(id: number): Promise<GamePlayStats>
     /** Ratings, time to beat, credits, media, news and similar games (cached; `refresh` refetches). */
@@ -84,9 +118,23 @@ export interface VanityApi {
     /** Adds a game to a collection or takes it out; resolves to the updated game. */
     setMember(collectionId: number, gameId: number, member: boolean): Promise<Result<Game | null>>
   }
+  playtime: {
+    /**
+     * Android: whether Vanity may read app usage, which makes playtime exact and counts games
+     * opened outside Vanity. Null on desktop, where playtime is always tracked.
+     */
+    usageAccess(): Promise<boolean | null>
+    /** Android: opens the system's "Usage access" settings. */
+    openUsageSettings(): Promise<void>
+  }
   sessions: {
     /** Games currently launching or running, by game ID. */
     states(): Promise<Record<number, Exclude<SessionState, 'stopped'>>>
+    /**
+     * Cancels a game that is starting, or force-closes one that is running (like "End task").
+     * Unsaved progress in the game is lost. Resolves to how many of its processes were closed.
+     */
+    stop(gameId: number): Promise<Result<{ wasRunning: boolean; closed: number }>>
     onChange(callback: (change: SessionChange) => void): () => void
   }
   metadata: {
@@ -121,12 +169,70 @@ export interface VanityApi {
   account: {
     state(): Promise<AccountState>
     onChange(callback: (state: AccountState) => void): () => void
-    /** Sets (and checks) the account server URL. Signs out of the previous server. */
-    setServer(url: string): Promise<Result<AccountState>>
-    register(username: string, password: string): Promise<Result<AccountState>>
-    login(username: string, password: string): Promise<Result<AccountState>>
-    logout(): Promise<AccountState>
+    /** Creates an account (email + password at Neon Auth) with a public username. */
+    signUp(email: string, username: string, password: string, remember: boolean): Promise<Result<AccountState>>
+    /** `remember` false: signed in only until Vanity closes. */
+    signIn(email: string, password: string, remember: boolean): Promise<Result<AccountState>>
+    signOut(): Promise<AccountState>
+    /** Picks the username of a new account, or renames it. */
+    setUsername(username: string): Promise<Result<AccountState>>
+    /** Sets your profile picture (a small image as a data: address; null removes it) and/or your bio. */
+    setProfile(patch: { avatar?: string | null; bio?: string }): Promise<Result<AccountState>>
+    /** Emails a 6-digit code for choosing a new password. */
+    sendResetCode(email: string): Promise<Result<true>>
+    resetPassword(email: string, code: string, password: string): Promise<Result<true>>
+    /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
+  }
+  /** XP, level, badges and totals, and the state of cloud sync. Works signed out too (this device only). */
+  progress: {
+    get(): Promise<Progress>
+    onChange(callback: (progress: Progress) => void): () => void
+    /** Syncs with the cloud now. Resolves with the result (never rejects). */
+    syncNow(): Promise<Progress>
+  }
+  /** Installing Epic and GOG games inside Vanity (Windows only). */
+  downloads: {
+    list(): Promise<DownloadItem[]>
+    onChange(callback: (items: DownloadItem[]) => void): () => void
+    /** Sizes, the folder and free space, before you confirm. Leave `installDir` out for the last folder used. */
+    plan(gameId: number, installDir?: string): Promise<Result<InstallPlan>>
+    start(gameId: number, installDir: string): Promise<Result<DownloadItem>>
+    pause(id: string): Promise<void>
+    resume(id: string): Promise<void>
+    /** Stops it and deletes what it had downloaded. */
+    cancel(id: string): Promise<void>
+    clearFinished(): Promise<void>
+    /** Shows the downloader's log file in Explorer (for troubleshooting). */
+    showLog(): Promise<void>
+  }
+  /** The Epic and GOG accounts linked on this PC. */
+  stores: {
+    state(): Promise<StoreAccounts>
+    onChange(callback: (state: StoreAccounts) => void): () => void
+    refresh(): Promise<StoreAccounts>
+    /** Opens Epic's sign-in page in a window. */
+    epicLogin(): Promise<Result<StoreAccounts>>
+    /** Signs in with the "authorizationCode" from Epic's sign-in page, pasted by hand. */
+    epicLoginWithCode(code: string): Promise<Result<StoreAccounts>>
+    epicLogout(): Promise<StoreAccounts>
+    gogLogin(): Promise<Result<StoreAccounts>>
+    gogLogout(): Promise<StoreAccounts>
+  }
+  /** Your linked Steam account. The Steam key is on the Vanity server, never in the app. */
+  steam: {
+    state(): Promise<SteamState>
+    onChange(callback: (state: SteamState) => void): () => void
+    /** Links from a SteamID64, a profile link, or a custom URL name. */
+    link(input: string): Promise<Result<SteamState>>
+    /** Opens Steam's sign-in page in the browser; the link appears when you finish there. */
+    signIn(): Promise<Result<SteamState>>
+    cancelSignIn(): Promise<SteamState>
+    unlink(): Promise<Result<SteamState>>
+    refresh(): Promise<SteamState>
+    ownedGames(): Promise<Result<SteamGame[]>>
+    recentGames(): Promise<Result<SteamGame[]>>
+    achievements(appId: number): Promise<Result<SteamAchievement[]>>
   }
   friends: {
     list(): Promise<Result<FriendsList>>
@@ -154,8 +260,12 @@ export interface VanityApi {
   music: {
     /** The music folder and how many tracks it has. */
     state(): Promise<MusicState>
-    /** Title, artist and artwork availability for a track (artwork is at vanity-music://art/<index>). */
+    /** Title, artist and artwork availability for a track. */
     track(index: number): Promise<TrackInfo | null>
+    /** Address the player loads a track from. `version` is MusicState.version. */
+    url(index: number, version: number): string
+    /** Address of a track's artwork. */
+    artUrl(index: number, version: number): string
     /** Opens a folder picker, then scans it. Resolves to the new state, or null if cancelled. */
     pickFolder(): Promise<MusicState | null>
   }
@@ -188,6 +298,8 @@ export interface VanityApi {
     onProgress(callback: (progress: ScanProgress[]) => void): () => void
   }
   settings: {
+    /** Settings changed without the user doing it here (cloud sync brought them from another device). */
+    onChange(callback: (settings: Settings) => void): () => void
     get(): Promise<Settings>
     update(patch: Partial<Settings>): Promise<Settings>
     /** Opens a folder picker. Resolves to null if cancelled. */
@@ -199,8 +311,13 @@ export interface VanityApi {
 export const IPC = {
   gamesList: 'games:list',
   gamesGet: 'games:get',
+  gamesChanged: 'games:changed',
+  gamesInstall: 'games:install',
+  gamesInstalled: 'games:installed',
   gamesUpdate: 'games:update',
   gamesRemove: 'games:remove',
+  gamesRemoved: 'games:removed',
+  gamesRestoreRemoved: 'games:restore-removed',
   gamesOpenFolder: 'games:open-folder',
   gamesLaunch: 'games:launch',
   gamesPickExecutable: 'games:pick-executable',
@@ -232,12 +349,47 @@ export const IPC = {
   trendingOpen: 'trending:open',
   trendingFollow: 'trending:follow',
   statsGet: 'stats:get',
+  progressGet: 'progress:get',
+  progressChanged: 'progress:changed',
+  progressSyncNow: 'progress:sync-now',
+  settingsChanged: 'settings:changed',
+  sessionsStop: 'sessions:stop',
+  downloadsList: 'downloads:list',
+  downloadsChanged: 'downloads:changed',
+  downloadsPlan: 'downloads:plan',
+  downloadsStart: 'downloads:start',
+  downloadsPause: 'downloads:pause',
+  downloadsResume: 'downloads:resume',
+  downloadsCancel: 'downloads:cancel',
+  downloadsClearFinished: 'downloads:clear-finished',
+  downloadsShowLog: 'downloads:show-log',
+  storesState: 'stores:state',
+  storesChanged: 'stores:changed',
+  storesRefresh: 'stores:refresh',
+  storesEpicLogin: 'stores:epic-login',
+  storesEpicLoginWithCode: 'stores:epic-login-code',
+  storesEpicLogout: 'stores:epic-logout',
+  storesGogLogin: 'stores:gog-login',
+  storesGogLogout: 'stores:gog-logout',
+  steamState: 'steam:state',
+  steamChanged: 'steam:changed',
+  steamLink: 'steam:link',
+  steamSignIn: 'steam:sign-in',
+  steamCancelSignIn: 'steam:cancel-sign-in',
+  steamUnlink: 'steam:unlink',
+  steamRefresh: 'steam:refresh',
+  steamOwnedGames: 'steam:owned-games',
+  steamRecentGames: 'steam:recent-games',
+  steamAchievements: 'steam:achievements',
   accountState: 'account:state',
   accountChanged: 'account:changed',
-  accountSetServer: 'account:set-server',
-  accountRegister: 'account:register',
-  accountLogin: 'account:login',
-  accountLogout: 'account:logout',
+  accountSignUp: 'account:sign-up',
+  accountSignIn: 'account:sign-in',
+  accountSignOut: 'account:sign-out',
+  accountSetUsername: 'account:set-username',
+  accountSetProfile: 'account:set-profile',
+  accountSendResetCode: 'account:send-reset-code',
+  accountResetPassword: 'account:reset-password',
   accountDelete: 'account:delete',
   friendsList: 'friends:list',
   friendsAdd: 'friends:add',

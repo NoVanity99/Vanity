@@ -1,5 +1,3 @@
-import { DEFAULT_PROFILE } from '@shared/profile'
-import { DEFAULT_UI } from '@shared/ui'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings, TrendingState } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -28,9 +26,7 @@ const settings: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0,
-  profile: DEFAULT_PROFILE,
-  ui: DEFAULT_UI
+  breakReminderMinutes: 0
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

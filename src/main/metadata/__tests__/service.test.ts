@@ -1,5 +1,3 @@
-import { DEFAULT_PROFILE } from '@shared/profile'
-import { DEFAULT_UI } from '@shared/ui'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,9 +32,7 @@ const baseSettings: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0,
-  profile: DEFAULT_PROFILE,
-  ui: DEFAULT_UI
+  breakReminderMinutes: 0
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

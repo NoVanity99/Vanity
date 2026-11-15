@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, LayoutGrid, Layers, List, Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Layers, LayoutGrid, List, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
+import { openVibeCheck } from '@/components/VibeCheck'
+import { openAppPicker } from '@/components/AppPicker'
+import { isAndroid, menuGesture, useIsPhone } from '@/lib/platform'
 import { PLAY_STATUS_LABELS, PLAY_STATUSES, SOURCE_LABELS, type Game, type GameSource, type PlayStatus } from '@shared/types'
 import { Button } from '@/components/Dialog'
 import { GameCard } from '@/components/GameCard'
@@ -27,9 +30,11 @@ interface Prefs {
   /** Minimum card width in px (the size slider). */
   cardWidth: number
   layout: 'grid' | 'list'
+  /** All games, only installed ones, or only ones you own but haven't installed. */
+  installed: 'all' | 'installed' | 'not-installed'
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168, layout: 'grid' }
+const DEFAULT_PREFS: Prefs = { sort: 'name', source: 'all', genre: 'all', status: 'all', showHidden: false, cardWidth: 168, layout: 'grid', installed: 'all' }
 const CARD_MIN = 128
 const CARD_MAX = 260
 
@@ -85,7 +90,7 @@ export function CollectionPage(): React.JSX.Element {
 }
 
 export function LibraryPage({ view, collection }: { view: View; collection?: { id: number; name: string } }): React.JSX.Element {
-  const { games, loading, scan, addManually, sessions, launch } = useLibrary()
+  const { games, library, loading, scan, addManually, sessions, launch, install } = useLibrary()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -95,16 +100,28 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   const [players, setPlayers] = useState<Record<number, number>>({})
   const [surprise, setSurprise] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  // The list layout needs a wide screen; phones always use the grid.
+  const phone = useIsPhone()
+  const layout = phone ? 'grid' : prefs.layout
 
   // Live Steam player counts for the cards (cached in the main process for 10 minutes).
+  // Asked again shortly after opening (games from other launchers have their Steam page looked up
+  // in the background first), then every ten minutes.
   useEffect(() => {
     let cancelled = false
-    window.vanity.live.library().then(
-      (p) => !cancelled && setPlayers(p),
-      () => {}
-    )
+    const load = (): void => {
+      window.vanity.live.library().then(
+        (p) => !cancelled && setPlayers((prev) => (Object.keys(p).length || !Object.keys(prev).length ? p : prev)),
+        () => {}
+      )
+    }
+    load()
+    const soon = [setTimeout(load, 20_000), setTimeout(load, 75_000)]
+    const timer = setInterval(load, 10 * 60_000)
     return () => {
       cancelled = true
+      soon.forEach(clearTimeout)
+      clearInterval(timer)
     }
   }, [])
 
@@ -127,10 +144,15 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   // The games this view is about, before search and filters.
   const base = useMemo(() => {
     if (view === 'recent') return games.filter((g) => g.lastPlayedAt !== null)
-    if (view === 'favorites') return games.filter((g) => g.favorite)
-    if (view === 'collection') return games.filter((g) => collection && g.collections.includes(collection.id))
-    return games
-  }, [games, view, collection])
+    // Games you own but haven't installed can still be favourites and sit in collections.
+    if (view === 'favorites') return library.filter((g) => g.favorite)
+    if (view === 'collection') return library.filter((g) => collection && g.collections.includes(collection.id))
+    return library
+  }, [games, library, view, collection])
+
+  const notInstalledCount = useMemo(() => base.filter((g) => !g.installed).length, [base])
+  // The filter only matters when there is something that isn't installed.
+  const installedFilter = notInstalledCount > 0 ? prefs.installed : 'all'
 
   const sources = useMemo(() => [...new Set(base.map((g) => g.source))].sort(), [base])
   const genres = useMemo(() => [...new Set(base.flatMap((g) => g.genres))].sort(), [base])
@@ -146,23 +168,25 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
     const sort = view === 'recent' ? 'recent' : prefs.sort
     return base
       .filter((g) => prefs.showHidden || !g.hidden)
+      .filter((g) => installedFilter === 'all' || (installedFilter === 'installed') === g.installed)
       .filter((g) => source === 'all' || g.source === source)
       .filter((g) => genre === 'all' || g.genres.includes(genre))
       .filter((g) => status === 'all' || (status === 'none' ? g.playStatus === null : g.playStatus === status))
       .filter((g) => !q || searchKey(g.name).includes(q))
       .sort(SORTERS[sort] ?? SORTERS.name)
-  }, [base, query, prefs.showHidden, prefs.sort, source, genre, status, view])
+  }, [base, query, prefs.showHidden, prefs.sort, source, genre, status, view, installedFilter])
 
-  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all' || status !== 'all'
+  const filtered = query.trim() !== '' || source !== 'all' || genre !== 'all' || status !== 'all' || installedFilter !== 'all'
   const cardWidth = Math.min(CARD_MAX, Math.max(CARD_MIN, prefs.cardWidth || DEFAULT_PREFS.cardWidth))
   const gridStyle = { gridTemplateColumns: `repeat(auto-fill, minmax(${cardWidth}px, 1fr))` }
   const clearFilters = (): void => {
     setQuery('')
-    patch({ source: 'all', genre: 'all', status: 'all' })
+    patch({ source: 'all', genre: 'all', status: 'all', installed: 'all' })
   }
 
   const openGame = useCallback((g: Game): void => void navigate(`/game/${g.id}`), [navigate])
   const playGame = useCallback((g: Game): void => void launch(g.id), [launch])
+  const installGame = useCallback((g: Game): void => void install(g.id), [install])
 
   // "Jump back in": the three most recent, on the main Library view when nothing is filtered.
   const recent = useMemo(
@@ -205,7 +229,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <div className="relative w-72">
+          <div className="relative w-72 max-md:w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
             <input
               ref={searchRef}
@@ -273,6 +297,29 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             />
           )}
 
+          {notInstalledCount > 0 && (
+            <div className="flex h-9 rounded-lg border border-border bg-surface-2 p-0.5 text-sm" role="radiogroup" aria-label="Installed">
+              {(
+                [
+                  ['all', 'All', base.length],
+                  ['installed', 'Installed', base.length - notInstalledCount],
+                  ['not-installed', 'Not installed', notInstalledCount]
+                ] as const
+              ).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={installedFilter === value}
+                  onClick={() => patch({ installed: value })}
+                  className={cn('flex items-center gap-1.5 rounded-md px-3 transition', installedFilter === value ? 'bg-accent font-semibold text-white shadow' : 'text-muted hover:text-text')}
+                >
+                  {label}
+                  <span className={cn('text-xs tabular-nums', installedFilter === value ? 'text-white/80' : 'text-muted/70')}>{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {hiddenCount > 0 && (
             <button
               onClick={() => patch({ showHidden: !prefs.showHidden })}
@@ -293,8 +340,19 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
 
           {view === 'all' && games.length > 1 && (
             <button
+              onClick={openVibeCheck}
+              title="What should I play right now? Pick your time and mood."
+              className="group/vibe ml-auto flex h-9 max-md:ml-0 items-center gap-2 rounded-lg bg-gradient-to-r from-accent to-accent-2 px-3 text-sm font-semibold text-white shadow-lg shadow-accent/25 transition hover:-translate-y-0.5 hover:brightness-110"
+            >
+              <Sparkles className="size-4 transition-transform duration-500 group-hover/vibe:rotate-180" />
+              Vibe Check
+            </button>
+          )}
+
+          {view === 'all' && games.length > 1 && (
+            <button
               onClick={() => setSurprise(true)}
-              className="group/dice ml-auto flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
+              className="group/dice flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
             >
               <Dices className="size-4 text-accent transition-transform duration-500 group-hover/dice:rotate-[360deg]" />
               Surprise me
@@ -302,7 +360,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
           )}
 
           <div
-            className={cn('flex rounded-lg border border-border bg-surface-2 p-0.5', !(view === 'all' && games.length > 1) && 'ml-auto')}
+            className={cn('flex rounded-lg border border-border bg-surface-2 p-0.5 max-md:hidden', !(view === 'all' && games.length > 1) && 'ml-auto')}
             role="radiogroup"
             aria-label="Layout"
           >
@@ -328,7 +386,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             ))}
           </div>
 
-          {prefs.layout === 'grid' && (
+          {layout === 'grid' && !phone && (
             <label className="flex items-center gap-2 text-muted" title="Card size">
               <ImageIcon className="size-3.5" />
               <input
@@ -349,7 +407,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
 
       <div className="min-h-0 flex-1 overflow-y-auto px-10 pb-16 pt-8">
         {loading ? (
-          <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+          <div className="game-grid grid gap-x-6 gap-y-8" style={gridStyle}>
             {Array.from({ length: 12 }, (_, i) => (
               <div key={i}>
                 <div className="shimmer aspect-[2/3] rounded-xl bg-surface-2" />
@@ -361,7 +419,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
           <>
             <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} />
             {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
-            {prefs.layout === 'list' ? (
+            {layout === 'list' ? (
               <div>
                 <div className={cn(ROW_GRID, 'border-b border-white/5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted')}>
                   <span />
@@ -382,13 +440,14 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                       players={players[g.id]}
                       onOpen={openGame}
                       onPlay={playGame}
+                      onInstall={installGame}
                       onMenu={openMenu}
                     />
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="grid gap-x-6 gap-y-8" style={gridStyle}>
+              <div className="game-grid grid gap-x-6 gap-y-8" style={gridStyle}>
                 {shown.map((g, i) => (
                   <GameCard
                     key={g.id}
@@ -398,6 +457,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                     players={players[g.id]}
                     onOpen={openGame}
                     onPlay={playGame}
+                    onInstall={installGame}
                     onMenu={openMenu}
                   />
                 ))}
@@ -411,17 +471,17 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
         ) : view === 'recent' ? (
           <EmptyState icon={Clock} title="Nothing played yet" text="Games you launch from Vanity show up here." />
         ) : view === 'favorites' ? (
-          <EmptyState icon={Star} title="No favorites yet" text="Right-click a game and choose Add to favorites." />
+          <EmptyState icon={Star} title="No favorites yet" text={`${menuGesture()} a game and choose Add to favorites.`} />
         ) : view === 'collection' ? (
-          <EmptyState icon={Layers} title="This collection is empty" text="Right-click any game and choose Add to collection." />
+          <EmptyState icon={Layers} title="This collection is empty" text={`${menuGesture()} any game and choose Add to collection.`} />
         ) : scan.running ? (
-          <EmptyState icon={FolderSearch} title="Looking for your games…" text="Checking Steam, Epic, GOG, EA, Ubisoft and your folders." />
+          <EmptyState icon={FolderSearch} title="Looking for your games…" text={isAndroid() ? 'Checking the games installed on your phone.' : 'Checking Steam, Epic, GOG, EA, Ubisoft and your folders.'} />
         ) : (
           <EmptyState icon={FolderSearch} title="No games yet" text="Scan for installed games, or add one yourself.">
             <Button variant="primary" onClick={scan.start}>
               Scan for games
             </Button>
-            <Button onClick={addManually}>
+            <Button onClick={() => (isAndroid() ? openAppPicker() : void addManually())}>
               <Plus className="size-4" /> Add a game
             </Button>
           </EmptyState>

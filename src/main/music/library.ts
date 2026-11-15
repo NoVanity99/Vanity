@@ -4,6 +4,7 @@ import { parseFile } from 'music-metadata'
 import type { TrackInfo } from '@shared/types'
 import { Readable } from 'node:stream'
 import { safeReaddir } from '../util/fs'
+import { CONVERT_EXTS } from './convert'
 
 export const AUDIO_TYPES: Record<string, string> = {
   '.mp3': 'audio/mpeg',
@@ -14,14 +15,19 @@ export const AUDIO_TYPES: Record<string, string> = {
   '.opus': 'audio/ogg',
   '.flac': 'audio/flac',
   '.wav': 'audio/wav',
-  '.webm': 'audio/webm'
+  '.webm': 'audio/webm',
+  '.weba': 'audio/webm',
+  '.mka': 'audio/x-matroska',
+  '.mp4': 'audio/mp4',
+  '.m4b': 'audio/mp4',
+  '.3gp': 'audio/3gpp'
 }
 
 const MAX_TRACKS = 20_000
 const MAX_DEPTH = 8
 
-/** Every playable audio file under `folder` (recursive), in a stable order. */
-export async function scanMusic(folder: string): Promise<string[]> {
+/** Every playable audio file under `folder` (recursive), in a stable order. With `convertible`, also formats that need converting first. */
+export async function scanMusic(folder: string, convertible = false): Promise<string[]> {
   const found: string[] = []
   async function walk(dir: string, depth: number): Promise<void> {
     if (found.length >= MAX_TRACKS || depth > MAX_DEPTH) return
@@ -30,7 +36,10 @@ export async function scanMusic(folder: string): Promise<string[]> {
       if (e.name.startsWith('.')) continue
       const full = join(dir, e.name)
       if (e.isDirectory()) await walk(full, depth + 1)
-      else if (e.isFile() && AUDIO_TYPES[extname(e.name).toLowerCase()]) found.push(full)
+      else if (e.isFile()) {
+        const ext = extname(e.name).toLowerCase()
+        if (AUDIO_TYPES[ext] || (convertible && CONVERT_EXTS.has(ext))) found.push(full)
+      }
     }
   }
   await walk(folder, 0)
@@ -92,9 +101,12 @@ export class MusicLibrary {
   private version = 0
   private info = new Map<number, Promise<{ info: TrackInfo; art: Art | null }>>()
 
+  /** `convertible`: whether formats that need converting (WMA, ALAC, AIFF…) can be played, i.e. ffmpeg is available. */
+  constructor(private convertible = false) {}
+
   async load(folder: string | null): Promise<void> {
     this.folder = folder
-    this.tracks = folder ? await scanMusic(folder) : []
+    this.tracks = folder ? await scanMusic(folder, this.convertible) : []
     this.version++
     this.info.clear()
   }

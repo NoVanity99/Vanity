@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
-import { ProfileCard, ProfileName } from '@/components/ProfileCard'
+import { UserBadges } from '@/components/UserBadges'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
@@ -33,9 +33,15 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
         playing && !selected && 'border-accent/25 bg-gradient-to-r from-accent/10 to-transparent'
       )}
     >
-      <Avatar name={friend.username} status={friend.status.state} frame={friend.profile?.frame} />
+      <Avatar name={friend.username} src={friend.avatar} status={friend.status.state} />
       <span className="min-w-0 flex-1">
-        <ProfileName name={friend.username} profile={friend.profile} className="max-w-full font-semibold" />
+        <span className="flex items-center gap-2">
+          <span className="truncate font-semibold">{friend.username}</span>
+          <UserBadges verified={friend.verified} admin={friend.admin} />
+          <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent" title={`Level ${friend.level} (${friend.xp.toLocaleString()} XP)`}>
+            Lv {friend.level}
+          </span>
+        </span>
         <span className={cn('flex items-center gap-1.5 truncate text-xs', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
           {playing && <Gamepad2 className="size-3.5 shrink-0" />}
           <span className="truncate">{statusLine(friend)}</span>
@@ -64,10 +70,24 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
 
   return (
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 rounded-2xl border border-border bg-surface p-6">
-      {/* Their profile, styled the way they chose. */}
-      <ProfileCard name={friend.username} profile={stats?.profile ?? friend.profile} status={friend.status.state} className="-mx-2 -mt-2">
-        <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
-      </ProfileCard>
+      <div className="flex items-center gap-4">
+        <Avatar name={friend.username} src={friend.avatar} size="lg" status={friend.status.state} />
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 font-display text-2xl font-bold">
+            <span className="truncate">{friend.username}</span>
+            <UserBadges verified={friend.verified} admin={friend.admin} size="md" />
+          </p>
+          <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
+          <p className="mt-1 text-xs font-semibold text-accent">
+            Level {stats?.level ?? friend.level}
+            <span className="font-normal text-muted">
+              {' '}
+              · {(stats?.xp ?? friend.xp).toLocaleString()} XP{stats ? ` · ${stats.badges.length} badge${stats.badges.length === 1 ? '' : 's'}` : ''}
+            </span>
+          </p>
+        </div>
+      </div>
+      {(stats?.bio ?? friend.bio) && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-3.5 py-3 text-sm text-text/85">{stats?.bio ?? friend.bio}</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-surface-2 p-3">
@@ -156,11 +176,11 @@ export function FriendsPage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (!account?.signedIn) return
+    if (!account?.username) return
     void load()
     const t = setInterval(() => void load(), REFRESH_MS)
     return () => clearInterval(t)
-  }, [account?.signedIn, load])
+  }, [account?.username, load])
 
   const groups = useMemo(() => {
     const f = list?.friends ?? []
@@ -194,7 +214,7 @@ export function FriendsPage(): React.JSX.Element {
 
   if (!account) return <div className="h-full" />
 
-  if (!account.signedIn) {
+  if (!account.username) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-10 text-center">
         <div className="animate-pop-in mb-6 flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-accent to-accent-2 shadow-2xl shadow-accent/30">
@@ -203,7 +223,7 @@ export function FriendsPage(): React.JSX.Element {
         <h1 className="text-3xl font-bold tracking-tight">Play together</h1>
         <p className="mt-2 max-w-md text-muted">Sign in to your Vanity account to see your friends, what they're playing right now, and their stats.</p>
         <Button variant="primary" className="mt-7 h-11 px-6" onClick={() => navigate('/account')}>
-          <LogIn className="size-4" /> {account.serverConfigured ? 'Sign in or create an account' : 'Set up accounts'}
+          <LogIn className="size-4" /> Sign in or create an account
         </Button>
       </div>
     )
@@ -248,9 +268,9 @@ export function FriendsPage(): React.JSX.Element {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Requests</h2>
             {list.incoming.map((r) => (
               <div key={r.id} className="animate-pop-in flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 p-3">
-                <Avatar name={r.username} size="sm" />
+                <Avatar name={r.username} src={r.avatar} size="sm" />
                 <span className="flex-1 text-sm">
-                  <b>{r.username}</b> wants to be friends
+                  <b>{r.username}</b> <UserBadges verified={r.verified} admin={r.admin} /> wants to be friends
                 </span>
                 <Button variant="primary" onClick={() => act(() => window.vanity.friends.accept(r.id), `You and ${r.username} are now friends`)}>
                   <Check className="size-4" /> Accept
@@ -262,9 +282,9 @@ export function FriendsPage(): React.JSX.Element {
             ))}
             {list.outgoing.map((r) => (
               <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3">
-                <Avatar name={r.username} size="sm" />
+                <Avatar name={r.username} src={r.avatar} size="sm" />
                 <span className="flex-1 text-sm text-muted">
-                  Waiting for <b className="text-text">{r.username}</b> to accept
+                  Waiting for <b className="text-text">{r.username}</b> <UserBadges verified={r.verified} admin={r.admin} /> to accept
                 </span>
                 <Button variant="ghost" onClick={() => act(() => window.vanity.friends.decline(r.id), 'Request cancelled')}>
                   Cancel

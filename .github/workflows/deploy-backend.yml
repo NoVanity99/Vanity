@@ -1,0 +1,141 @@
+# Puts Vanity's online side on Neon: turns on Neon Auth (sign-in), deploys the Vanity server as a
+# Neon Function, checks that it all works, and saves the two public addresses in the app.
+# See server/README.md.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   NEON_API_KEY       from the Neon console → Account settings → API keys
+#   NEON_PROJECT_ID    from the Neon console → your project → Settings (looks like "cool-lab-12345678")
+#   STEAM_WEB_API_KEY  optional, for Steam linking: from https://steamcommunity.com/dev/apikey
+#                      It is stored on Neon as a secret of the server and never reaches the app or this repo.
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/happy-cori-k2ntxm', 'main']
+    paths: ['server/src/**', 'server/neon.ts', 'server/package.json', 'server/package-lock.json']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  # A push before the secrets exist is skipped quietly; starting it by hand without them is an error.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.secrets.outputs.ready }}
+    steps:
+      - id: secrets
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: |
+          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::Add the repository secrets NEON_API_KEY and NEON_PROJECT_ID first (see server/README.md)."
+            exit 1
+          else
+            echo "::notice::Not deployed: the repository secrets NEON_API_KEY and NEON_PROJECT_ID are not set yet (see server/README.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  neon:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test the server
+        run: npm run typecheck && npm test
+
+      # Applies server/neon.ts: Neon Auth on, and the "vanity" function deployed.
+      # The database tables are created by the server itself the first time it is used.
+      # The Steam key (if the secret exists) becomes a secret of the function. Without the secret,
+      # the key that is already on Neon is left as it is.
+      - name: Deploy to Neon
+        env:
+          STEAM_WEB_API_KEY: ${{ secrets.STEAM_WEB_API_KEY }}
+        run: npx neon deploy --project-id "$NEON_PROJECT_ID" --yes --no-env-pull
+
+      # Only the public addresses are read: the database password never appears here.
+      - name: Read the public addresses
+        id: urls
+        run: |
+          npx neon env pull --project-id "$NEON_PROJECT_ID" --file .env.public -e NEON_AUTH_BASE_URL -e NEON_BRANCH_ID -e NEON_FUNCTION_HOST_SUFFIX
+          set -a; . ./.env.public; set +a
+          if [ -z "$NEON_AUTH_BASE_URL" ] || [ -z "$NEON_BRANCH_ID" ] || [ -z "$NEON_FUNCTION_HOST_SUFFIX" ]; then
+            echo "::error::Neon did not report the Auth address or the function address. Is the project in a region that has Neon Auth and Functions?"
+            exit 1
+          fi
+          AUTH_URL="${NEON_AUTH_BASE_URL%/}"
+          API_URL="https://${NEON_BRANCH_ID}-vanity${NEON_FUNCTION_HOST_SUFFIX}"
+          echo "auth=$AUTH_URL" >> "$GITHUB_OUTPUT"
+          echo "api=$API_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Vanity backend on Neon"
+            echo "- Sign-in (Neon Auth): \`$AUTH_URL\`"
+            echo "- Vanity server (Neon Function): \`$API_URL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Signs up a throwaway account, uses it the way the app does, and removes it again.
+      - name: Check it works end to end
+        env:
+          NEON_AUTH_URL: ${{ steps.urls.outputs.auth }}
+          VANITY_API_URL: ${{ steps.urls.outputs.api }}
+        run: |
+          set +e
+          node scripts/smoke.mjs | tee smoke.log
+          STATUS=${PIPESTATUS[0]}
+          { echo; echo '```'; grep -v '^user-id:' smoke.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          USER_ID=$(sed -n 's/^user-id: //p' smoke.log)
+          if [ -n "$USER_ID" ]; then
+            npx neon neon-auth user delete "$USER_ID" --project-id "$NEON_PROJECT_ID" || echo "::warning::Could not remove the throwaway test user $USER_ID. You can delete it in the Neon console (Auth → Users)."
+          fi
+          exit $STATUS
+
+      # The two addresses are public (they are sent with every request). The app reads them from
+      # src/shared/backend.ts, so the next Vanity release has accounts switched on.
+      - name: Save the addresses in the app
+        working-directory: .
+        env:
+          AUTH_URL: ${{ steps.urls.outputs.auth }}
+          API_URL: ${{ steps.urls.outputs.api }}
+        run: |
+          node -e "
+            const fs = require('fs')
+            const file = 'src/shared/backend.ts'
+            let s = fs.readFileSync(file, 'utf8')
+            const next = s.replace(/authUrl: '[^']*'/, \"authUrl: '\" + process.env.AUTH_URL + \"'\").replace(/apiUrl: '[^']*'/, \"apiUrl: '\" + process.env.API_URL + \"'\")
+            if (!next.includes(process.env.AUTH_URL) || !next.includes(process.env.API_URL)) { console.error('Could not update ' + file); process.exit(1) }
+            fs.writeFileSync(file, next)
+          "
+          if git diff --quiet -- src/shared/backend.ts; then
+            echo "The app already has these addresses."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/shared/backend.ts
+            git commit -m "Point the app at the Neon backend"
+            git push
+          fi

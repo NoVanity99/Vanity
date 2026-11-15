@@ -78,7 +78,7 @@ export function SessionRecap(): React.JSX.Element | null {
   if (!recap) return null
   const art = mediaUrl(recap.game.heroPath) ?? mediaUrl(recap.game.coverPath)
   return (
-    <div className="animate-rise-in fixed bottom-6 left-64 z-40 w-[22rem] overflow-hidden rounded-2xl border border-white/10 bg-surface/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
+    <div className="animate-rise-in fixed bottom-6 left-64 z-40 w-[22rem] overflow-hidden max-md:inset-x-3 max-md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-md:w-auto rounded-2xl border border-white/10 bg-surface/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
       <div className="relative h-24 overflow-hidden">
         {art && <img src={art} alt="" className="absolute inset-0 size-full scale-110 object-cover opacity-60 blur-[2px]" draggable={false} />}
         <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />

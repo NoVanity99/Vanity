@@ -1,3 +1,4 @@
+import { StopBubble } from '@/components/StopBubble'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +9,7 @@ import { cn } from '@/lib/cn'
 import { formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { STATUS_STYLES } from '@/lib/status'
-import { levelFor, totalXp } from '@/lib/xp'
+import { useProgress } from '@/state/progress'
 import { useCollections } from '@/state/collections'
 import { useLibrary } from '@/state/library'
 
@@ -139,7 +140,7 @@ export function BigPicturePage(): React.JSX.Element {
     )
   )
 
-  const lvl = levelFor(totalXp(games))
+  const lvl = useProgress()?.level ?? { level: 1, into: 0, span: 100, title: 'Rookie' }
   const hero = game ? (mediaUrl(game.heroPath) ?? mediaUrl(game.coverPath)) : null
   const logo = game ? mediaUrl(game.logoPath) : null
 
@@ -199,8 +200,9 @@ export function BigPicturePage(): React.JSX.Element {
                 tabIndex={-1}
                 className="flex items-center gap-3 rounded-xl bg-accent px-8 py-3.5 text-xl font-bold shadow-xl shadow-accent/30 transition hover:scale-105 disabled:opacity-60"
               >
-                <Play className="size-6 fill-current" /> {sessions[game.id] ? (sessions[game.id] === 'running' ? 'Playing' : 'Launching…') : 'Play'}
+                <Play className="size-6 fill-current" /> {sessions[game.id] ? (sessions[game.id] === 'running' ? 'Playing' : 'Starting…') : 'Play'}
               </button>
+              <StopBubble gameId={game.id} name={game.name} size="lg" />
               <button onClick={() => navigate(`/game/${game.id}`)} tabIndex={-1} className="flex items-center gap-2 rounded-xl bg-white/10 px-6 py-3.5 text-lg font-semibold backdrop-blur transition hover:bg-white/20">
                 <Info className="size-5" /> Details
               </button>

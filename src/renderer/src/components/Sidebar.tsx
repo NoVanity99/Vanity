@@ -1,13 +1,14 @@
+import { UserBadges } from '@/components/UserBadges'
+import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { orderedNav, sanitizeUi } from '@shared/ui'
-import { useSettings } from '@/state/settings'
-import { ProfileName } from './ProfileCard'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
 import { LevelBadge } from './LevelBadge'
+import { openAppPicker } from './AppPicker'
+import { isAndroid, menuGesture } from '@/lib/platform'
 import { useAccount } from '@/state/account'
 import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
@@ -39,7 +40,6 @@ function NavItem({
     <NavLink
       to={to}
       onClick={play}
-      title={label}
       className={({ isActive }) =>
         cn(
           'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -57,8 +57,8 @@ function NavItem({
               isActive ? 'text-accent' : 'text-muted group-hover:text-text'
             )}
           />
-          <span className="nav-label min-w-0 flex-1 truncate">{label}</span>
-          {count !== undefined && count > 0 && <span className="nav-label text-xs tabular-nums text-muted">{count}</span>}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          {count !== undefined && count > 0 && <span className="text-xs tabular-nums text-muted">{count}</span>}
         </>
       )}
     </NavLink>
@@ -109,7 +109,6 @@ function Indicator({ top, height, visible }: { top: number; height: number; visi
 /** Below Settings: your avatar and name when signed in, otherwise a sign-in prompt. */
 function AccountItem(): React.JSX.Element {
   const account = useAccount()
-  const settings = useSettings()
   const [played, play] = useClickAnimation()
   return (
     <NavLink
@@ -121,88 +120,93 @@ function AccountItem(): React.JSX.Element {
     >
       {account?.signedIn && account.username ? (
         <>
-          <Avatar key={played} name={account.username} size="sm" status="online" frame={settings?.profile?.frame} className={cn(played > 0 && 'icon-bounce')} />
-          <span className="nav-label min-w-0 flex-1">
-            <ProfileName name={account.username} profile={settings?.profile} className="max-w-full text-text" />
+          <Avatar key={played} name={account.username} src={account.avatar} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-text">
+              <span className="truncate">{account.username}</span>
+              <UserBadges verified={account.verified} admin={account.admin} />
+            </span>
             <span className="block text-[11px] text-muted">Account</span>
           </span>
         </>
       ) : (
         <>
           <UserCircle2 key={played} className={cn('size-[18px]', played > 0 && 'icon-bounce')} />
-          <span className="nav-label flex-1">Sign in</span>
+          <span className="flex-1">Sign in</span>
         </>
       )}
     </NavLink>
   )
 }
 
-export function Sidebar(): React.JSX.Element {
+/** `open`/`onClose` only matter on phones, where the sidebar is a slide-out menu. */
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }): React.JSX.Element {
   const sidebarRef = useRef<HTMLElement>(null)
   const indicator = useActiveIndicator(sidebarRef)
   const { games, scan, addManually, sessions, metadata } = useLibrary()
   const playing = games.filter((g) => sessions[g.id])
   const [addPlayed, playAdd] = useClickAnimation()
   const visible = games.filter((g) => !g.hidden)
+  // Downloads still to finish, shown next to the Downloads entry.
+  const queued = useDownloads().filter((d) => d.state !== 'done').length
   const done = scan.progress.filter((p) => p.status !== 'pending' && p.status !== 'scanning').length
   const collections = useCollections()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
-  // Which parts of the sidebar are on, and in what order (Settings → Customize).
-  const ui = sanitizeUi(useSettings()?.ui)
-  const NAV: Record<string, { icon: LucideIcon; animation: IconAnimation; count?: number }> = {
-    '/library': { icon: LayoutGrid, animation: 'bounce', count: visible.length },
-    '/trending': { icon: Flame, animation: 'flame' },
-    '/store': { icon: ShoppingBag, animation: 'swing' },
-    '/friends': { icon: Users, animation: 'wave' },
-    '/recent': { icon: Clock, animation: 'rewind' },
-    '/favorites': { icon: Star, animation: 'star', count: visible.filter((g) => g.favorite).length },
-    '/stats': { icon: BarChart3, animation: 'bounce' }
-  }
 
   return (
-    <aside ref={sidebarRef} className={cn('relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl', ui.compactSidebar && 'sidebar-compact')}>
+    <>
+    {/* Phones: tap outside the menu to close it. */}
+    <div aria-hidden onClick={onClose} className={cn('fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')} />
+    <aside
+      ref={sidebarRef}
+      className={cn(
+        'relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl',
+        'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:bg-bg max-md:pb-[env(safe-area-inset-bottom)] max-md:pt-[env(safe-area-inset-top)] max-md:transition-transform max-md:duration-300',
+        !open && 'max-md:-translate-x-full'
+      )}
+    >
       <Indicator {...indicator} />
       <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
         <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
-        <span className="nav-label flex-1 text-lg font-bold tracking-tight">Vanity</span>
+        <span className="flex-1 text-lg font-bold tracking-tight">Vanity</span>
         <NavLink
           to="/big"
           title="Big Picture mode: full screen, for the couch"
           aria-label="Big Picture mode"
-          className="sidebar-wide-only rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text [-webkit-app-region:no-drag]"
+          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
         >
           <Tv className="size-[18px]" />
         </NavLink>
       </div>
 
-      {ui.showLevel && (
-        <div className="sidebar-wide-only">
-          <LevelBadge />
-        </div>
-      )}
+      <LevelBadge />
 
-      {ui.showSearch && (
-        <button
-          onClick={openCommandPalette}
-          title="Search (Ctrl K)"
-          className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
-        >
-          <Search className="size-4" />
-          <span className="nav-label flex-1 text-left">Search</span>
-          <kbd className="nav-label rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide">Ctrl K</kbd>
-        </button>
-      )}
+      <button
+        onClick={() => {
+          onClose?.()
+          openCommandPalette()
+        }}
+        className="mx-3 mb-2 flex items-center gap-2.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-muted transition hover:border-white/15 hover:text-text"
+      >
+        <Search className="size-4" />
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
+      </button>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        {orderedNav(ui).map((m) => (
-          <NavItem key={m.path} to={m.path} icon={NAV[m.path].icon} label={m.label} count={NAV[m.path].count} animation={NAV[m.path].animation} />
-        ))}
+        <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
+        <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
+        {!isAndroid() && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
+        <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />
+        <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
+        <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
+        <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
+        <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />
+        {!isAndroid() && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
 
-        {ui.showCollections && !ui.compactSidebar && (
-        <>
         <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>
           <button onClick={() => setCreating(true)} title="New collection" aria-label="New collection" className="rounded p-0.5 text-muted transition hover:bg-white/10 hover:text-text">
@@ -211,14 +215,12 @@ export function Sidebar(): React.JSX.Element {
         </div>
         {collections.length === 0 ? (
           <button onClick={() => setCreating(true)} className="w-full rounded-lg px-3 py-2 text-left text-xs text-muted transition hover:bg-white/5 hover:text-text">
-            Group games your way: make a collection, then right-click games to add them.
+            Group games your way: make a collection, then {menuGesture().toLowerCase()} a game to add it.
           </button>
         ) : (
           collections.map((c) => (
             <NavItem key={c.id} to={`/collection/${c.id}`} icon={Layers} label={c.name} count={visible.filter((g) => g.collections.includes(c.id)).length} animation="bounce" />
           ))
-        )}
-        </>
         )}
       </nav>
 
@@ -233,8 +235,8 @@ export function Sidebar(): React.JSX.Element {
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400/70" />
               <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
             </span>
-            <span className="nav-label min-w-0">
-              <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Launching'}</span>
+            <span className="min-w-0">
+              <span className="block text-muted">{sessions[g.id] === 'running' ? 'Now playing' : 'Starting'}</span>
               <span className="block truncate text-sm font-medium text-text">{g.name}</span>
             </span>
           </NavLink>
@@ -269,12 +271,15 @@ export function Sidebar(): React.JSX.Element {
         <button
           onClick={() => {
             playAdd()
-            addManually()
+            onClose?.()
+            // Android adds games from the list of installed apps; Windows from a file.
+            if (isAndroid()) openAppPicker()
+            else void addManually()
           }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-text"
         >
           <Plus key={addPlayed} className={cn('size-[18px]', addPlayed > 0 && 'icon-plus')} />
-          <span className="nav-label">Add a game</span>
+          Add a game
         </button>
         <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
         <AccountItem />
@@ -291,5 +296,6 @@ export function Sidebar(): React.JSX.Element {
         />
       )}
     </aside>
+    </>
   )
 }

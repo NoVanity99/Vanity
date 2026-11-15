@@ -1,7 +1,9 @@
 # Releasing Vanity
 
-Vanity ships as a Windows installer (`Vanity-Setup-<version>.exe`) on GitHub Releases.
-Installed copies check GitHub when they start and every hour, download the new version in the background, and show "Update ready: restart to install".
+Vanity ships on GitHub Releases as a Windows installer (`Vanity-Setup-<version>.exe`) and an Android app (`Vanity-<version>.apk`). One release, one version number, both platforms.
+
+- **Windows:** installed copies check GitHub when they start and every hour, download the new version in the background, and show "Update ready: restart to install".
+- **Android:** the app checks the same release every time it opens, opens the update window, downloads the new APK itself and hands it to Android to install (Android doesn't let an app replace itself silently, so the user taps Install).
 
 ## Ship an update
 
@@ -35,8 +37,9 @@ When you say **"make a new release"**, this is the checklist:
      git tag v1.2.4
      git push origin v1.2.4
      ```
-7. **Watch it build** under the repo's **Actions** tab ("Release" workflow, about 5–10 minutes on a Windows runner). When it finishes, the release appears under **Releases** with:
-   - `Vanity-Setup-1.2.4.exe`, the installer;
+7. **Watch it build** under the repo's **Actions** tab ("Release" workflow, about 10–15 minutes: the Android app builds first, then the Windows installer). When it finishes, the release appears under **Releases** with:
+   - `Vanity-Setup-1.2.4.exe`, the Windows installer;
+   - `Vanity-1.2.4.apk` and `Vanity.apk` (the same file), the Android app;
    - `latest.yml`, which installed copies read to find the update;
    - `Vanity-Setup-1.2.4.exe.blockmap`, which lets updates download only what changed.
 
@@ -51,6 +54,36 @@ That's it: every installed copy picks the update up within an hour (or on its ne
   ```
 - **A broken release went out:** ship a fixed one with a higher version (e.g. `1.2.5`). Don't reuse a version number, because installed copies only move forward.
 - **Building the installer locally** (without publishing): `npm run dist:win` → `dist/Vanity-Setup-<version>.exe`.
+- **Building the Android app locally:** needs Java 21 and the Android SDK (`ANDROID_HOME` set). `npm run build:android` → `android/app/build/outputs/apk/release/app-release.apk`.
+
+## The web installer
+
+`installer/Vanity-Installer.exe` is the file to hand out. It reads `latest.yml` from the newest release, downloads the setup it names and runs it, so it never goes out of date.
+
+- **Link that always works:** `https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe` (the release workflow attaches the file to every release).
+- **Rebuilding it** is only needed if `installer/web-installer.nsi` changes: run `npm run dist:win` once (it downloads NSIS), then `node scripts/build-web-installer.mjs`, and commit the new exe.
+- Like the setup itself, it isn't code-signed, so SmartScreen shows the same "More info → Run anyway" prompt.
+
+## The Android app
+
+- **Link that always works:** `https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk`. On the phone: open the link, tap the downloaded file, and allow "Install unknown apps" for the browser when Android asks.
+- **How it's built:** the same screens as the Windows app, built by `vite.mobile.config.ts` and wrapped in the Android project under `android/`. The phone-only code is `src/mobile/` (TypeScript) and `android/app/src/main/java/com/vanity/launcher/VanityNativePlugin.java` (finding games, starting them, playtime, music).
+- **Keep both platforms working:** every feature goes through `VanityApi` in `src/shared/ipc.ts`. A new feature needs a Windows version (`src/main/ipc`, `src/preload`) and an Android version (`src/mobile/api.ts`), or a clear "not on this device" on one of them. `npm run typecheck` fails if either is missing.
+- **The signing key is in the repo** (`android/vanity-release.keystore`, password in `android/app/build.gradle`). Android only installs an update over the old app if both are signed with the same key, so every build must use this one. Don't delete or replace it: phones would have to uninstall Vanity (losing their library data) to update.
+  - Because the repo is public, anyone could sign their own APK with this key. That's fine for sharing with friends. Before putting Vanity on the Play Store, make a new private key and store it as a repository secret.
+- **Play Protect** may warn the first time, like SmartScreen does on Windows: choose "Install anyway".
+
+### The Android web installer
+
+`installer/Vanity-Installer.apk` is the Android file to hand out. It downloads `Vanity.apk` from the newest release and asks Android to install it, so it never goes out of date.
+
+- **Link that always works:** `https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk` (the release workflow attaches the file to every release).
+- **Its code** is `android/installer/`. Rebuilding is only needed if that changes: `npm run build:android-installer`, then commit the new `installer/Vanity-Installer.apk`.
+- It is signed with the same key as the app and installs as a separate app ("Vanity Installer"), which can be removed after Vanity is installed.
+
+### The Epic downloader (Legendary)
+
+The release workflow runs `node scripts/fetch-legendary.mjs` before building. It downloads one pinned release of `legendary.exe` from Legendary's GitHub releases into `resources/bin/` and checks its SHA-256; the build fails if the file is anything else. The exe is not committed (`.gitignore`); its licence notice, `resources/bin/LEGENDARY-LICENSE.txt`, is. To move to a newer Legendary, change `VERSION` and `SHA256` in that script together.
 
 ## One-time setup
 

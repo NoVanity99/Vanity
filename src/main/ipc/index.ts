@@ -9,10 +9,22 @@ import type { MusicLibrary } from '../music/library'
 import type { LiveService } from '../live/service'
 import type { DetailsService } from '../details/service'
 import type { Updater } from '../update/release'
+import type { GameWindows } from '../launcher/gameWindows'
+import { isHtmlGame, nameFromHtml } from '../launcher/htmlGame'
 import type { DiscordPresence } from '../discord/presence'
 import { gamePlayStats } from '../library/stats'
 import type { Db } from '../db/database'
 import type { AccountService } from '../account/service'
+import type { SyncService } from '../sync/service'
+import type { SteamService } from '../steam/service'
+import type { OwnedGames } from '../library/owned'
+import type { Installers } from '../install/installer'
+import type { InstallWatcher } from '../install/watcher'
+import type { DownloadManager } from '../downloads/manager'
+import type { StoreAccountsService } from '../downloads/accounts'
+import type { Legendary } from '../downloads/legendary'
+import { killProcesses, listProcesses } from '../launcher/processes'
+import { stopGame } from '../launcher/stop'
 import { gameKey } from '../account/gameKey'
 import type { MediaCache } from '../metadata/mediaCache'
 import type { MetadataService } from '../metadata/service'
@@ -23,8 +35,15 @@ import type { LibraryStore } from '../library/store'
 import type { CollectionsStore } from '../library/collections'
 import { exeExternalId } from '../scanners/custom'
 import { getSettings, updateSettings } from '../settings'
-import { nameFromExecutable } from '../util/executables'
+import { nameFromExecutable, prettifyName } from '../util/executables'
 import { isDirectory, pathExists } from '../util/fs'
+
+/** File types "Add a game" and "Change" accept: programs, and web games played in a Vanity window. */
+const GAME_FILE_FILTERS: Electron.FileFilter[] = [
+  { name: 'Games (.exe, .html)', extensions: ['exe', 'html', 'htm'] },
+  { name: 'Programs (.exe)', extensions: ['exe'] },
+  { name: 'Web games (.html)', extensions: ['html', 'htm'] }
+]
 
 /** Runs a handler and turns any failure into a message the UI can show. */
 async function wrap<T>(fn: () => Promise<T>): Promise<Result<T>> {
@@ -54,15 +73,26 @@ export interface IpcDeps {
   live: LiveService
   details: DetailsService
   update: Updater
+  gameWindows: GameWindows
   discord: DiscordPresence
   db: Db
   stats: () => unknown
   account: AccountService
+  sync: SyncService
+  steam: SteamService
+  owned: OwnedGames
+  installers: Installers
+  installWatcher: InstallWatcher
+  downloads: DownloadManager
+  stores: StoreAccountsService
+  legendary: Legendary
+  /** The downloader's log file. */
+  downloadLog: string
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
 }
 
-export function registerIpc({ store, collections, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -70,21 +100,46 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
 
   ipcMain.handle(IPC.gamesList, () => store.list())
   ipcMain.handle(IPC.gamesGet, (_e, id: number) => store.get(id))
-  ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => store.update(id, patch))
+  ipcMain.handle(IPC.gamesInstall, (_e, id: number) =>
+    wrap(async () => {
+      const game = store.get(Number(id))
+      if (!game) throw new Error('This game is no longer in your library.')
+      const started = await installers.install(game)
+      installWatcher.watch(game.id)
+      return { note: started.note }
+    })
+  )
+  ipcMain.handle(IPC.gamesUpdate, (_e, id: number, patch: GamePatch) => {
+    const game = store.update(id, patch)
+    sync.touch()
+    return game
+  })
   ipcMain.handle(IPC.gamesRemove, async (_e, id: number) => {
     store.remove(id)
     await media.removeGame(id)
   })
 
+  ipcMain.handle(IPC.gamesRemoved, () => store.removed().map((g) => g.name))
+  ipcMain.handle(IPC.gamesRestoreRemoved, () => store.restoreRemoved())
+
   ipcMain.handle(IPC.gamesLaunch, async (_e, id: number) => {
     const game = store.get(id)
     if (!game) return 'This game is no longer in your library.'
+    if (!game.installed) return `${game.name} isn't installed on this PC yet. Use Install first.`
     try {
       const result = await launchGame(game, {
         openExternal: (url) => shell.openExternal(url),
         openPath: (p) => shell.openPath(p),
         spawn,
-        exists: pathExists
+        exists: pathExists,
+        openHtml: (g, html) => gameWindows.open(g, html),
+        // An Epic game Vanity installed itself isn't known to the Epic Launcher: Legendary starts it.
+        launchOtherwise: async (g) => {
+          if (g.source !== 'epic' || !legendary.available) return false
+          if (!(await legendary.installed()).some((i) => i.appName === g.externalId)) return false
+          legendary.launch(g.externalId)
+          return true
+        }
       })
       tracker.begin(game, result.method, result.child)
       return null
@@ -102,7 +157,7 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       title: `Choose the program that starts ${game.name}`,
       defaultPath: game.installPath ?? undefined,
       properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe'] }]
+      filters: GAME_FILE_FILTERS
     }
     const win = windowOf(e)
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -127,6 +182,17 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
   )
 
   ipcMain.handle(IPC.sessionsStates, () => tracker.states())
+  ipcMain.handle(IPC.sessionsStop, (_e, id: number) =>
+    wrap(() =>
+      stopGame(Number(id), {
+        stopTracking: (gameId) => tracker.stop(gameId),
+        listProcesses,
+        kill: killProcesses,
+        closeWindow: (gameId) => gameWindows.close(gameId),
+        ownPid: process.pid
+      })
+    )
+  )
 
   ipcMain.handle(IPC.gamesOpenFolder, async (_e, id: number) => {
     const game = store.get(id)
@@ -147,6 +213,8 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       }
     })
       .then((summary) => {
+        // An owned game the scan found is installed now; one it lost is "not installed" again.
+        owned.reapply()
         // Fetch artwork and details for anything new.
         metadata.enqueuePending()
         return summary
@@ -170,16 +238,16 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       for (const c of rejected) if (c.executablePath) ignored.add(c.executablePath)
       await updateSettings({ ignoredExecutables: [...ignored] })
     }
-    const added = store.upsert(toAdd).games
+    const added = store.upsert(toAdd, { restore: true }).games
     metadata.enqueue(added.map((g) => g.id))
     return added
   })
 
   ipcMain.handle(IPC.gamesAddManually, async (e) => {
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose a game executable',
+      title: 'Choose a game: a program (.exe) or a web game (.html)',
       properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe'] }]
+      filters: GAME_FILE_FILTERS
     }
     const win = windowOf(e)
     const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
@@ -189,11 +257,11 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
       {
         source: 'manual',
         externalId: exeExternalId(exe),
-        name: nameFromExecutable(exe),
+        name: isHtmlGame(exe) ? nameFromHtml(exe, prettifyName) : nameFromExecutable(exe),
         installPath: dirname(exe),
         executablePath: exe
       }
-    ]).games
+    ], { restore: true }).games
     if (game) metadata.enqueue([game.id])
     return game
   })
@@ -212,8 +280,7 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
     }
     if (before.githubToken !== after.githubToken || before.updateKey !== after.updateKey || before.accountServerUrl !== after.accountServerUrl) void update.check()
     if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
-    // A new profile look goes to the account server, so friends see it.
-    if (JSON.stringify(before.profile) !== JSON.stringify(after.profile)) void account.pushProfile()
+    sync.settingsChanged(before, after)
     onSettingsChanged?.(after)
     return after
   })
@@ -260,11 +327,43 @@ export function registerIpc({ store, collections, tracker, metadata, media, tren
   ipcMain.handle(IPC.statsGet, () => stats())
 
   const text = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(0, max) : '')
+  ipcMain.handle(IPC.progressGet, () => sync.progress())
+  ipcMain.handle(IPC.progressSyncNow, async () => {
+    await sync.syncNow()
+    return sync.progress()
+  })
+  ipcMain.handle(IPC.downloadsList, () => downloads.list())
+  ipcMain.handle(IPC.downloadsPlan, (_e, gameId: number, installDir?: string) => wrap(() => downloads.plan(Number(gameId), typeof installDir === 'string' ? text(installDir, 500) : undefined)))
+  ipcMain.handle(IPC.downloadsStart, (_e, gameId: number, installDir: string) => wrap(() => downloads.enqueue(Number(gameId), text(installDir, 500))))
+  ipcMain.handle(IPC.downloadsPause, (_e, id: string) => downloads.pause(text(id)))
+  ipcMain.handle(IPC.downloadsResume, (_e, id: string) => downloads.resume(text(id)))
+  ipcMain.handle(IPC.downloadsCancel, (_e, id: string) => downloads.cancel(text(id)))
+  ipcMain.handle(IPC.downloadsClearFinished, () => downloads.clearFinished())
+  ipcMain.handle(IPC.downloadsShowLog, () => shell.showItemInFolder(downloadLog))
+  ipcMain.handle(IPC.storesState, () => stores.state())
+  ipcMain.handle(IPC.storesRefresh, () => stores.refresh())
+  ipcMain.handle(IPC.storesEpicLogin, () => wrap(() => stores.epicLogin()))
+  ipcMain.handle(IPC.storesEpicLoginWithCode, (_e, code: string) => wrap(() => stores.epicLoginWithCode(text(code, 600))))
+  ipcMain.handle(IPC.storesEpicLogout, () => stores.epicLogout())
+  ipcMain.handle(IPC.storesGogLogin, () => wrap(() => stores.gogLogin()))
+  ipcMain.handle(IPC.storesGogLogout, () => stores.gogLogout())
+  ipcMain.handle(IPC.steamState, () => steam.state())
+  ipcMain.handle(IPC.steamLink, (_e, input: string) => wrap(() => steam.link(text(input, 300))))
+  ipcMain.handle(IPC.steamSignIn, () => wrap(() => steam.signIn()))
+  ipcMain.handle(IPC.steamCancelSignIn, () => steam.cancelSignIn())
+  ipcMain.handle(IPC.steamUnlink, () => wrap(() => steam.unlink()))
+  ipcMain.handle(IPC.steamRefresh, () => steam.refresh())
+  ipcMain.handle(IPC.steamOwnedGames, () => wrap(() => steam.ownedGames()))
+  ipcMain.handle(IPC.steamRecentGames, () => wrap(() => steam.recentGames()))
+  ipcMain.handle(IPC.steamAchievements, (_e, appId: number) => wrap(() => steam.achievements(Number(appId))))
   ipcMain.handle(IPC.accountState, () => account.state())
-  ipcMain.handle(IPC.accountSetServer, (_e, url: string) => wrap(() => account.setServer(text(url, 500))))
-  ipcMain.handle(IPC.accountRegister, (_e, u: string, p: string) => wrap(() => account.register(text(u), text(p))))
-  ipcMain.handle(IPC.accountLogin, (_e, u: string, p: string) => wrap(() => account.login(text(u), text(p))))
-  ipcMain.handle(IPC.accountLogout, () => account.logout())
+  ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))
+  ipcMain.handle(IPC.accountSignIn, (_e, email: string, p: string, remember: boolean) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)))
+  ipcMain.handle(IPC.accountSignOut, () => account.signOut())
+  ipcMain.handle(IPC.accountSetUsername, (_e, u: string) => wrap(() => account.setUsername(text(u))))
+  ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}) })))
+  ipcMain.handle(IPC.accountSendResetCode, (_e, email: string) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)))
+  ipcMain.handle(IPC.accountResetPassword, (_e, email: string, code: string, p: string) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)))
   ipcMain.handle(IPC.accountDelete, () => wrap(() => account.deleteAccount()))
   ipcMain.handle(IPC.friendsList, () => wrap(() => account.guard((c) => c.friends())))
   ipcMain.handle(IPC.friendsAdd, (_e, u: string) => wrap(async () => (await account.guard((c) => c.addFriend(text(u)))).status))

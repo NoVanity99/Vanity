@@ -52,8 +52,27 @@ export async function scanEpicManifests(dir: string): Promise<DetectedGame[]> {
   return [...games.values()]
 }
 
+/** Epic games installed by Vanity itself (through Legendary) aren't in the Epic Launcher's own list. */
+let legendaryInstalled: (() => Promise<DetectedGame[]>) | null = null
+export function setLegendaryInstalled(reader: (() => Promise<DetectedGame[]>) | null): void {
+  legendaryInstalled = reader
+}
+
+async function vanityInstalled(): Promise<DetectedGame[]> {
+  const games = legendaryInstalled ? await legendaryInstalled().catch(() => []) : []
+  const present: DetectedGame[] = []
+  for (const g of games) if (g.installPath && (await isDirectory(g.installPath))) present.push(g)
+  return present
+}
+
 export const epicScanner: Scanner = {
   source: 'epic',
-  isAvailable: () => isDirectory(epicManifestDir()),
-  scan: () => scanEpicManifests(epicManifestDir())
+  isAvailable: async () => (await isDirectory(epicManifestDir())) || (await vanityInstalled()).length > 0,
+  scan: async () => {
+    const byId = new Map<string, DetectedGame>()
+    // The Epic Launcher's entry wins when a game is in both lists.
+    for (const g of await vanityInstalled()) byId.set(g.externalId, g)
+    for (const g of await scanEpicManifests(epicManifestDir())) byId.set(g.externalId, g)
+    return [...byId.values()]
+  }
 }

@@ -11,3 +11,21 @@ dist/
 
 # Generated release notes
 build-notes/
+
+# Android web build
+dist-mobile/
+
+# Secrets and local settings: never committed
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+# Neon CLI: local project link and pulled settings (contain the database password)
+.neon
+server/.neon
+
+# The Epic downloader is fetched at build time (scripts/fetch-legendary.mjs), not committed
+resources/bin/legendary.exe
+resources/bin/legendary

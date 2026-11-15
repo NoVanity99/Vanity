@@ -30,10 +30,14 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     resolve: {
       alias: {
+        // The Android build points this at src/mobile instead (vite.mobile.config.ts).
+        '@platform': resolve(__dirname, 'src/renderer/src/platform.desktop.ts'),
         '@': resolve(__dirname, 'src/renderer/src'),
         '@shared': shared
       }
     },
+    // Small font files would otherwise be embedded as data: addresses, which the app's security policy blocks.
+    build: { assetsInlineLimit: 0 },
     plugins: [react(), tailwindcss()]
   }
 })

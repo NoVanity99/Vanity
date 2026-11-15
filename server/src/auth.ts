@@ -1,61 +1,32 @@
-import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
 
-const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number, opts: { N: number; r: number; p: number; maxmem: number }) => Promise<Buffer>
-
-const N = 16384
-const R = 8
-const P = 1
-const KEY_LEN = 64
-
-/** scrypt hash, stored as "scrypt$N$r$p$salt$hash" (base64). */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16)
-  const key = await scrypt(password, salt, KEY_LEN, { N, r: R, p: P, maxmem: 64 * 1024 * 1024 })
-  return ['scrypt', N, R, P, salt.toString('base64'), key.toString('base64')].join('$')
+/** Who a request is from, taken from a verified Neon Auth token. */
+export interface AuthUser {
+  /** The Neon Auth user id. */
+  id: string
+  email: string | null
 }
 
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [kind, n, r, p, salt, hash] = stored.split('$')
-  if (kind !== 'scrypt' || !salt || !hash) return false
-  const expected = Buffer.from(hash, 'base64')
-  const key = await scrypt(password, Buffer.from(salt, 'base64'), expected.length, { N: Number(n), r: Number(r), p: Number(p), maxmem: 64 * 1024 * 1024 })
-  return key.length === expected.length && timingSafeEqual(key, expected)
-}
+/** Checks a session token and says whose it is, or null when it is invalid or expired. */
+export type VerifyToken = (token: string) => Promise<AuthUser | null>
 
-export interface TokenClaims {
-  sub: string
-  username: string
-  iat: number
-  exp: number
-}
-
-const b64url = (data: Buffer | string): string => Buffer.from(data).toString('base64url')
-
-/** A signed session token (JWT, HS256). */
-export function signToken(claims: Omit<TokenClaims, 'iat' | 'exp'>, secret: string, ttlSeconds: number, nowMs = Date.now()): string {
-  const iat = Math.floor(nowMs / 1000)
-  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-  const payload = b64url(JSON.stringify({ ...claims, iat, exp: iat + ttlSeconds }))
-  const sig = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url')
-  return `${header}.${payload}.${sig}`
-}
-
-/** The token's claims if the signature is valid and it hasn't expired; otherwise null. */
-export function verifyToken(token: string, secret: string, nowMs = Date.now()): TokenClaims | null {
-  const parts = token.split('.')
-  if (parts.length !== 3) return null
-  const [header, payload, sig] = parts
-  const expected = createHmac('sha256', secret).update(`${header}.${payload}`).digest()
-  const given = Buffer.from(sig, 'base64url')
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null
-  try {
-    const h = JSON.parse(Buffer.from(header, 'base64url').toString()) as { alg?: string }
-    if (h.alg !== 'HS256') return null
-    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as TokenClaims
-    if (typeof claims.sub !== 'string' || typeof claims.exp !== 'number' || claims.exp * 1000 <= nowMs) return null
-    return claims
-  } catch {
-    return null
+/**
+ * Verifies Neon Auth's tokens (JWTs signed with the branch's own key, valid for about 15 minutes).
+ * Vanity never sees or stores passwords: sign-in happens at Neon Auth, and the app sends us the token it gets back.
+ */
+export function neonAuthVerifier(keys: JWTVerifyGetKey): VerifyToken {
+  return async (token) => {
+    try {
+      const { payload } = await jwtVerify(token, keys, { algorithms: ['EdDSA'], clockTolerance: 10 })
+      if (typeof payload.sub !== 'string' || !payload.sub) return null
+      return { id: payload.sub, email: typeof payload.email === 'string' ? payload.email : null }
+    } catch {
+      return null
+    }
   }
+}
+
+/** The verifier for a deployed server: keys are fetched from Neon Auth's JWKS address and cached. */
+export function neonAuthVerifierFromUrl(jwksUrl: string): VerifyToken {
+  return neonAuthVerifier(createRemoteJWKSet(new URL(jwksUrl)))
 }

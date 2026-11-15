@@ -8,8 +8,11 @@ interface ImportMetaEnv {
   readonly MAIN_VITE_DISCORD_CLIENT_ID?: string
   readonly MAIN_VITE_UPDATE_KEY?: string
   readonly MAIN_VITE_IGDB_CLIENT_SECRET?: string
-  /** Vanity account server URL (server/README.md). */
+  /** Address of the old Vercel server. Only the run-from-source updater still uses it. */
   readonly MAIN_VITE_VANITY_API_URL?: string
+  /** Development only: use another Neon Auth address / Vanity server than the built-in ones (src/shared/backend.ts). */
+  readonly MAIN_VITE_NEON_AUTH_URL?: string
+  readonly MAIN_VITE_VANITY_BACKEND_URL?: string
 }
 
 interface ImportMeta {

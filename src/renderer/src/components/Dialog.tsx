@@ -37,7 +37,7 @@ export function Dialog({ size = 'md', title, description, onClose, children, foo
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex animate-[fade-in_150ms_ease-out] items-center justify-center bg-black/70 p-8 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex animate-[fade-in_150ms_ease-out] items-center justify-center bg-black/70 p-8 backdrop-blur-sm max-md:p-3 max-md:pb-[calc(0.75rem+env(safe-area-inset-bottom))] max-md:pt-[calc(0.75rem+env(safe-area-inset-top))]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

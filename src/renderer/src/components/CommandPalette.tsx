@@ -30,6 +30,7 @@ import { mediaUrl, nameHue } from '@/lib/media'
 import { useCollections } from '@/state/collections'
 import { useLibrary } from '@/state/library'
 import { checkForUpdate } from '@/state/update'
+import { openVibeCheck } from './VibeCheck'
 import { useToast } from '@/state/toasts'
 
 // Opening from anywhere (sidebar button, shortcut).
@@ -138,6 +139,7 @@ function Palette({ onClose }: { onClose: () => void }): React.JSX.Element {
       ...collections.map((c): Item => ({ id: `c-${c.id}`, group: 'Go to', label: c.name, sub: 'Collection', icon: Layers, run: go(`/collection/${c.id}`) }))
     ]
     const actions: Item[] = [
+      { id: 'a-vibe', group: 'Actions', label: 'Vibe Check', sub: 'What should I play right now?', icon: Sparkles, run: openVibeCheck },
       { id: 'a-scan', group: 'Actions', label: scan.running ? 'Scanning for games…' : 'Scan for games', icon: FolderSearch, run: () => void scan.start() },
       { id: 'a-add', group: 'Actions', label: 'Add a game', icon: Plus, run: () => void addManually() },
       {

@@ -88,5 +88,31 @@ export const migrations: string[] = [
     PRIMARY KEY (collection_id, game_id)
   );
   CREATE INDEX collection_games_game ON collection_games (game_id);
+  `,
+  // 7: games the user removed, so scans (which run on every launch) don't bring them back
+  `
+  CREATE TABLE removed_games (
+    source       TEXT NOT NULL,
+    external_id  TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    removed_at   INTEGER NOT NULL,
+    PRIMARY KEY (source, external_id)
+  );
+  `,
+  // 8: cloud-saved progress (see src/main/sync)
+  `
+  -- When the user last changed their own choices for a game (favourite, status, rating, notes).
+  ALTER TABLE games ADD COLUMN user_updated_at INTEGER NOT NULL DEFAULT 0;
+  -- What your other devices have added for this game. playtime_seconds stays "this device only".
+  ALTER TABLE games ADD COLUMN cloud_playtime_seconds INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE games ADD COLUMN cloud_launches INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE badges (
+    id           TEXT PRIMARY KEY,
+    unlocked_at  INTEGER NOT NULL
+  );
+  `,
+  // 9: games you own on a linked account but haven't installed on this device
+  `
+  ALTER TABLE games ADD COLUMN not_installed INTEGER NOT NULL DEFAULT 0;
   `
 ]

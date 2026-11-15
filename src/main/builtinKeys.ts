@@ -3,7 +3,8 @@
 // scanners don't flag (and revoke) them; this is not protection, and anyone can unscramble them.
 // A key entered in Settings, or one in .env.local at build time, takes precedence over these.
 
-const unscramble = (s: string): string => Buffer.from(s, 'base64').toString('utf8').split('').reverse().join('')
+// atob works in both the desktop app and the Android app (there is no Buffer in a web view).
+const unscramble = (s: string): string => atob(s).split('').reverse().join('')
 
 export const BUILT_IN_KEYS = {
   steamGridDbApiKey: unscramble('MzA1ZjgxNzNhNzA1ZDkyNWQxMzViMzNiMTE0ZmU4ZjE='),

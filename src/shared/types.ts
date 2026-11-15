@@ -1,9 +1,10 @@
 // Types shared between the main process, preload and renderer.
 
-export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual'
+/** 'android': an app installed on the phone (the Android version of Vanity). */
+export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual' | 'android'
 
 /** Sources that have a scanner and can be toggled in settings. */
-export type ScanSource = Exclude<GameSource, 'manual'>
+export type ScanSource = Exclude<GameSource, 'manual' | 'android'>
 
 export const SCAN_SOURCES: ScanSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'custom']
 
@@ -14,7 +15,8 @@ export const SOURCE_LABELS: Record<GameSource, string> = {
   ea: 'EA app',
   ubisoft: 'Ubisoft Connect',
   custom: 'Custom folders',
-  manual: 'Added manually'
+  manual: 'Added manually',
+  android: 'Android'
 }
 
 export interface Game {
@@ -29,6 +31,8 @@ export interface Game {
   hidden: boolean
   /** The last scan of this game's source no longer found it (uninstalled or moved). */
   missing: boolean
+  /** False for a game you own on a linked account (Steam) but haven't installed on this device. */
+  installed: boolean
   addedAt: number
   lastPlayedAt: number | null
   playtimeSeconds: number
@@ -203,10 +207,6 @@ export interface Settings {
   updateKey: string
   /** Remind you to take a break every this many minutes of play; 0 = off. */
   breakReminderMinutes: number
-  /** How your profile looks to you and your friends (src/shared/profile.ts). */
-  profile: import('./profile').ProfileStyle
-  /** Launcher layout and behaviour options (src/shared/ui.ts). */
-  ui: import('./ui').UiPrefs
 }
 
 /** Fields the user can change on a game. */
@@ -334,11 +334,33 @@ export interface GameLive {
 // ---- Accounts and friends ------------------------------------------------------
 
 export interface AccountState {
-  /** A server URL is set (in Settings or built in). */
-  serverConfigured: boolean
-  serverUrl: string
+  /** This build knows where Vanity's account service is (src/shared/backend.ts). */
+  available: boolean
   signedIn: boolean
+  email: string | null
+  /** The public name friends add you by. */
   username: string | null
+  /** Signed in, but the account hasn't picked a username yet. */
+  needsUsername: boolean
+  /** The last session ended by itself (it expired, or was signed out elsewhere). */
+  sessionExpired: boolean
+  /** This device keeps you signed in after Vanity closes. */
+  remembered: boolean
+  /** Your profile picture (a small image as a data: address), or null for none. */
+  avatar: string | null
+  bio: string
+  /** Official badges. Only Vanity's server grants them. */
+  verified: boolean
+  admin: boolean
+}
+
+/** What everyone may see of another account. */
+export interface PublicUser {
+  id: string
+  username: string
+  avatar: string | null
+  verified: boolean
+  admin: boolean
 }
 
 export interface FriendStatus {
@@ -350,20 +372,17 @@ export interface FriendStatus {
   lastSeen: number | null
 }
 
-export interface Friend {
-  id: string
-  username: string
-  /** How they've styled their profile; missing from older servers. */
-  profile?: import('./profile').ProfileStyle
+export interface Friend extends PublicUser {
+  bio: string
   status: FriendStatus
   totalPlaytimeSeconds: number
   gamesPlayed: number
   topGame: string | null
+  level: number
+  xp: number
 }
 
-export interface FriendRequest {
-  id: string
-  username: string
+export interface FriendRequest extends PublicUser {
   createdAt: number | null
 }
 
@@ -382,16 +401,21 @@ export interface FriendGameStat {
 
 export interface FriendStats {
   username: string
-  profile?: import('./profile').ProfileStyle
+  avatar: string | null
+  bio: string
+  verified: boolean
+  admin: boolean
+  level: number
+  xp: number
+  /** Ids of the badges they've earned (see src/shared/progress.ts). */
+  badges: string[]
   totalPlaytimeSeconds: number
   gamesPlayed: number
   top: FriendGameStat[]
   recent: FriendGameStat[]
 }
 
-export interface GameFriend {
-  id: string
-  username: string
+export interface GameFriend extends PublicUser {
   playtimeSeconds: number
   lastPlayedAt: number | null
 }
@@ -480,9 +504,10 @@ export interface UpdateState {
   notes: UpdateNote[]
   /**
    * Where updates come from. Installed copies: 'release' (GitHub Releases, installed by the Windows installer).
+   * Android: 'apk' (GitHub Releases; Vanity downloads the new APK and Android installs it).
    * Running from source: the Vanity server on Vercel, or (without one) git / GitHub.
    */
-  mode: 'release' | 'vercel' | 'git' | 'github' | 'unsupported'
+  mode: 'release' | 'apk' | 'vercel' | 'git' | 'github' | 'unsupported'
   branch: string
   /** Where updates come from, for Settings (server URL or GitHub repo). */
   source: string
@@ -521,4 +546,181 @@ export interface NowListening {
   /** When the song started (ms), adjusted for where playback is. */
   startedAt: number
   durationMs: number | null
+}
+
+// ---- Progress (XP, level, badges) and cloud sync ---------------------------------
+
+export interface ProgressBadge {
+  id: string
+  name: string
+  description: string
+  icon: string
+  /** When it was unlocked (ms), or null while it's still locked. */
+  unlockedAt: number | null
+  current: number
+  target: number
+}
+
+export interface ProgressGame {
+  /** Vanity's game key. */
+  key: string
+  name: string
+  /** Across all your devices. */
+  playtimeSeconds: number
+  launches: number
+  lastPlayedAt: number | null
+  /** The game in this device's library, or null if you only have it elsewhere. */
+  gameId: number | null
+  coverPath: string | null
+  iconPath: string | null
+}
+
+export type SyncStatus =
+  /** Not signed in (or no username yet): progress is kept on this device only. */
+  | 'local'
+  | 'syncing'
+  | 'synced'
+  /** Couldn't reach the server: changes are kept here and sent when it's back. */
+  | 'offline'
+  | 'error'
+
+export interface SyncState {
+  status: SyncStatus
+  /** When this device last synced successfully (ms). */
+  lastSyncedAt: number | null
+  /** A plain-words explanation for 'offline' and 'error'. */
+  message: string | null
+  /** Changes when a sync brought in something new, so screens know to reload. */
+  appliedAt: number
+}
+
+export interface Progress {
+  xp: number
+  level: { level: number; into: number; span: number; title: string }
+  /** Where the XP comes from. */
+  breakdown: { playtime: number; firstLaunches: number; daysPlayed: number; streaks: number; steamAchievements: number; journal: number }
+  totals: {
+    playtimeSeconds: number
+    gamesPlayed: number
+    launches: number
+    daysPlayed: number
+    currentStreak: number
+    bestStreak: number
+    favorites: number
+    steamAchievements: number
+  }
+  /** Most played first. */
+  topGames: ProgressGame[]
+  /** Last played first. */
+  recentGames: ProgressGame[]
+  badges: ProgressBadge[]
+  sync: SyncState
+}
+
+// ---- Linked Steam account ------------------------------------------------------------
+
+export interface SteamLink {
+  steamId: string
+  name: string
+  avatar: string | null
+  profileUrl: string
+  /** Linked by signing in through Steam (proof the account is yours), not just by typing an id. */
+  verified: boolean
+  linkedAt: number
+}
+
+export interface SteamGame {
+  appId: number
+  name: string
+  playtimeMinutes: number
+  playtimeTwoWeeksMinutes: number
+  lastPlayedAt: number | null
+  iconUrl: string | null
+}
+
+export interface SteamAchievement {
+  id: string
+  name: string
+  description: string | null
+  achieved: boolean
+  unlockedAt: number | null
+}
+
+export interface SteamState {
+  /** Signed in to Vanity with a username (linking needs an account). */
+  available: boolean
+  /** The Vanity server has a Steam key. Null: not asked yet. */
+  configured: boolean | null
+  link: SteamLink | null
+  /** Steam isn't sharing this account's games ("Game details" is private). */
+  gamesPrivate: boolean
+  /** How to fix that, in plain words. */
+  privateMessage: string | null
+  /** Games in the Steam library, when Steam shares them. */
+  ownedGames: number | null
+  /** Achievements unlocked across played games. `complete` is false while the server is still counting. */
+  achievements: { unlocked: number; total: number; complete: boolean } | null
+  /** Waiting for the user to finish signing in on Steam's page in the browser. */
+  signingIn: boolean
+  error: string | null
+}
+
+// ---- In-launcher installs (Epic, GOG) ---------------------------------------------------
+
+/** Stores Vanity can download and install games from by itself. */
+export type DownloadStore = 'epic' | 'gog'
+
+export type DownloadState =
+  | 'queued'
+  /** Working out sizes and getting ready. */
+  | 'preparing'
+  | 'downloading'
+  | 'paused'
+  /** The download is done; the game is being set up (GOG runs its installer here). */
+  | 'installing'
+  | 'done'
+  | 'failed'
+
+export interface DownloadItem {
+  id: string
+  gameId: number
+  name: string
+  store: DownloadStore
+  state: DownloadState
+  /** 0–100. */
+  percent: number
+  downloadedBytes: number
+  /** 0 until known. */
+  totalBytes: number
+  /** Bytes per second right now. */
+  speedBps: number
+  /** Seconds left, or null when unknown. */
+  etaSeconds: number | null
+  /** The folder games are installed into (the game gets its own folder inside). */
+  installDir: string
+  /** Why it failed, in plain words. */
+  error: string | null
+  addedAt: number
+  coverPath: string | null
+}
+
+/** What the install window shows before you confirm. */
+export interface InstallPlan {
+  store: DownloadStore
+  /** Bytes to download and bytes the game takes once installed (0 when the store doesn't say). */
+  downloadBytes: number
+  installBytes: number
+  installDir: string
+  /** Free space on that drive, or null if it can't be read. */
+  freeBytes: number | null
+  /** False when the drive clearly doesn't have room. */
+  enoughSpace: boolean
+}
+
+/** The Epic and GOG accounts linked on this PC (their sign-ins stay on this PC). */
+export interface StoreAccounts {
+  /** False on Android: installing PC games needs a PC. */
+  supported: boolean
+  epic: { available: boolean; signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
+  gog: { signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
 }

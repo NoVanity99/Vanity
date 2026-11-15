@@ -10,7 +10,7 @@ describe('gamer level', () => {
   })
 
   it('levels up on a growing curve', () => {
-    expect([1, 2, 3, 4, 5].map(xpForLevel)).toEqual([0, 100, 300, 600, 1000])
+    expect([1, 2, 3, 4, 5].map((l) => xpForLevel(l))).toEqual([0, 100, 300, 600, 1000])
     expect(levelFor(0)).toEqual({ level: 1, into: 0, span: 100, title: 'Rookie' })
     expect(levelFor(99).level).toBe(1)
     expect(levelFor(100)).toMatchObject({ level: 2, into: 0, span: 200 })

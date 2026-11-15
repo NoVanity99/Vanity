@@ -8,7 +8,8 @@ const SHORT: Record<GameSource, string> = {
   ea: 'EA',
   ubisoft: 'Ubisoft',
   custom: 'Local',
-  manual: 'Local'
+  manual: 'Local',
+  android: 'Android'
 }
 
 export function SourceBadge({ source, className }: { source: GameSource; className?: string }): React.JSX.Element {

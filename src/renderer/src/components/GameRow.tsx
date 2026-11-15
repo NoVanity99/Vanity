@@ -1,5 +1,6 @@
+import { StopBubble } from './StopBubble'
 import { memo } from 'react'
-import { Play, Star } from 'lucide-react'
+import { Download, Play, Star } from 'lucide-react'
 import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { formatCompact, formatPlaytime, formatRelativeDate } from '@/lib/format'
@@ -32,6 +33,7 @@ export const GameRow = memo(function GameRow({
   players,
   onOpen,
   onPlay,
+  onInstall,
   onMenu
 }: {
   game: Game
@@ -40,6 +42,7 @@ export const GameRow = memo(function GameRow({
   players?: number
   onOpen: (g: Game) => void
   onPlay: (g: Game) => void
+  onInstall?: (g: Game) => void
   onMenu: (e: React.MouseEvent, g: Game) => void
 }): React.JSX.Element {
   return (
@@ -54,7 +57,7 @@ export const GameRow = memo(function GameRow({
       className={cn(
         ROW_GRID,
         'animate-card-in group cursor-pointer rounded-xl px-3 py-2 outline-none transition hover:bg-white/[0.04] focus-visible:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent',
-        (game.hidden || game.missing) && !session && 'opacity-50'
+        (game.hidden || game.missing || !game.installed) && !session && 'opacity-60'
       )}
     >
       <Thumb game={game} />
@@ -65,9 +68,11 @@ export const GameRow = memo(function GameRow({
           {session && (
             <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
               <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
-              {session === 'running' ? 'Playing' : 'Launching'}
+              {session === 'running' ? 'Playing' : 'Starting'}
             </span>
           )}
+          <StopBubble gameId={game.id} name={game.name} size="sm" />
+          {!game.installed && <span className="shrink-0 rounded-full bg-white/8 px-2 py-0.5 text-[11px] font-semibold text-muted">Not installed</span>}
         </span>
         <span className="mt-1 flex items-center gap-2 text-xs text-muted">
           <SourceBadge source={game.source} />
@@ -90,15 +95,19 @@ export const GameRow = memo(function GameRow({
       <button
         data-gamepad-play
         tabIndex={-1}
-        aria-label={`Play ${game.name}`}
-        title="Play"
+        aria-label={`${game.installed ? 'Play' : 'Install'} ${game.name}`}
+        title={game.installed ? 'Play' : 'Install'}
         onClick={(e) => {
           e.stopPropagation()
-          onPlay(game)
+          if (game.installed) onPlay(game)
+          else onInstall?.(game)
         }}
-        className="flex size-9 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow-lg transition hover:scale-110 group-hover:opacity-100 group-focus-visible:opacity-100"
+        className={cn(
+          'flex size-9 items-center justify-center rounded-full opacity-0 shadow-lg transition hover:scale-110 group-hover:opacity-100 group-focus-visible:opacity-100',
+          game.installed ? 'bg-accent text-white' : 'bg-white text-black'
+        )}
       >
-        <Play className="ml-0.5 size-4 fill-current" />
+        {game.installed ? <Play className="ml-0.5 size-4 fill-current" /> : <Download className="size-4" />}
       </button>
     </div>
   )

@@ -1,16 +1,29 @@
 # Vanity
 
-A unified desktop game launcher for Windows 10/11. It finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games and shows them in one dark, cover-art library.
+A unified game launcher for Windows 10/11 and Android. On a PC it finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games; on a phone it finds every installed game. Either way they show in one dark, cover-art library.
 
 Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v4 and SQLite (better-sqlite3).
 
 ## Install (Windows)
 
-Download `Vanity-Setup-<version>.exe` from the repo's [Releases](https://github.com/NoVanity99/Vanity/releases) and run it.
+Download **[Vanity-Installer.exe](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe)** and run it. It's a small web installer that looks up the newest release, downloads that version's setup and runs it, so the same file (and link) always installs the latest Vanity. You can also pick a specific `Vanity-Setup-<version>.exe` from the repo's [Releases](https://github.com/NoVanity99/Vanity/releases).
 
 - **What you get:** a Start Menu entry, a desktop shortcut, and an uninstaller in Windows **Apps & features**.
 - **SmartScreen:** the installer isn't code-signed, so Windows may show "Windows protected your PC". Click **More info → Run anyway**.
 - **Updates:** the installed app keeps itself up to date from GitHub Releases. See [RELEASING.md](RELEASING.md) for how releases are made.
+
+## Install (Android)
+
+On your phone, download **[Vanity-Installer.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk)** and open it. It's a small installer that downloads the newest Vanity from GitHub Releases and installs it, so the same file always installs the latest version. Needs Android 6 or newer.
+
+You can also download the app itself: **[Vanity.apk](https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk)** (that link always gives the newest version too).
+
+- **"Install unknown apps":** Android asks you to allow this for your browser the first time, because the app doesn't come from the Play Store. Play Protect may also ask: choose **Install anyway**.
+- **Finding games:** Vanity lists every app Android labels as a game, each time it opens. For anything it misses, use **Add a game** and pick the app.
+- **Playtime:** for exact times, switch on **Usage access** for Vanity (Settings → Playtime tracking takes you there). Without it, Vanity counts from when you tap Play until you come back.
+- **Music:** the player plays the songs stored on the phone, after you allow access to music.
+- **Updates:** Vanity checks for a newer version every time it opens, even if the APK you installed was an old one. When there is one, the update window opens: tap **Update now**, Vanity downloads it and Android asks you to install it (allow "Install unknown apps" for Vanity the first time). Your library is kept.
+- **Not on Android:** the Steam store tab, Discord status, Big Picture, break reminders, and .exe or web games.
 
 ## Getting started (from source)
 
@@ -57,6 +70,9 @@ resources/           App icon and build resources
 - **Title bar:**
   - **Launcher status** on the left.
   - **Music player** on the right: click the artwork circle to choose a music folder, then press play to shuffle it. It shows the album art, the title and artist (from the file's tags, or its name), previous / play-pause / next and volume. Keyboard media keys work too. Artwork comes from the file, or from a `cover.jpg` / `folder.jpg` next to it.
+    - **Formats:** MP3, AAC/M4A, FLAC, WAV, OGG/Opus, WebM and MKA play directly. WMA, Apple Lossless, AIFF, WavPack, APE, CAF, AC3, DTS, MP2, AMR and others are converted to FLAC by the bundled ffmpeg (`@ffmpeg-installer`) the first time they play.
+    - **Cache:** converted songs are kept in `%APPDATA%\Vanity\music-cache` (the 400 most recently played).
+    - **Fallback:** a song the player can't decode is also retried through the converter (`src/main/music/convert.ts`).
   - **Update button:** the small round button beside the player.
 - **Game pages:**
   - **Cover tint:** the page takes on the colour of the game's cover.
@@ -74,6 +90,7 @@ resources/           App icon and build resources
   - **Your journal:** a status (Backlog, Playing, Beaten, 100% completed, Dropped), a 1–5 star rating and private notes. Status shows on library cards, and the Library can filter by status and sort by your rating.
   - **Friends who played:** shown when you're signed in.
   - Online details come from IGDB (needs the keys) and Steam (no key), are cached for 12 hours, and **Refresh** at the bottom of the page fetches them again.
+- **Vibe Check** (Library, or Ctrl+K → "vibe"): pick how much time you have and your mood. Vanity suggests three games from your library with reasons. It weighs how long your sessions usually last for each game, genres, what you're in the middle of, your backlog and ratings, and what you haven't played in a while. The logic is in `src/renderer/src/lib/vibe.ts`.
 - **Surprise me** (Library): rolls a random game, favouring ones you haven't played in a while.
 - **Search (Ctrl+K):** jump to any game, page, collection or action by typing a few letters. Enter opens; Ctrl+Enter plays a game.
 - **Collections:** your own game lists in the sidebar. Click + to make one; right-click a game → **Add to collection**. Each collection's page has Rename and Delete.
@@ -84,6 +101,10 @@ resources/           App icon and build resources
 - **Big Picture mode:** the TV button next to the logo. A full-screen couch view for a controller or keyboard.
 - **Ctrl+Alt+V:** brings Vanity to the front from anywhere. Press it again to minimise it.
 
+- **Web games:** "Add a game" accepts an `.html` file as well as an `.exe`.
+  - The game opens in its own sandboxed Vanity window (F11 for full screen), served from its folder over `vanity-game://`, so engines that load files with `fetch` work.
+  - Each game keeps its own saves (localStorage, IndexedDB). It can't reach Vanity or files outside its folder, and links to websites open in your browser.
+  - Playtime counts while the window is open (`src/main/launcher/gameWindows.ts`).
 - **Library:** grid or list view, search (Ctrl+F), sort (name, recently played or added, most played, your rating, release date), filter by source, genre or status, and resize cards with the slider. Hover a cover for a quick Play button; right-click for every action. Your most recently played games sit in "Jump back in" at the top.
 - **Settings:** rescan, launcher toggles, game folders, API keys with a key check, Refresh all metadata.
 - **Themes:** Settings → Appearance has 15 colour skins, defined in `src/shared/themes.ts`. Add one there and it appears in Settings.
@@ -165,7 +186,62 @@ Requests go through Electron's network stack, so Windows proxy settings apply. R
 
 ## Accounts and friends
 
-Friends, presence ("Playing X · 23 min") and shared stats use a small account server in [`server/`](server/README.md), backed by **Neon** Postgres. That README walks through creating the Neon database, running the server locally or on Vercel, and pointing Vanity at it, either on the Account page or with `MAIN_VITE_VANITY_API_URL` in `.env.local`. The app only talks to that server, never to the database, so no database credentials ship with the app.
+Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the one-time setup: two keys pasted into GitHub, then one click).
+
+- **Sign-in** is handled by Neon Auth: email and password, "stay signed in", and "forgot password" with a 6-digit code sent by email. Vanity has no password code of its own.
+- **Your session** is kept in the operating system's protected storage (DPAPI on Windows, the Keystore on Android), never in a plain-text file. With "Stay signed in" off, it is forgotten when Vanity closes.
+- **Friends, presence ("Playing X · 23 min") and shared stats** use the Vanity server, a Neon Function. The app only talks to that server, never to the database, and nothing secret ships with the app.
+- **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
+- **Profile picture and bio:** set on the Account page. The picture is cropped to a square and shrunk to 160×160 in the app (`src/renderer/src/lib/avatarImage.ts`) before it is sent, so only a few kilobytes are stored. Friends see both.
+- **Verified and admin badges** (`src/renderer/src/components/UserBadges.tsx`) show next to a username. Who has them is decided only by the server, from the lists in [`server/src/roles.ts`](server/src/roles.ts).
+
+## Cloud-saved progress, XP and badges
+
+Sign in and your progress is saved to your account and kept the same on every device. Signed out, it all still works and stays on the device.
+
+- **What syncs:** playtime and launch counts per game, last played, favourites, play status, ratings, notes, collections, badges, level and XP, and look-and-feel settings (theme, font, background, controller, break reminder, Discord status, minimise while playing). Folders and paths never sync.
+- **How conflicts are settled:**
+  - *Counters* (playtime, launches) are kept per device and added up, so two devices used offline never overwrite each other.
+  - *Days played and badges* are merged: nothing earned is lost.
+  - *Choices* (favourites, status, rating, notes, collections, settings) carry the time they changed. The server's copy wins unless the device's change is newer.
+- **Offline:** the local database is always the working copy. Vanity syncs at start, after each play session, a few seconds after you change something, and every 10 minutes; when it can't reach the server it says so on the Profile page and catches up later.
+- **Games are matched by name** across devices and stores, so your Steam copy on the PC and the Android version on your phone count as one game.
+- **Tuning XP:** every number is in [`src/shared/xpConfig.ts`](src/shared/xpConfig.ts): XP per minute, for the first launch of a game, per day played, the streak bonus and its cap, per Steam achievement, for finishing and rating games, and how much each level takes. XP is always re-worked from what you've actually done, so changing a value re-scores everyone on the next build.
+- **Badges** are defined in [`src/shared/progress.ts`](src/shared/progress.ts) (`BADGES`). Add one by adding a line; never rename an existing id.
+- **Code:** `src/main/sync/` (the sync engine and progress), `server/src/sync.ts` (the merge rules on the server), `src/shared/sync.ts` (what the two exchange).
+
+## Linked accounts: Steam
+
+Account → **Linked accounts** links a Steam account to your Vanity account.
+
+- **What you can enter:** a SteamID64 (17 digits), a profile link (`steamcommunity.com/profiles/7656…` or `steamcommunity.com/id/yourname`), or just the custom URL name. Names are looked up with Steam's ResolveVanityURL.
+- **Sign in through Steam** opens Steam's sign-in page in your browser (OpenID). Vanity never sees the Steam password: Steam tells the Vanity server which account signed in, the server double-checks that with Steam, and links it. These links are marked verified.
+- **Private profiles:** if "Game details" is private, Steam shares the name and avatar but not the games. Vanity explains how to change that (Profile → Edit Profile → Privacy Settings → My profile: Public, Game details: Public).
+- **Achievements** unlocked on Steam count towards XP (`perSteamAchievement` in `src/shared/xpConfig.ts`).
+- **The Steam Web API key is never in the app or this repository.** It is a secret of the Vanity server on Neon. The app calls the server with your sign-in token; the server adds the key, asks Steam and answers. See [server/README.md](server/README.md) for where the key goes.
+
+## Owned games in the library
+
+With a Steam account linked, the Library shows every game you own, installed or not.
+
+- **Not installed** games are greyed out with an **Install** button, and the Library gets an **All / Installed / Not installed** filter.
+- **How they get there:** the Vanity server lists your Steam games (`/steam/owned-games`); `src/main/library/owned.ts` keeps the library's "not installed" entries in step with that list, re-applying it after every scan. A scan that finds the game installed turns the same entry into an installed one, so favourites, collections and playtime carry over.
+- **Installing** goes through `src/main/install/installer.ts`. Each store has an `Installer` (`canInstall`, `install`). Steam's is `SteamClientInstaller`: it opens `steam://install/<appid>` and Steam does the rest. A SteamCMD-based installer can be added later as another class and placed ahead of it in the list in `src/main/index.ts`; nothing else needs to change.
+- **After Install**, `src/main/install/watcher.ts` re-scans the launchers every 30 seconds until the game shows up as installed.
+- **Artwork** for not-installed games comes straight from Steam's image servers; the full artwork look-up runs once a game is installed.
+- **Windows only.** PC games can't be installed on a phone, so the Android library doesn't list them.
+
+## Installing Epic and GOG games in Vanity (Windows)
+
+The **Downloads** page is a queue: one game at a time, with progress, speed, time left, pause, resume and cancel. It is remembered between launches.
+
+- **The queue** is `src/main/downloads/manager.ts`. Each store is a `DownloadDriver` (`sizes`, `run`, `cleanup`) in `src/main/downloads/drivers.ts`. Before a game is queued, the install window shows its sizes and the free space on the chosen drive, and refuses when there clearly isn't room.
+- **Epic** uses [Legendary](https://github.com/derrod/legendary), the open-source Epic client. Vanity ships its unmodified `legendary.exe` (fetched and checksum-verified at build time by `scripts/fetch-legendary.mjs`; licence in `resources/bin/LEGENDARY-LICENSE.txt`) and drives it as a separate program (`src/main/downloads/legendary.ts`): sign-in, the list of owned games, `install` with its progress output read line by line, and `launch`. Pausing stops the program; Legendary continues from where it was. It keeps its sign-in in Vanity's own data folder (`legendary/`), separate from any Legendary or Heroic you already use.
+- **GOG** (`src/main/downloads/gog.ts`) signs in on GOG's own page, lists your Windows games, downloads the offline installer (continuing a partial file), then runs it with Inno Setup's silent switches into your install folder. Windows shows its usual permission prompt. GOG has no official public API for this: these are the endpoints GOG's own site and GOG Galaxy use, as the community tools do, and GOG could change them.
+- **Steam** stays a hand-off to the Steam client (`SteamClientInstaller` in `src/main/install/installer.ts`), with the note that Steam games install through Steam. A SteamCMD-based installer can be added behind the same interface.
+- **Afterwards** the launchers are scanned again, so the game becomes an installed game in the library. Epic games Vanity installed are read from Legendary's own list (`src/main/scanners/epic.ts`) and start through Legendary.
+- **Sign-ins** for Epic and GOG happen in a window on the store's own page (`src/main/downloads/desktop.ts`) and stay on this PC. The GOG sign-in is encrypted with Windows credential protection.
+- **Troubleshooting:** Downloads → Log opens `logs/downloads.log` in Vanity's data folder, with the downloader's own output.
 
 While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
@@ -256,11 +332,12 @@ When run from source, Vanity updates itself from your **Vanity server on Vercel*
 
 - **Checking:** every minute, in the background. When a new version is out, the round button at the top right shows a red **1** and a small red **Update software** banner appears. Clicking either opens the update window: **Update and restart** or **Not now**, with the patch notes for every version since yours.
 - **Where updates come from:** every Vercel deploy of the server runs `npm run build` in `server/`. That packs the app, the version from `package.json` and `CHANGELOG.md` into the deployment (`server/scripts/build-update-bundle.mjs`). The server hands them out at `/api/update` (version and notes) and `/api/update/download` (the files). So pushing a new version and letting Vercel deploy is all it takes.
-- **Which server:** the one set on the **Account** page, or `MAIN_VITE_VANITY_API_URL` in `.env.local` (e.g. `https://<project>.vercel.app/api`). Settings → Updates shows which one it uses.
+- **Which server:** `MAIN_VITE_VANITY_API_URL` in `.env.local` (e.g. `https://<project>.vercel.app/api`). This is separate from accounts, which run on Neon. Settings → Updates shows which one it uses.
 - **Keeping it private:** the bundle is the full app source. To stop anyone else downloading it, set `UPDATE_KEY` (any long random string) in the Vercel project's environment variables. Put the same key in **Settings → Updates** (or `MAIN_VITE_UPDATE_KEY` in `.env.local`).
 - **Installing:** Vanity downloads the new files over its own, keeping `node_modules`, your `.env.local` and your data. It runs `npm install` if the dependencies changed, rebuilds and restarts. With `npm run dev` it skips the build: electron-vite reloads the app by itself.
 - **Without a server address:** Vanity falls back to GitHub. A git clone updates with git and your GitHub login; a downloaded copy needs a GitHub token in Settings → Updates. The branch is `vanity.updateBranch` in `package.json`.
 - **Patch notes:** come from [`CHANGELOG.md`](CHANGELOG.md). Each release bumps `version` in `package.json` and adds an entry there. The current version is at the bottom right of Settings.
+- **The Android app** checks GitHub Releases too, and downloads the new `Vanity.apk` for you to install.
 - **Installed copies** (from `Vanity-Setup.exe`) don't use any of the above. They update from GitHub Releases: they check when they start and every hour, download in the background, then show "Update ready: restart to install". See [RELEASING.md](RELEASING.md).
 
 ## Native modules

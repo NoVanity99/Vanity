@@ -13,6 +13,14 @@ function publish(s: Settings): void {
   for (const l of listeners) l(s)
 }
 
+// Settings changed on another device arrive through cloud sync.
+let subscribed = false
+function subscribe(): void {
+  if (subscribed) return
+  subscribed = true
+  window.vanity.settings.onChange(publish)
+}
+
 export async function loadSettings(): Promise<Settings> {
   const s = await window.vanity.settings.get()
   publish(s)
@@ -29,6 +37,7 @@ export function useSettings(): Settings | null {
   const [s, setS] = useState<Settings | null>(current)
   useEffect(() => {
     listeners.add(setS)
+    subscribe()
     if (!current) void loadSettings().catch(() => {})
     else setS(current)
     return () => {

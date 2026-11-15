@@ -15,6 +15,7 @@ import { SimilarGames } from '@/components/game/SimilarGames'
 import { TimeToBeat } from '@/components/game/TimeToBeat'
 import { YourStats } from '@/components/game/YourStats'
 import { milestones } from '@/lib/playtime'
+import { UserBadges } from '@/components/UserBadges'
 import { Avatar } from '@/components/Avatar'
 import { useAccount } from '@/state/account'
 import { SOURCE_LABELS } from '@shared/types'
@@ -85,10 +86,11 @@ function Storyline({ text }: { text: string }): React.JSX.Element {
 export function GameDetailPage(): React.JSX.Element {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { games, loading, updateGame, openFolder, pickExecutable, metadata } = useLibrary()
+  const { allGames, loading, updateGame, openFolder, pickExecutable, metadata } = useLibrary()
   const { openMenu, menu } = useGameMenu()
   const [dialog, setDialog] = useState<'match' | 'artwork' | null>(null)
-  const game = games.find((g) => g.id === Number(id))
+  // Look in every stored game, so a link to a duplicate copy still opens.
+  const game = allGames.find((g) => g.id === Number(id))
   const toast = useToast()
   const [live, setLive] = useState<GameLive | null>(null)
   const tint = useCoverTint(game ? mediaUrl(game.coverPath) : null)
@@ -97,13 +99,13 @@ export function GameDetailPage(): React.JSX.Element {
 
   useEffect(() => {
     setFriendsPlayed(null)
-    if (!account?.signedIn) return
+    if (!account?.username) return
     let cancelled = false
     window.vanity.friends.forGame(Number(id)).then((r) => !cancelled && setFriendsPlayed(r.error === undefined ? r.data : []), () => {})
     return () => {
       cancelled = true
     }
-  }, [id, account?.signedIn])
+  }, [id, account?.username])
 
   useEffect(() => {
     setLive(null)
@@ -212,7 +214,7 @@ export function GameDetailPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto" onScroll={onScroll}>
-      <section key={game.id} className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden">
+      <section key={game.id} className="relative h-[min(56vh,520px)] min-h-80 overflow-hidden max-md:h-[38vh] max-md:min-h-64">
         <div ref={heroLayer} className="absolute inset-0 will-change-transform">
           {hero ? (
             <img src={hero} alt="" className="animate-hero-in absolute inset-0 size-full object-cover" draggable={false} />
@@ -322,7 +324,7 @@ export function GameDetailPage(): React.JSX.Element {
             </button>
           )}
 
-          <div className="ml-6 flex flex-wrap gap-8">
+          <div className="ml-6 flex flex-wrap gap-8 max-md:ml-0 max-md:w-full max-md:gap-x-6 max-md:gap-y-4">
             {live?.players != null && live.players > 0 ? (
               <LiveStat icon={Users} label="Playing now" value={`${formatCompact(live.players)} on Steam`} />
             ) : live?.viewers ? (
@@ -386,7 +388,7 @@ export function GameDetailPage(): React.JSX.Element {
             {details && <NewsSection news={details.news} delay={640} />}
             {playStats && <SessionHistory history={playStats.history} delay={660} />}
 
-            {account?.signedIn && (
+            {account?.username && (
               <Section icon={Users} title="Friends who played" delay={680}>
                 {friendsPlayed === null ? (
                   <div className="shimmer h-14 rounded-xl bg-white/[0.03]" />
@@ -400,9 +402,12 @@ export function GameDetailPage(): React.JSX.Element {
                         style={{ '--i': i } as React.CSSProperties}
                         className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4"
                       >
-                        <Avatar name={f.username} size="sm" />
+                        <Avatar name={f.username} src={f.avatar} size="sm" />
                         <span>
-                          <span className="block text-sm font-semibold">{f.username}</span>
+                          <span className="flex items-center gap-1.5 text-sm font-semibold">
+                            {f.username}
+                            <UserBadges verified={f.verified} admin={f.admin} />
+                          </span>
                           <span className="block text-xs text-muted">
                             {formatPlaytime(f.playtimeSeconds)}
                             {f.lastPlayedAt ? ` · ${formatRelativeDate(f.lastPlayedAt).toLowerCase()}` : ''}
@@ -429,17 +434,24 @@ export function GameDetailPage(): React.JSX.Element {
                   <dt className="text-muted">Source</dt>
                   <dd>{SOURCE_LABELS[game.source]}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted">Install folder</dt>
-                  <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
-                </div>
+                {game.source === 'android' ? (
+                  <div>
+                    <dt className="text-muted">App</dt>
+                    <dd className="break-all select-text">{game.externalId}</dd>
+                  </div>
+                ) : (
+                  <div>
+                    <dt className="text-muted">Install folder</dt>
+                    <dd className="break-all select-text">{game.installPath ?? 'Unknown'}</dd>
+                  </div>
+                )}
                 {game.installPath && (
                   <div>
                     <dt className="text-muted">Size on disk</dt>
                     <dd>{diskSize === undefined ? <span className="shimmer inline-block h-4 w-20 rounded bg-white/5" /> : diskSize === null ? 'Unknown' : formatBytes(diskSize)}</dd>
                   </div>
                 )}
-                {game.source === 'steam' || game.source === 'epic' ? (
+                {game.source === 'android' ? null : game.source === 'steam' || game.source === 'epic' ? (
                   <div>
                     <dt className="text-muted">Launches through</dt>
                     <dd>{game.source === 'steam' ? 'Steam' : 'Epic Games Launcher'}</dd>
@@ -447,7 +459,7 @@ export function GameDetailPage(): React.JSX.Element {
                 ) : (
                   <div>
                     <dt className="flex items-center justify-between text-muted">
-                      Executable
+                      {/\.html?$/i.test(game.executablePath ?? '') ? 'Web game (opens in a Vanity window)' : 'Executable'}
                       <button className="text-xs text-accent hover:underline" onClick={() => pickExecutable(game.id)}>
                         Change
                       </button>
@@ -461,9 +473,11 @@ export function GameDetailPage(): React.JSX.Element {
                 </div>
               </dl>
               <div className="mt-4 space-y-2">
-                <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
-                  <FolderOpen className="size-4" /> Open install folder
-                </Button>
+                {game.source !== 'android' && (
+                  <Button className="w-full" disabled={!folder} onClick={() => openFolder(game.id)}>
+                    <FolderOpen className="size-4" /> Open install folder
+                  </Button>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={() => setDialog('artwork')}>
                     <Image className="size-4" /> Artwork

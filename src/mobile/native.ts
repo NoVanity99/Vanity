@@ -1,0 +1,64 @@
+import { registerPlugin } from '@capacitor/core'
+
+export interface NativeApp {
+  packageName: string
+  name: string
+  /** Android marks it as a game (its category, or the older "is game" flag). */
+  isGame: boolean
+  /** When it was installed (ms). */
+  installedAt: number
+  /** file:// path of its icon, saved by the app, or null. */
+  icon: string | null
+}
+
+export interface NativeTrack {
+  /** content:// address of the song. */
+  uri: string
+  title: string
+  artist: string | null
+  album: string | null
+  /** content:// address of the album art, or null. */
+  art: string | null
+}
+
+/** The native (Java) side of Vanity on Android: android/app/src/main/java/.../VanityNativePlugin.java */
+export interface VanityNative {
+  /** Every app with a launcher icon, except Vanity itself. */
+  listApps(): Promise<{ apps: NativeApp[] }>
+  launch(opts: { packageName: string }): Promise<void>
+  /** Whether Vanity may read app usage (for playtime). */
+  usageAccess(): Promise<{ granted: boolean }>
+  /** Opens Android's "Usage access" settings page. */
+  openUsageSettings(): Promise<void>
+  /** Times each of the given apps was on screen since `since` (ms). */
+  usage(opts: { since: number; packages: string[] }): Promise<{ sessions: { packageName: string; start: number; end: number }[] }>
+  /** Songs on the phone. Asks for permission if needed; `granted` is false if the user said no. */
+  listMusic(): Promise<{ granted: boolean; tracks: NativeTrack[] }>
+  /**
+   * Downloads the newest Vanity APK inside the app and opens Android's install screen.
+   * Sends "updateProgress" events ({ percent }) while it downloads.
+   */
+  installUpdate?(opts: { url: string }): Promise<void>
+  addListener?(event: 'updateProgress', cb: (data: { percent: number }) => void): Promise<{ remove(): Promise<void> }> | { remove(): Promise<void> }
+  /**
+   * One https request made by the app itself, not the web view, so the Cookie and Origin headers
+   * can be set (sign-in with Neon Auth needs both). Nothing is stored by Android.
+   */
+  http?(opts: { url: string; method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; headers: Record<string, string>; setCookie: string[]; body: string }>
+  /** A small secret kept encrypted with a key from the Android Keystore. */
+  secureSet?(opts: { key: string; value: string | null }): Promise<void>
+  secureGet?(opts: { key: string }): Promise<{ value: string | null }>
+  /** Asks Android to close an app that is in the background. Android decides; some games stay open. */
+  closeApp?(opts: { packageName: string }): Promise<{ closed: boolean }>
+  /** Opens a web address (or a file download) outside Vanity. */
+  openUrl(opts: { url: string }): Promise<void>
+}
+
+declare global {
+  interface Window {
+    /** Tests run the Android build in a desktop browser with a stand-in for the native side. */
+    __vanityNativeMock?: VanityNative
+  }
+}
+
+export const native: VanityNative = window.__vanityNativeMock ?? registerPlugin<VanityNative>('VanityNative')

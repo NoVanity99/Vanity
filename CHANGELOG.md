@@ -3,17 +3,127 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
-## 0.7.0 (2026-11-14)
-- Profile customization: Settings → Profile lets you style your profile with a live preview. Your friends see it next to your name on the Friends page.
-  - 12 banners (Aurora, Galaxy, Cyber grid, Gold, Rainbow flow and more), 8 picture frames (Neon glow, Gold, Spinning rainbow, Fire, Ice…), 7 name styles (Gradient, Gold shine, Rainbow, Glow, Glitch…), 6 moving effects (Shimmer, Sparkles, Starfield, Scanlines, Bubbles), a flair emoji and a tagline.
-  - Your Account page and the sidebar show your look, and opening a friend shows theirs.
-- Customize: a new Settings section to build the launcher your way.
-  - Your own accent colour over any skin, sharp, soft or round corners, and a size slider for the whole interface (85–125%).
-  - Backgrounds: Soft glow, Aurora, Cyber grid, Starfield or Plain.
-  - Game covers: choose what they do when you point at them (Lift, Zoom, Glow, 3D tilt or Stay still).
-  - Sidebar: switch entries on or off and reorder them, hide the level, search or collections, or use a compact icons-only sidebar.
-  - Choose the page Vanity opens on, hide the music player or launcher status at the top, use solid panels, or reduce motion.
-- Friends see profile looks once the account server is updated; until then your look shows on your own PC.
+## 0.15.0 (2026-11-14)
+- New: **profile picture and bio.** On the Account page you can add a picture (Vanity crops and shrinks it), change it, remove it, and write a bio of up to 200 characters. Both are saved to your account, follow you to every device, and show to your friends. Works on Windows and Android.
+- New: **verified and admin badges.** A blue bubble with a check mark for verified accounts and a gold bubble with a crown for admins, side by side when an account has both, each with a light that sweeps across it. They show next to the name everywhere: sidebar, Account, Profile, Friends, friend requests and "friends who played this". Only Vanity's server hands them out (`server/src/roles.ts`); for now that is SBCVanity.
+- New: **Vibe Check has a second row:** three picks from games you own but haven't installed, each with an Install button. If everything you own is installed, the row isn't there.
+- Changed: **player counts are always on the covers** in the Library, in the bottom-left corner (before, only when the mouse was over a game). Games from other launchers get a count too once Vanity has found their Steam page, the same number their game page shows.
+- Changed: **Settings is four short pages** (Appearance, Library, Playing, Updates) instead of one long one. It reopens on the page you used last, and Updates shows a dot when one is waiting.
+- Fixed: the Steam card kept saying "(counting…)" after the achievement count had stopped growing. It now only says so while the number is still going up: games Steam can't report on no longer hold it up, and neither does running out of the day's Steam requests.
+- Fixed: in the **Epic and GOG sign-in windows, "more sign-in options"** (Google, Apple, Xbox, Steam, Facebook…) did nothing, because Vanity blocked the small window they open. Those windows now open, and the sign-in window introduces itself as an ordinary browser so those services accept it.
+
+## 0.14.0 (2026-11-14)
+- New: **install Epic and GOG games inside Vanity** (stage 5 of the accounts and cloud update). Windows only.
+  - **Downloads page** (in the sidebar, with a count): a queue that installs one game at a time, with a progress bar, speed, time left, and pause, resume and cancel. The queue is remembered when you close Vanity, and downloads carry on where they stopped.
+  - **Install window:** choose the folder (Vanity remembers it), see the download size, installed size and free space, and get a clear message if the drive doesn't have room.
+  - **Epic Games:** sign in under Account → Linked accounts. Your Epic library appears in Vanity, and Install downloads the game with Legendary, the open-source Epic client that now ships with Vanity. Games installed this way start from Vanity without the Epic launcher.
+  - **GOG:** sign in under Linked accounts. Your GOG library appears, and Install downloads the game's installer and runs it without its windows (Windows asks once for permission).
+  - **Steam** games still install through Steam; Vanity says so.
+  - When an install finishes, the game moves to Installed by itself.
+  - Clear messages for no internet, an expired store sign-in, a failed download or a full drive, with a Try again button. A Log button opens the downloader's log if something needs looking into.
+- Epic and GOG sign-ins happen on the store's own page in a window, and stay on this PC. Vanity never sees those passwords. The GOG sign-in is kept encrypted with Windows credential protection.
+- Linked accounts now shows without a Vanity account too (Epic and GOG don't need one; Steam does).
+
+## 0.13.0 (2026-11-14)
+- New: **your library now shows games you own but haven't installed** (stage 4 of the accounts and cloud update). With a Steam account linked, every game in your Steam library appears.
+  - Games that aren't installed are greyed out, marked "Not installed", and have an **Install** button instead of Play.
+  - New filter at the top of the Library: **All / Installed / Not installed**, with a count on each.
+  - Install hands the game to Steam (Steam games install through Steam; Vanity says so). When Steam finishes, the game moves to Installed by itself and Vanity tells you.
+  - Uninstall a Steam game you still own and it goes back to "Not installed", keeping its playtime, instead of showing as "Not found".
+  - They use Steam's own cover art straight away. You can favourite them and put them in collections.
+  - If you have the same game installed from another launcher, you see that one copy, not two.
+  - Unlink Steam and they leave the library again. Removing one by hand keeps it away.
+- Play, Surprise me, Vibe Check, Big Picture and the game count in the sidebar still only use games you can start right now.
+- On Android the library stays as it is: PC games can't be installed on a phone.
+
+## 0.12.0 (2026-11-14)
+- New: **link your Steam account** (stage 3 of the accounts and cloud update). On the Account page there is a new "Linked accounts" section.
+  - Paste any of: your SteamID (17 digits), your profile link (steamcommunity.com/profiles/… or steamcommunity.com/id/yourname), or just your custom URL name.
+  - Or click "Sign in through Steam": Steam's own sign-in page opens in your browser and the link fills in by itself. Vanity never sees your Steam password. Accounts linked this way get a verified tick.
+  - Once linked you see your Steam name and avatar, how many games you own and how many achievements you've unlocked, with an Unlink button.
+  - If your Steam profile's game details are private, Vanity says so and shows the five steps to make them public.
+  - The link is saved to your Vanity account, so it shows on every device.
+- Steam achievements now count towards your XP and level, and the "Achievement Hunter" badge can be unlocked. Big libraries are counted over a few minutes.
+- The Steam key that makes this work lives only on Vanity's server. It is not in the app. Each account has limits on how often it can ask, and answers are remembered for a few minutes.
+
+## 0.11.1 (2026-11-14)
+- New: a red **cancel** bubble next to "Starting…" when a game is starting. Click it to stop waiting; if the game had already opened, it is closed too.
+- New: a red **close game** bubble at the top right of a game's cover while it is running (also next to the Playing button on the game page, in Jump back in, the list view and Big Picture). It ends the game the way "End task" in Task Manager does.
+  - It asks once first ("Close game?"), because unsaved progress in the game is lost. Click again to confirm.
+  - Only the game's own program and anything running from its install folder is closed. Time played up to that moment is kept.
+  - Web games close their window. On Android, Vanity asks the system to close the game (Android decides).
+- "Launching…" now reads "Starting…".
+
+## 0.11.0 (2026-11-14)
+- New: **cloud-saved progress** (stage 2 of the accounts and cloud update). Sign in and your progress follows you to every PC and phone.
+  - Synced: playtime and launch counts per game, last played, favourites, play status, ratings and notes, collections, badges, your level and XP, and your look-and-feel settings (theme, font and similar).
+  - Play on two devices and the time adds up; nothing overwrites anything. For choices like favourites, the newest change wins.
+  - Works offline: everything is saved on the device first and syncs by itself when you're back online.
+  - Not signed in? Everything still works and is kept on this device.
+- New: **Profile page** (click your level in the sidebar, or Profile in the menu): your level and XP bar, total playtime, games played, launches, streak, most-played games, where your XP comes from, and your badges.
+- New: **21 badges** to unlock, from "Press Start" to "Unstoppable" (a 30-day streak), each showing how far along you are.
+- XP now also comes from the first launch of each game, each day you play, and streaks of days in a row, on top of playtime, finishing and rating games. Steam achievements will count once Steam linking arrives. Your level can only have gone up.
+- Friends: you can see each friend's level, XP and badge count.
+- Game time shown in the library and on Stats now includes your other devices.
+
+## 0.10.0 (2026-11-14)
+- Accounts have moved to Neon, with proper sign-in (stage 1 of the accounts and cloud update).
+  - Create an account with your email, a username and a password. Friends still add you by username; your email stays private.
+  - "Stay signed in" keeps you signed in between launches. Turn it off on a shared PC and Vanity forgets you when it closes.
+  - Forgot your password? Vanity emails you a 6-digit code to choose a new one.
+  - Your sign-in is stored in the device's protected storage (Windows credential protection, Android Keystore), never in a plain file.
+  - Clear messages when you're offline, when your session has expired, for a wrong password, or when a username is taken.
+  - Works the same on Windows and Android.
+- Accounts from before this version don't carry over: create a new one with your email. Your library, playtime and settings on this device are untouched.
+- Friends, "now playing" and shared stats work as before, now on the new accounts.
+
+## 0.9.2 (2026-11-14)
+- New: **Vanity Installer for Android** (Vanity-Installer.apk), a small app to hand out. It always downloads the newest Vanity from GitHub Releases and installs it, so the same file can be shared forever.
+  - Open it and it finds the newest version, downloads it with a progress bar, and Android asks you to install.
+  - If Vanity is already on the newest version it says so and offers to open it.
+  - Once Vanity is installed you can remove the installer: Vanity keeps itself up to date.
+
+## 0.9.1 (2026-11-14)
+- Android: Vanity now keeps itself on the newest version, however old the APK you installed is.
+  - It checks for a newer version the moment it opens, and again each time you come back to it.
+  - When there is one, the update window opens by itself. Tap "Update now": Vanity downloads the new version inside the app, shows the progress, and Android asks you to install it.
+  - The download link for the APK always gives the newest version too.
+
+## 0.9.0 (2026-11-14)
+- New: **Vanity for Android.** Install Vanity.apk on your phone and it finds every game installed on it, the same way the Windows app finds your PC games.
+  - Tap a game to play it. Touch and hold a game for its menu (favourite, hide, collections, remove).
+  - "Add a game" lists every other app on the phone, for games Android doesn't label as games.
+  - Playtime: turn on "Usage access" in Settings for exact times. Without it, Vanity counts from when you tap Play until you come back.
+  - The music player plays the songs stored on your phone.
+  - Cover art, game pages, Most hyped, Stats, Wrapped, Vibe Check, collections, accounts and friends all work like on Windows.
+  - Updates: Vanity tells you when a new version is out and downloads the new APK for you to install.
+  - Not on Android: the Steam store tab, Discord status, Big Picture, break reminders, and .exe or web games.
+- Vanity now scans for new games every time it opens, on Windows and Android.
+- No more duplicates: if the same game is found twice (for example on Steam and Epic), it shows once. Vanity keeps the copy you've played the most.
+- A game you remove stays removed, even after a rescan. Settings has a "Removed games" list to bring them back.
+- Fonts: changing the font in Settings now changes all the text in the launcher, including headings, buttons, menus and text boxes.
+- Fixed: a few small font pieces were blocked from loading, so some special characters could show in the wrong font.
+
+## 0.8.1 (2026-11-14)
+- New: a small web installer, Vanity-Installer.exe. It always downloads and installs the newest version of Vanity, so the same file can be shared forever.
+
+## 0.8.0 (2026-11-07)
+- Music player: plays almost any audio format, not just MP3 and the common ones.
+  - Newly supported: WMA, Apple Lossless (ALAC) .m4a, AIFF, WavPack, APE, CAF, AC3/E-AC3, DTS, MP2, W64, AMR and more.
+  - Vanity converts them to lossless FLAC with its built-in converter the first time they play, and keeps the result, so they start instantly and seek properly after that.
+  - Any song the player can't decode is automatically retried through the converter before it's skipped.
+- Web games: "Add a game" now accepts .html files as well as .exe.
+  - Web games open in their own Vanity window. Press F11 for full screen.
+  - Saves are kept between plays, and games that load their own files (Phaser, Godot, Unity WebGL, Construct and similar) work.
+  - Playtime, session recaps, break reminders and Discord all work just like any other game.
+  - The game window can't touch the rest of your PC, and links to websites open in your browser.
+
+## 0.7.0 (2026-10-26)
+- New: **Vibe Check**, for when you can't decide what to play. Click Vibe Check at the top of your Library, or search "vibe" with Ctrl+K.
+- Pick how much time you have (15 minutes up to all night) and your mood: Chill, Intense, Story, Quick fix, Social or Something new.
+- Vanity picks three games from your library, with a match score and the reasons for each. For example: "Your sessions usually run 45 min, which fits 1 hour", "You're in the middle of it", or "You haven't played it in 10 months".
+- It learns from how you actually play: how long your sessions usually run for each game, what you're in the middle of, your backlog, your ratings, and what you haven't touched in a while. It never suggests games you dropped.
+- Hit Play straight from the card, or "Show me others" for the next best matches.
 
 ## 0.6.1 (2026-10-26)
 - Settings is simpler: the API keys and the Discord application ID are built in, so the "Metadata & artwork" section and the Discord ID field are gone. Discord Rich Presence works as soon as you turn it on.

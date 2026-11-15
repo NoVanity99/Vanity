@@ -1,4 +1,5 @@
-# Builds the Windows installer and publishes it to a GitHub Release when you push a tag like v1.0.1.
+# Builds the Windows installer and the Android app (APK) and publishes both to a GitHub Release
+# when you push a tag like v1.0.1.
 # Installed copies of Vanity find the new release through latest.yml and update themselves.
 # See RELEASING.md.
 name: Release
@@ -14,7 +15,44 @@ permissions:
   contents: write
 
 jobs:
+  # The Android app. It is only built here; the windows job attaches it to the release,
+  # so the APK is in place before installed copies are told about the new version.
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the APK
+        run: npm run build:android
+
+      - name: Name the APK
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir apk
+          cp android/app/build/outputs/apk/release/app-release.apk "apk/Vanity-$VERSION.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk apk/Vanity.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vanity-apk
+          path: apk/*.apk
+          if-no-files-found: error
+
   windows:
+    needs: android
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +87,11 @@ jobs:
           MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
           MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
 
+      # The Epic downloader (Legendary) ships inside the installer. It is a pinned release,
+      # checked against its checksum: the step fails if the file is anything else.
+      - name: Fetch the Epic downloader
+        run: node scripts/fetch-legendary.mjs
+
       - name: Build
         run: npm run build
         env:
@@ -73,10 +116,34 @@ jobs:
             gh release create "v$VERSION" --title "$VERSION" --notes-file build-notes/release-notes.md --target "$GITHUB_SHA"
           fi
 
+      # Vanity-<version>.apk, plus Vanity.apk so this link always gives the newest one:
+      # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: vanity-apk
+          path: apk
+
+      - name: Attach the Android app
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$(node -p "require('./package.json').version")" apk/*.apk --clobber
+
       - name: Package and publish the installer
         run: npx electron-builder --win --publish always --config.releaseInfo.releaseNotesFile=build-notes/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The small web installer (installer/Vanity-Installer.exe) always downloads the newest release.
+      # Attaching it to every release keeps this link working forever:
+      # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.exe
+      # installer/Vanity-Installer.apk is the same idea for Android:
+      # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk
+      - name: Attach the web installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v$(node -p "require('./package.json').version")" installer/Vanity-Installer.exe installer/Vanity-Installer.apk --clobber
 
       - name: Keep the installer as a workflow artifact too
         uses: actions/upload-artifact@v4

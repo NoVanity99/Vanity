@@ -83,7 +83,7 @@ export function MusicPlayer(): React.JSX.Element {
     (index: number) => {
       const el = audio.current
       if (!el || !lib) return
-      el.src = `vanity-music://track/${index}?v=${lib.version}`
+      el.src = window.vanity.music.url(index, lib.version)
       setCurrent(index)
       void el.play().catch(() => {
         // Autoplay or decode problems surface as an 'error' event too; nothing else to do here.
@@ -133,7 +133,16 @@ export function MusicPlayer(): React.JSX.Element {
       playNext()
     }
     const onError = (): void => {
-      if (!el.getAttribute('src')) return
+      const src = el.getAttribute('src')
+      if (!src) return
+      // A format the player can't decode: ask Vanity to convert it (with ffmpeg) and try once more.
+      if (el.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || el.error?.code === MediaError.MEDIA_ERR_DECODE) {
+        if (window.vanity.platform === 'desktop' && !src.includes('convert=1')) {
+          el.src = `${src}&convert=1`
+          void el.play().catch(() => {})
+          return
+        }
+      }
       failures.current += 1
       if (failures.current >= MAX_FAILURES) {
         el.pause()
@@ -173,7 +182,7 @@ export function MusicPlayer(): React.JSX.Element {
     audio.current?.removeAttribute('src')
     setPlaying(false)
     setCurrent(null)
-    toast(state.count ? `Found ${state.count} song${state.count === 1 ? '' : 's'}` : 'No music files found in that folder', state.count ? 'info' : 'error')
+    toast(state.count ? `Found ${state.count} song${state.count === 1 ? '' : 's'}` : android ? 'No music found on this phone (or permission was not given)' : 'No music files found in that folder', state.count ? 'info' : 'error')
   }
 
   const toggle = (): void => {
@@ -245,7 +254,8 @@ export function MusicPlayer(): React.JSX.Element {
   const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2
   const hasMusic = (lib?.count ?? 0) > 0
   const started = current !== null
-  const label = !hasMusic ? 'Choose a music folder' : info ? (info.artist ? `${info.title} · ${info.artist}` : info.title) : started ? 'Loading…' : 'Press play to shuffle'
+  const android = window.vanity.platform === 'android'
+  const label = !hasMusic ? (android ? 'Tap to find your music' : 'Choose a music folder') : info ? (info.artist ? `${info.title} · ${info.artist}` : info.title) : started ? 'Loading…' : 'Press play to shuffle'
   const showArt = started && info?.hasArt && !artFailed && lib
 
   const iconButton = 'flex size-6 shrink-0 items-center justify-center rounded-full text-text/80 transition hover:scale-110 hover:bg-white/10 hover:text-text disabled:pointer-events-none disabled:opacity-35'
@@ -258,13 +268,13 @@ export function MusicPlayer(): React.JSX.Element {
       {/* Artwork (or a placeholder), gently pulsing while playing. */}
       <button
         onClick={pickFolder}
-        title={lib?.folder ? `Music folder: ${lib.folder}. Click to change.` : 'Choose a music folder'}
+        title={android ? 'Find the music on this phone' : lib?.folder ? `Music folder: ${lib.folder}. Click to change.` : 'Choose a music folder'}
         className="relative size-6 shrink-0 overflow-hidden rounded-full ring-1 ring-white/15 transition hover:scale-105"
       >
         {showArt ? (
           <img
             key={`${lib.version}-${current}`}
-            src={`vanity-music://art/${current}?v=${lib.version}`}
+            src={window.vanity.music.artUrl(current, lib.version)}
             alt=""
             onError={() => setArtFailed(true)}
             className={cn('size-full animate-[fade-in_400ms_ease-out] object-cover', playing && 'animate-[spin_12s_linear_infinite]')}

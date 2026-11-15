@@ -1,4 +1,4 @@
-/** Font themes. `body` is used for all text, `display` for big headings. */
+/** Font themes. `display` is used for all text; `body` only for long passages (descriptions, notes) in themes that pair two fonts. */
 export interface FontTheme {
   id: string
   name: string

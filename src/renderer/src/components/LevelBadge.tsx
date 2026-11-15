@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/cn'
-import { levelFor, totalXp } from '@/lib/xp'
-import { useLibrary } from '@/state/library'
+import { useProgress } from '@/state/progress'
 
 /** Your gamer level under the logo: level, title and progress to the next one. Glows on level-up. */
 export function LevelBadge(): React.JSX.Element {
-  const { games, loading } = useLibrary()
-  const xp = useMemo(() => totalXp(games), [games])
-  const lvl = levelFor(xp)
+  const progress = useProgress()
+  const loading = !progress
+  const xp = progress?.xp ?? 0
+  const lvl = progress?.level ?? { level: 1, into: 0, span: 100, title: 'Rookie' }
   const previous = useRef<number | null>(null)
   const [levelledUp, setLevelledUp] = useState(false)
   useEffect(() => {
@@ -25,8 +25,8 @@ export function LevelBadge(): React.JSX.Element {
   const pct = Math.round((lvl.into / lvl.span) * 100)
   return (
     <NavLink
-      to="/stats"
-      title={`Level ${lvl.level} ${lvl.title}: ${lvl.into.toLocaleString()} / ${lvl.span.toLocaleString()} XP to the next level (${xp.toLocaleString()} XP in all)`}
+      to="/profile"
+      title={`Level ${lvl.level} ${lvl.title}: ${lvl.into.toLocaleString()} / ${lvl.span.toLocaleString()} XP to the next level (${xp.toLocaleString()} XP in all). Click for your profile.`}
       className={cn('mx-3 mb-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-white/5', levelledUp && 'animate-pop-in bg-accent/15')}
     >
       <span className="relative flex size-9 shrink-0 items-center justify-center">

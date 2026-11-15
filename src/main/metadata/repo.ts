@@ -29,7 +29,7 @@ export function createMetadataRepo(db: Db) {
   return {
     /** Games that still need fetching: never tried, or the last try failed. */
     pendingIds(): number[] {
-      return db.prepare("SELECT id FROM games WHERE metadata_status IN ('pending', 'error') ORDER BY id").pluck().all() as number[]
+      return db.prepare("SELECT id FROM games WHERE metadata_status IN ('pending', 'error') AND not_installed = 0 ORDER BY id").pluck().all() as number[]
     },
 
     idsWithStatus(statuses: MetadataStatus[]): number[] {

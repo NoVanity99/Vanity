@@ -15,7 +15,10 @@ if (!process.env.DATABASE_URL) {
   process.exit(1)
 }
 const sql = neon(process.env.DATABASE_URL)
-const statements = readFileSync(join(root, 'schema.sql'), 'utf8')
+// The schema lives in src/schema.ts (the server applies it by itself too): read the SQL out of it.
+const source = readFileSync(join(root, 'src', 'schema.ts'), 'utf8')
+const statements = source
+  .slice(source.indexOf('`') + 1, source.lastIndexOf('`', source.indexOf('export function')))
   .split(/;\s*$/m)
   .map((s) => s.replace(/^\s*--.*$/gm, '').trim())
   .filter(Boolean)

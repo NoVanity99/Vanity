@@ -109,7 +109,7 @@ export function EditGameDialog({ game, onClose }: { game: Game; onClose: () => v
         </Field>
 
         {!usesLauncher && (
-          <Field label="Program" htmlFor="game-exe" hint="The .exe that Play starts. Your choice is kept when the library is rescanned.">
+          <Field label="Program" htmlFor="game-exe" hint="The .exe, or the .html page of a web game, that Play starts. Your choice is kept when the library is rescanned.">
             <div className="flex items-center gap-3">
               <p id="game-exe" className="min-w-0 flex-1 truncate rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-muted" title={current.executablePath ?? ''}>
                 {current.executablePath ?? 'Not set'}

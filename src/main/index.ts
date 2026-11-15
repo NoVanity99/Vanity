@@ -16,6 +16,7 @@ import { MetadataService } from './metadata/service'
 import { TrendingService } from './trending/service'
 import { StatusService } from './status/service'
 import { audioResponse, MusicLibrary } from './music/library'
+import { AudioConverter, bundledFfmpeg, needsConversion } from './music/convert'
 import { LiveService } from './live/service'
 import { DetailsService } from './details/service'
 import { UpdateService } from './update/service'
@@ -23,10 +24,33 @@ import { ReleaseUpdater, type Updater } from './update/release'
 import { autoUpdater } from 'electron-updater'
 import { DiscordPresence } from './discord/presence'
 import { BreakReminders } from './launcher/breaks'
+import { GameWindows } from './launcher/gameWindows'
+import { GAME_SCHEME } from './launcher/htmlGame'
 import { steamArtworkUrl } from './metadata/steamStore'
 import { exec, unzip } from './update/exec'
 import { playStats } from './library/stats'
 import { AccountService } from './account/service'
+import { SyncService } from './sync/service'
+import { SteamService } from './steam/service'
+import { OwnedGames, steamOwnedEntries } from './library/owned'
+import { Installers, SteamClientInstaller } from './install/installer'
+import { InstallWatcher } from './install/watcher'
+import { Legendary } from './downloads/legendary'
+import { Gog } from './downloads/gog'
+import { EpicDriver, GogDriver } from './downloads/drivers'
+import { DownloadManager, freeSpaceOn } from './downloads/manager'
+import { StoreAccountsService } from './downloads/accounts'
+import { createGogVault, epicLoginWindow, gogLoginWindow, killTree, legendaryBinary, runToEnd } from './downloads/desktop'
+import { setLegendaryInstalled } from './scanners/epic'
+import { spawn } from 'node:child_process'
+import { appendFile, mkdir, stat, rename } from 'node:fs/promises'
+import { homedir } from 'node:os' 
+import { createKv } from './db/kv'
+import { runScan } from './library/scan'
+import { scanners } from './scanners'
+import { tracked } from './sync/track'
+import { createSessionVault, nodeAuthHttp } from './account/desktop'
+import { backendConfig } from '@shared/backend'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -39,15 +63,25 @@ let metadata: MetadataService | null = null
 let trending: TrendingService | null = null
 let status: StatusService | null = null
 let account: AccountService | null = null
+let sync: SyncService | null = null
+let steam: SteamService | null = null
+let downloads: DownloadManager | null = null
 let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
+let gameWindows: GameWindows | null = null
+/** Vanity's own window (game windows for web games are separate). */
+let mainWindow: BrowserWindow | null = null
+
+function getMainWindow(): BrowserWindow | null {
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+}
 
 /** True while Vanity minimised itself for a running game, so it only restores what it hid. */
 let minimizedForGame = false
 
 function minimizeWhilePlaying(state: 'launching' | 'running' | 'stopped'): void {
-  const win = BrowserWindow.getAllWindows()[0]
+  const win = getMainWindow()
   if (!win) return
   if (state === 'running' && getSettings().minimizeWhilePlaying && !win.isMinimized()) {
     win.minimize()
@@ -66,7 +100,8 @@ function chromeColors(): { bg: string; symbol: string } {
 
 function applyChrome(): void {
   const { bg, symbol } = chromeColors()
-  for (const win of BrowserWindow.getAllWindows()) {
+  const win = getMainWindow()
+  if (win) {
     win.setBackgroundColor(bg)
     try {
       // Only on platforms with a title bar overlay (Windows).
@@ -81,11 +116,14 @@ function applyChrome(): void {
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   // Music for the mini player: vanity-music://track/<index> (streams with Range support) and vanity-music://art/<index>.
-  { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  // Web games added with "Add a game": vanity-game://game-<id>/… serves the game's folder (see launcher/gameWindows.ts).
+  { scheme: GAME_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
 
+/** Sends to Vanity's own window only (never to a web game's window). */
 function broadcast(channel: string, payload: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload)
+  getMainWindow()?.webContents.send(channel, payload)
 }
 
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
@@ -94,7 +132,7 @@ if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USE
 // One instance only: launching Vanity again brings the open window to the front.
 if (!app.requestSingleInstanceLock()) app.quit()
 app.on('second-instance', () => {
-  const win = BrowserWindow.getAllWindows()[0]
+  const win = getMainWindow()
   if (!win) return
   if (win.isMinimized()) win.restore()
   win.show()
@@ -127,6 +165,10 @@ function createWindow(): void {
     }
   })
 
+  mainWindow = win
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
   trackWindowState(win)
   win.on('ready-to-show', () => {
     if (saved.maximized) win.maximize()
@@ -160,11 +202,15 @@ app.whenReady().then(() => {
       broadcast(IPC.sessionsChanged, { gameId, state })
       minimizeWhilePlaying(state)
       account?.onSessionChange(state)
+      // A finished session is new progress: save it to the cloud.
+      if (state === 'stopped') sync?.touch()
       showGameOnDiscord()
     }
   })
 
   const store = createSqliteStore(db)
+  gameWindows = new GameWindows(icon)
+  gameWindows.register()
 
   discord = new DiscordPresence({
     enabled: () => getSettings().discordPresence,
@@ -237,7 +283,9 @@ app.whenReady().then(() => {
 
   status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
 
-  const music = new MusicLibrary()
+  // Formats the player can't decode (WMA, Apple Lossless, AIFF…) are converted with the bundled ffmpeg.
+  const converter = new AudioConverter(bundledFfmpeg(), join(app.getPath('userData'), 'music-cache'))
+  const music = new MusicLibrary(converter.available)
   void music.load(getSettings().musicFolder).catch((err) => console.warn('[music] scan failed:', err))
   protocol.handle('vanity-music', async (request) => {
     const url = new URL(request.url)
@@ -249,7 +297,9 @@ app.whenReady().then(() => {
     const file = url.hostname === 'track' ? music.track(index) : null
     if (!file) return new Response('Not found', { status: 404 })
     try {
-      return await audioResponse(file, request.headers.get('range'))
+      // ?convert=1: the player couldn't decode the file as it is, so convert it (see MusicPlayer).
+      const convert = converter.available && (needsConversion(file) || url.searchParams.get('convert') === '1')
+      return await audioResponse(convert ? await converter.convert(file) : file, request.headers.get('range'))
     } catch {
       return new Response('Unreadable', { status: 404 })
     }
@@ -261,13 +311,104 @@ app.whenReady().then(() => {
   account = new AccountService({
     store,
     fetchFn,
-    getSettings,
-    saveSettings: updateSettings,
-    serverUrl: () => accountServerUrl(),
+    authHttp: nodeAuthHttp,
+    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }),
+    vault: createSessionVault(join(app.getPath('userData'), 'session.bin')),
     runningGame: () => tracker?.running() ?? null,
-    onChange: (s) => broadcast(IPC.accountChanged, s)
+    onChange: (s) => {
+      broadcast(IPC.accountChanged, s)
+      sync?.accountChanged()
+      steam?.accountChanged()
+    }
   })
-  account.start()
+  sync = new SyncService({
+    db,
+    account,
+    getSettings,
+    applySettings: async (patch) => {
+      const after = await updateSettings(patch)
+      applyChrome()
+      discord?.sync()
+      broadcast(IPC.settingsChanged, after)
+    },
+    deviceName: 'Windows PC',
+    onChange: (p) => broadcast(IPC.progressChanged, p)
+  })
+  sync.start()
+  // Games you own on a linked account show in the library even when they aren't installed.
+  const owned = new OwnedGames(store, createKv(db), () => broadcast(IPC.gamesChanged, null))
+  // One installer per store. A SteamCMD-based one can be added ahead of SteamClientInstaller later.
+  const installers = new Installers([new SteamClientInstaller((url) => shell.openExternal(url))])
+  const installWatcher = new InstallWatcher({
+    // Only the launchers are looked at again (not the custom folders, which need a review step).
+    rescan: async () => {
+      await runScan({ settings: getSettings(), store, onProgress: () => {}, scannerList: scanners.filter((s) => s.source !== 'custom') })
+      owned.reapply()
+      metadata?.enqueuePending()
+    },
+    getGame: (id) => store.get(id),
+    onInstalled: (game) => {
+      broadcast(IPC.gamesChanged, null)
+      broadcast(IPC.gamesInstalled, game)
+    }
+  })
+  // ---- installing Epic and GOG games inside Vanity ----
+  const legendary = new Legendary({ binary: legendaryBinary(), configDir: join(app.getPath('userData'), 'legendary'), spawn, killTree })
+  const gog = new Gog({ fetchFn, vault: createGogVault(join(app.getPath('userData'), 'gog.bin')) })
+  // Epic games Vanity installed are found by the Epic scanner too, so they are never "not found".
+  setLegendaryInstalled(async () =>
+    (await legendary.installed()).map((g) => ({ source: 'epic' as const, externalId: g.appName, name: g.title, installPath: g.installPath, executablePath: g.executable ? join(g.installPath, g.executable) : null }))
+  )
+  const downloadLog = join(app.getPath('userData'), 'logs', 'downloads.log')
+  const writeLog = (id: string, line: string): void => {
+    void (async () => {
+      await mkdir(join(app.getPath('userData'), 'logs'), { recursive: true })
+      // Kept small: when it passes 2 MB the old one is set aside.
+      const size = await stat(downloadLog).then((s) => s.size, () => 0)
+      if (size > 2 * 1024 * 1024) await rename(downloadLog, `${downloadLog}.old`).catch(() => {})
+      await appendFile(downloadLog, `${new Date().toISOString()} [${id}] ${line}\n`)
+    })().catch(() => {})
+  }
+  downloads = new DownloadManager({
+    kv: createKv(db),
+    drivers: [new EpicDriver(legendary), new GogDriver({ gog, tempDir: join(app.getPath('userData'), 'downloads', 'gog'), exec: runToEnd })],
+    getGame: (id) => store.get(id),
+    defaultDir: join(homedir(), 'Games'),
+    freeSpace: freeSpaceOn,
+    onInstalled: async (game) => {
+      // Look for it the same way a scan does, so it becomes an installed game in the library.
+      await runScan({ settings: getSettings(), store, onProgress: () => {}, scannerList: scanners.filter((s) => s.source !== 'custom') })
+      owned.reapply()
+      metadata?.enqueuePending()
+      broadcast(IPC.gamesChanged, null)
+      const now = store.get(game.id)
+      if (now?.installed) broadcast(IPC.gamesInstalled, now)
+    },
+    onChange: (items) => broadcast(IPC.downloadsChanged, items),
+    log: writeLog
+  })
+  const stores = new StoreAccountsService({
+    legendary,
+    gog,
+    epicLoginWindow: () => epicLoginWindow(getMainWindow()),
+    gogLoginWindow: () => gogLoginWindow(getMainWindow()),
+    onOwned: (source, entries) => owned.set(source, entries),
+    onChange: (s) => broadcast(IPC.storesChanged, s)
+  })
+  stores.start()
+
+  steam = new SteamService({
+    db,
+    account,
+    openExternal: (url) => shell.openExternal(url),
+    onOwnedGames: (games) => owned.set('steam', games ? steamOwnedEntries(games) : null),
+    onProgress: () => sync?.touch(),
+    onChange: (s) => broadcast(IPC.steamChanged, s)
+  })
+  steam.start()
+  void account.load()
+  // Sessions of the old account server were kept in settings: they no longer work, so forget them.
+  if (getSettings().accountToken) void updateSettings({ accountToken: '', accountUsername: '' })
 
   const devServer = is.dev && !!process.env['ELECTRON_RENDERER_URL']
   // Installed with the Windows installer: updates come from GitHub Releases (electron-updater).
@@ -294,7 +435,7 @@ app.whenReady().then(() => {
     restart: () => {
       if (devServer) {
         // electron-vite restarts the app when main-process code changed; reload in case only the UI did.
-        setTimeout(() => BrowserWindow.getAllWindows().forEach((w) => w.webContents.reloadIgnoringCache()), 2500)
+        setTimeout(() => getMainWindow()?.webContents.reloadIgnoringCache(), 2500)
       } else {
         app.relaunch()
         app.quit()
@@ -303,12 +444,12 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, collections: createCollectionsStore(db), tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
   globalShortcut.register('CommandOrControl+Alt+V', () => {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = getMainWindow()
     if (!win) return
     if (win.isFocused() && !win.isMinimized()) return win.minimize()
     if (win.isMinimized()) win.restore()
@@ -323,7 +464,7 @@ app.whenReady().then(() => {
   status.start()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!getMainWindow()) createWindow()
   })
 })
 
@@ -340,10 +481,20 @@ app.on('before-quit', (event) => {
   void account.signOffQuickly().finally(() => app.quit())
 })
 
+// Stop a running download cleanly (it is paused, and continues next time).
+let downloadsStopped = false
+app.on('before-quit', (event) => {
+  if (downloadsStopped || !downloads || !downloads.list().some((i) => i.state === 'downloading' || i.state === 'preparing')) return
+  event.preventDefault()
+  downloadsStopped = true
+  void Promise.race([downloads.shutdown(), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit())
+})
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
+  gameWindows?.closeAll()
   metadata?.dispose()
   trending?.dispose()
   status?.dispose()

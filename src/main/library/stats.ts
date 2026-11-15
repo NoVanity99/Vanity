@@ -16,7 +16,7 @@ export interface PlayStats {
 /** Playtime summary from the library and recorded play sessions. */
 export function playStats(db: Db, now = Date.now(), days = 371): PlayStats {
   const totals = db
-    .prepare('SELECT COALESCE(SUM(playtime_seconds), 0) AS total, SUM(playtime_seconds > 0) AS played FROM games')
+    .prepare('SELECT COALESCE(SUM(playtime_seconds + cloud_playtime_seconds), 0) AS total, SUM(playtime_seconds + cloud_playtime_seconds > 0) AS played FROM games')
     .get() as { total: number; played: number | null }
   const sessions = db.prepare('SELECT COUNT(*) FROM play_sessions WHERE duration_seconds > 0').pluck().get() as number
   const longest = db
@@ -26,7 +26,7 @@ export function playStats(db: Db, now = Date.now(), days = 371): PlayStats {
     )
     .get() as PlayStats['longest'] | undefined
   const top = db
-    .prepare('SELECT id, name, playtime_seconds AS seconds, cover_path AS coverPath FROM games WHERE playtime_seconds > 0 ORDER BY playtime_seconds DESC LIMIT 8')
+    .prepare('SELECT id, name, playtime_seconds + cloud_playtime_seconds AS seconds, cover_path AS coverPath FROM games WHERE playtime_seconds + cloud_playtime_seconds > 0 ORDER BY seconds DESC LIMIT 8')
     .all() as PlayStats['top']
   const recent = db
     .prepare('SELECT started_at AS startedAt, duration_seconds AS seconds, game_id AS gameId FROM play_sessions WHERE started_at >= ? AND duration_seconds > 0 ORDER BY started_at')

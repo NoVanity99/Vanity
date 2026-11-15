@@ -58,7 +58,7 @@ const BannerCard = memo(function BannerCard({
     // The second copy of the strip is decorative: inert keeps it out of the tab order, controller focus and screen readers.
     <div
       inert={hidden}
-      className="group relative aspect-[21/10] w-[420px] shrink-0 overflow-hidden rounded-2xl bg-surface-2 shadow-xl shadow-black/40 ring-1 ring-white/5 transition duration-300 focus-within:ring-2 focus-within:ring-accent hover:-translate-y-1 hover:shadow-2xl hover:ring-white/25"
+      className="group relative aspect-[21/10] w-[420px] shrink-0 max-md:w-[300px] overflow-hidden rounded-2xl bg-surface-2 shadow-xl shadow-black/40 ring-1 ring-white/5 transition duration-300 focus-within:ring-2 focus-within:ring-accent hover:-translate-y-1 hover:shadow-2xl hover:ring-white/25"
     >
       <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, hsl(${hue} 45% 24%), hsl(${(hue + 40) % 360} 45% 9%))` }} />
       {art && (

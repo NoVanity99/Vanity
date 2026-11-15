@@ -1,5 +1,6 @@
+import { StopBubble } from './StopBubble'
 import { memo } from 'react'
-import { Play, Star } from 'lucide-react'
+import { Download, Play, Star } from 'lucide-react'
 import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { STATUS_TONE } from '@/lib/status'
@@ -13,15 +14,17 @@ interface Props {
   /** Position in the grid, for the cascade-in animation. */
   index: number
   session?: Exclude<SessionState, 'stopped'>
-  /** Current Steam players, shown on hover. */
+  /** Current Steam players, always shown in the bottom-left corner of the cover. */
   players?: number
   onOpen: (game: Game) => void
   onPlay: (game: Game) => void
+  /** For a game that is owned but not installed. */
+  onInstall?: (game: Game) => void
   onMenu: (e: React.MouseEvent, game: Game) => void
 }
 
-export const GameCard = memo(function GameCard({ game, index, session, players, onOpen, onPlay, onMenu }: Props): React.JSX.Element {
-  const dimmed = (game.missing || game.hidden) && !session
+export const GameCard = memo(function GameCard({ game, index, session, players, onOpen, onPlay, onInstall, onMenu }: Props): React.JSX.Element {
+  const dimmed = (game.missing || game.hidden || !game.installed) && !session
   const tilt = useTilt<HTMLDivElement>()
 
   return (
@@ -44,14 +47,14 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
       <div ref={tilt.ref} className="tilt">
       <div
         className={cn(
-          'game-cover relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
+          'relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
           'transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
           'group-hover:-translate-y-1.5 group-hover:scale-[1.03] group-hover:shadow-2xl group-hover:shadow-black/70 group-hover:ring-white/25',
           'group-focus-visible:ring-2 group-focus-visible:ring-accent group-active:scale-[1.01]',
-          dimmed && 'opacity-50 grayscale'
+          dimmed && game.installed && 'opacity-50 grayscale'
         )}
       >
-        <CoverArt game={game} className="transition-transform duration-700 ease-out group-hover:scale-[1.06]" />
+        <CoverArt game={game} className={cn('transition-transform duration-700 ease-out group-hover:scale-[1.06]', !game.installed && !session && 'opacity-45 grayscale')} />
 
         <div className="tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         {/* Light sweep across the cover on hover. */}
@@ -61,6 +64,7 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
           <SourceBadge source={game.source} className="bg-black/55 opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100" />
           <span className="flex flex-col items-end gap-1.5">
+            {session === 'running' && <StopBubble gameId={game.id} name={game.name} />}
             {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
             {game.playStatus && (
               <span className={cn('rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold ring-1 backdrop-blur', STATUS_TONE[game.playStatus])}>
@@ -70,10 +74,28 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
           </span>
         </div>
 
+        {/* How many people are playing right now (Steam), always in the bottom-left corner. It sits above the status strip when there is one. */}
+        {players !== undefined && players > 0 && (
+          <span
+            data-players
+            title={`${players.toLocaleString()} playing on Steam right now`}
+            className={cn(
+              'pointer-events-none absolute left-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold tabular-nums text-white backdrop-blur',
+              session || game.missing || !game.installed ? 'bottom-10' : 'bottom-2'
+            )}
+          >
+            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
+            {formatCompact(players)}
+          </span>
+        )}
+
         {session ? (
-          <span className="absolute inset-x-2 bottom-2 flex items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1.5 text-[11px] font-semibold text-white backdrop-blur">
-            <span className="size-1.5 animate-pulse rounded-full bg-white" />
-            {session === 'running' ? 'Playing' : 'Launching…'}
+          <span className="absolute inset-x-2 bottom-2 flex items-center gap-1.5">
+            <span className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600/90 px-2 py-1.5 text-[11px] font-semibold text-white backdrop-blur">
+              <span className="size-1.5 animate-pulse rounded-full bg-white" />
+              {session === 'running' ? 'Playing' : 'Starting…'}
+            </span>
+            {session === 'launching' && <StopBubble gameId={game.id} name={game.name} size="sm" />}
           </span>
         ) : (
           <>
@@ -82,30 +104,47 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
                 Not found
               </span>
             )}
-            {players !== undefined && players > 0 && (
-              <span className="absolute bottom-4 left-3 flex translate-y-2 items-center gap-1.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
-                {formatCompact(players)} playing
+            {!game.installed && (
+              <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[11px] font-medium text-white/80 backdrop-blur transition group-hover:opacity-0">
+                Not installed
               </span>
             )}
-            <button
-              data-gamepad-play
-              tabIndex={-1}
-              aria-label={`Play ${game.name}`}
-              title="Play"
-              onClick={(e) => {
-                e.stopPropagation()
-                onPlay(game)
-              }}
-              className="absolute bottom-3 right-3 flex size-11 translate-y-3 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow-lg shadow-black/50 transition duration-300 ease-out hover:scale-110 hover:brightness-110 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
-            >
-              <Play className="ml-0.5 size-5 fill-current" />
-            </button>
+            {game.installed ? (
+              <button
+                data-gamepad-play
+                tabIndex={-1}
+                aria-label={`Play ${game.name}`}
+                title="Play"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPlay(game)
+                }}
+                className="absolute bottom-3 right-3 flex size-11 translate-y-3 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow-lg shadow-black/50 transition duration-300 ease-out hover:scale-110 hover:brightness-110 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
+              >
+                <Play className="ml-0.5 size-5 fill-current" />
+              </button>
+            ) : (
+              // Not greyed like the cover behind it: this is the one thing to do with the game.
+              <button
+                data-gamepad-play
+                data-install
+                tabIndex={-1}
+                aria-label={`Install ${game.name}`}
+                title="Install"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onInstall?.(game)
+                }}
+                className="absolute inset-x-3 bottom-3 flex h-10 translate-y-3 items-center justify-center gap-2 rounded-full bg-white text-sm font-bold text-black opacity-0 shadow-lg shadow-black/50 transition duration-300 ease-out hover:scale-[1.03] focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
+              >
+                <Download className="size-4" /> Install
+              </button>
+            )}
           </>
         )}
       </div>
       </div>
-      <p className="mt-2.5 truncate text-sm font-medium text-text/85 transition-colors group-hover:text-text">{game.name}</p>
+      <p className={cn('mt-2.5 truncate text-sm font-medium transition-colors group-hover:text-text', game.installed ? 'text-text/85' : 'text-muted')}>{game.name}</p>
     </div>
   )
 })

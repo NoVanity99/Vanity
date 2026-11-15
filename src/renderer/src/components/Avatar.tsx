@@ -3,33 +3,19 @@ import { nameHue } from '@/lib/media'
 
 type Status = 'playing' | 'online' | 'offline' | undefined
 
-/** Initials on a colour picked from the name, with an optional status dot. */
-export function Avatar({
-  name,
-  size = 'md',
-  status,
-  className,
-  frame
-}: {
-  name: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
-  status?: Status
-  className?: string
-  /** A profile frame ID (src/shared/profile.ts) drawn around the picture. */
-  frame?: string
-}): React.JSX.Element {
+/** The profile picture, or initials on a colour picked from the name. With an optional status dot. */
+export function Avatar({ name, src, size = 'md', status, className }: { name: string; src?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl'; status?: Status; className?: string }): React.JSX.Element {
   const hue = nameHue(name)
   const initials = name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?'
   const dims = { sm: 'size-7 text-[10px]', md: 'size-10 text-sm', lg: 'size-14 text-lg', xl: 'size-20 text-2xl' }[size]
   return (
     <span className={cn('relative inline-flex shrink-0', className)}>
-      <span className="avatar-frame" data-frame={frame ?? 'none'}>
-        <span
-          className={cn('flex items-center justify-center rounded-full font-bold text-white ring-2 ring-bg', dims)}
-          style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 55%), hsl(${(hue + 50) % 360} 70% 38%))` }}
-        >
-          {initials}
-        </span>
+      <span
+        className={cn('flex items-center justify-center overflow-hidden rounded-full font-bold text-white ring-2 ring-bg', dims)}
+        style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 55%), hsl(${(hue + 50) % 360} 70% 38%))` }}
+      >
+        {/* Only pictures the app itself made (data: addresses) are shown, never a link to somewhere else. */}
+        {src?.startsWith('data:image/') ? <img src={src} alt="" className="size-full object-cover" draggable={false} /> : initials}
       </span>
       {status && (
         <span

@@ -2,9 +2,10 @@ import { join, parse, relative, isAbsolute, basename } from 'node:path'
 import type { Game, SessionState } from '@shared/types'
 import type { PlaytimeStore } from '../library/playtime'
 import type { LaunchMethod } from './launch'
+import type { StoppedSession } from './stop'
 
 /** How long to wait for a game to show up after launching (Steam may update it first). */
-const GRACE_MS: Record<LaunchMethod, number> = { uri: 10 * 60_000, exe: 2 * 60_000 }
+const GRACE_MS: Record<LaunchMethod, number> = { uri: 10 * 60_000, exe: 2 * 60_000, html: 2 * 60_000 }
 /** Consecutive polls without the game before the session is over. */
 const MISSES_TO_END = 2
 const FAST_POLL_MS = 4_000
@@ -45,6 +46,8 @@ interface Session {
   game: Game
   method: LaunchMethod
   childAlive: boolean
+  /** Process id of the game when Vanity started it itself. */
+  pid: number | null
   /** When Vanity's own child process exited, so time up to then can be credited exactly. */
   childExitedAt: number | null
   launchedAt: number
@@ -95,19 +98,23 @@ export class SessionTracker {
   }
 
   /** Call right after a successful launch. */
-  begin(game: Game, method: LaunchMethod, child?: { once(event: 'exit', cb: () => void): unknown }): void {
+  begin(game: Game, method: LaunchMethod, child?: { once(event: 'exit', cb: () => void): unknown; pid?: number }): void {
     const at = this.now()
     this.deps.store.recordLaunch(game.id, at)
     const existing = this.sessions.get(game.id)
     if (existing) {
       // Launched again while still tracked: keep the running session.
-      if (child) this.watchChild(existing, child)
+      if (child) {
+        this.watchChild(existing, child)
+        existing.pid = child.pid ?? existing.pid
+      }
       return
     }
     const session: Session = {
       game,
       method,
       childAlive: false,
+      pid: child?.pid ?? null,
       childExitedAt: null,
       launchedAt: at,
       state: 'launching',
@@ -138,7 +145,8 @@ export class SessionTracker {
       for (const [gameId, s] of this.sessions) {
         // If the process list can't be read, only trust our own child process,
         // so playtime is never over-counted.
-        const alive = s.childAlive || (processes ?? []).some((p) => processBelongsTo(p, s.game))
+        // A web game lives exactly as long as its window; other processes in its folder aren't it.
+        const alive = s.childAlive || (s.method !== 'html' && (processes ?? []).some((p) => processBelongsTo(p, s.game)))
         if (alive) {
           s.misses = 0
           if (s.state === 'launching') {
@@ -153,7 +161,7 @@ export class SessionTracker {
           // Our own process exited between polls: we know exactly when, so credit up to then.
           this.flush(s, s.childExitedAt)
           s.childExitedAt = null
-          if (++s.misses >= MISSES_TO_END) this.end(gameId)
+          if (++s.misses >= MISSES_TO_END || s.method === 'html') this.end(gameId)
         } else if (s.state === 'launching') {
           if (now - s.launchedAt > GRACE_MS[s.method]) this.end(gameId)
         } else if (++s.misses >= MISSES_TO_END) {
@@ -168,6 +176,19 @@ export class SessionTracker {
       const unsettled = [...this.sessions.values()].some((s) => s.state === 'launching' || s.misses > 0)
       this.schedule(unsettled ? FAST_POLL_MS : SLOW_POLL_MS)
     }
+  }
+
+  /**
+   * The user cancelled a launch or ended the game: saves the time played so far, stops tracking
+   * and says what was being tracked (so its processes can be closed). Null if nothing was.
+   */
+  stop(gameId: number): StoppedSession | null {
+    const s = this.sessions.get(gameId)
+    if (!s) return null
+    if (s.state === 'running') this.flush(s, this.now())
+    const stopped: StoppedSession = { game: s.game, method: s.method, state: s.state, pid: s.childAlive ? s.pid : null }
+    this.end(gameId)
+    return stopped
   }
 
   /** Records time for running games up to now and stops tracking (app is quitting). */
