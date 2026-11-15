@@ -1,3 +1,4 @@
+import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -28,7 +29,8 @@ const settings = (keys: boolean): Settings =>
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  interface: DEFAULT_INTERFACE
   }) as Settings
 
 function apis() {

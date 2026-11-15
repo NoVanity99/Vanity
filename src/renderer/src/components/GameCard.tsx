@@ -47,27 +47,27 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
       <div ref={tilt.ref} className="tilt">
       <div
         className={cn(
-          'relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
+          'game-cover relative aspect-[2/3] overflow-hidden rounded-xl bg-surface-2 shadow-lg shadow-black/40 ring-1 ring-white/5',
           'transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
           'group-hover:-translate-y-1.5 group-hover:scale-[1.03] group-hover:shadow-2xl group-hover:shadow-black/70 group-hover:ring-white/25',
           'group-focus-visible:ring-2 group-focus-visible:ring-accent group-active:scale-[1.01]',
           dimmed && game.installed && 'opacity-50 grayscale'
         )}
       >
-        <CoverArt game={game} className={cn('transition-transform duration-700 ease-out group-hover:scale-[1.06]', !game.installed && !session && 'opacity-45 grayscale')} />
+        <CoverArt game={game} className={cn('game-cover-art transition-transform duration-700 ease-out group-hover:scale-[1.06]', !game.installed && !session && 'opacity-45 grayscale')} />
 
-        <div className="tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="game-cover-shine tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         {/* Light sweep across the cover on hover. */}
-        <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100" />
+        <div className="game-cover-shine pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
           <SourceBadge source={game.source} className="bg-black/55 opacity-0 backdrop-blur transition duration-300 group-hover:opacity-100" />
           <span className="flex flex-col items-end gap-1.5">
             {session === 'running' && <StopBubble gameId={game.id} name={game.name} />}
-            {game.favorite && <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
+            {game.favorite && <Star data-status-badge className="size-4 fill-amber-400 text-amber-400 drop-shadow" />}
             {game.playStatus && (
-              <span className={cn('rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold ring-1 backdrop-blur', STATUS_TONE[game.playStatus])}>
+              <span data-status-badge className={cn('rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold ring-1 backdrop-blur', STATUS_TONE[game.playStatus])}>
                 {PLAY_STATUS_LABELS[game.playStatus]}
               </span>
             )}
@@ -144,7 +144,7 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
         )}
       </div>
       </div>
-      <p className={cn('mt-2.5 truncate text-sm font-medium transition-colors group-hover:text-text', game.installed ? 'text-text/85' : 'text-muted')}>{game.name}</p>
+      <p data-game-name className={cn('mt-2.5 truncate text-sm font-medium transition-colors group-hover:text-text', game.installed ? 'text-text/85' : 'text-muted')}>{game.name}</p>
     </div>
   )
 })

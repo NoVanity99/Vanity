@@ -2,6 +2,7 @@ import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
 import type { Sql } from './db'
+import { mergeStyle, readStyle, type ProfileStyle } from './profileStyle'
 import { rolesFor } from './roles'
 import { createSteam, SteamError, type FetchFn } from './steam'
 import { SyncError, syncUser } from './sync'
@@ -43,8 +44,8 @@ const MAX_AVATAR_CHARS = 60_000
 const AVATAR = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 /** What everyone may see of an account: its name, picture and official badges. */
-function publicUser(row: { id: string; username: string; avatar?: string | null }): { id: string; username: string; avatar: string | null; verified: boolean; admin: boolean } {
-  return { id: row.id, username: row.username, avatar: row.avatar ?? null, ...rolesFor(row.username) }
+function publicUser(row: { id: string; username: string; avatar?: string | null; style?: unknown }): { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean } {
+  return { id: row.id, username: row.username, avatar: row.avatar ?? null, style: readStyle(row.style), ...rolesFor(row.username) }
 }
 
 const fail = (status: 400 | 401 | 403 | 404 | 409 | 429, message: string, code?: string): never => {
@@ -162,8 +163,8 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
 
   /** The signed-in account as the app sees it. */
   const account = async (c: Context<Env>) => {
-    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null }>`SELECT username, avatar, bio FROM vanity.profiles WHERE id = ${c.get('userId')}`
-    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', ...rolesFor(profile?.username) }
+    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${c.get('userId')}`
+    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), ...rolesFor(profile?.username) }
   }
 
   app.get('/me', requireAuth, async (c) => {
@@ -172,7 +173,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
 
   /** Sets the profile picture (null removes it) and/or the bio. Fields left out stay as they are. */
   app.put('/me/profile', requireAuth, requireUser, async (c) => {
-    const b = await body<{ avatar: string | null; bio: string }>(c)
+    const b = await body<{ avatar: string | null; bio: string; style: Partial<ProfileStyle> }>(c)
     const id = c.get('userId')
     if (b.avatar !== undefined) {
       if (b.avatar !== null && (typeof b.avatar !== 'string' || !AVATAR.test(b.avatar))) fail(400, 'That picture could not be used. Try a PNG or JPEG image.')
@@ -185,6 +186,13 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       const bio = b.bio!.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()
       if ([...bio].length > MAX_BIO) fail(400, `Bios can be up to ${MAX_BIO} characters.`)
       await sql`UPDATE vanity.profiles SET bio = ${bio} WHERE id = ${id}`
+    }
+    if (b.style !== undefined) {
+      // Only ids from the fixed lists (profileStyle.ts); the fields that were sent change, the rest stay.
+      const [row] = await sql<{ style: unknown }>`SELECT style FROM vanity.profiles WHERE id = ${id}`
+      const next = mergeStyle(readStyle(row?.style), b.style)
+      if (!next) fail(400, "That profile look isn't one Vanity knows. Update Vanity and try again.")
+      await sql`UPDATE vanity.profiles SET style = ${JSON.stringify(next)} WHERE id = ${id}`
     }
     return c.json({ user: await account(c) })
   })
@@ -383,6 +391,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       username: string
       avatar: string | null
       bio: string | null
+      style: unknown
       online: boolean
       game_name: string | null
       started_at: unknown
@@ -393,7 +402,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       level: number | null
       xp: number | null
     }>`
-      SELECT u.id, u.username, u.avatar, u.bio,
+      SELECT u.id, u.username, u.avatar, u.bio, u.style,
         COALESCE(NOT p.signed_off AND p.updated_at > now() - ${ONLINE_WINDOW}::interval, false) AS online,
         p.game_name, p.started_at, p.updated_at,
         COALESCE((SELECT SUM(playtime_seconds) FROM vanity.game_stats s WHERE s.user_id = u.id), 0)::int AS total,
@@ -406,11 +415,11 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       LEFT JOIN vanity.user_state st ON st.user_id = u.id
       WHERE f.status = 'accepted' AND (f.requester_id = ${me} OR f.addressee_id = ${me})
       ORDER BY lower(u.username)`
-    const incoming = await sql<{ id: string; username: string; avatar: string | null; created_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.requester_id
+    const incoming = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
+      SELECT u.id, u.username, u.avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.requester_id
       WHERE f.addressee_id = ${me} AND f.status = 'pending' ORDER BY f.created_at DESC`
-    const outgoing = await sql<{ id: string; username: string; avatar: string | null; created_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.addressee_id
+    const outgoing = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
+      SELECT u.id, u.username, u.avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.addressee_id
       WHERE f.requester_id = ${me} AND f.status = 'pending' ORDER BY f.created_at DESC`
     return c.json({
       friends: friends.map((f) => ({
@@ -474,7 +483,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   app.get('/friends/:id/stats', requireAuth, requireUser, async (c) => {
     const id = c.req.param('id')
     if (!(await areFriends(c.get('userId'), id))) fail(403, 'You can only see stats of your friends.')
-    const [user] = await sql<{ username: string; avatar: string | null; bio: string | null }>`SELECT username, avatar, bio FROM vanity.profiles WHERE id = ${id}`
+    const [user] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${id}`
     const [st] = await sql<{ level: number; xp: number; badges: unknown }>`SELECT level, xp, badges FROM vanity.user_state WHERE user_id = ${id}`
     const badges = typeof st?.badges === 'string' ? (JSON.parse(st.badges) as Record<string, number>) : ((st?.badges as Record<string, number> | undefined) ?? {})
     const games = await sql<{ game_key: string; game_name: string; playtime_seconds: number; last_played_at: unknown }>`
@@ -485,6 +494,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       username: user?.username ?? '',
       avatar: user?.avatar ?? null,
       bio: user?.bio ?? '',
+      style: readStyle(user?.style),
       ...rolesFor(user?.username),
       level: st?.level ?? 1,
       xp: st?.xp ?? 0,
@@ -503,8 +513,8 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   /** Friends who have played a game (by Vanity's game key). */
   app.get('/games/:key/friends', requireAuth, requireUser, async (c) => {
     const me = c.get('userId')
-    const rows = await sql<{ id: string; username: string; avatar: string | null; playtime_seconds: number; last_played_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, s.playtime_seconds, s.last_played_at
+    const rows = await sql<{ id: string; username: string; avatar: string | null; style: unknown; playtime_seconds: number; last_played_at: unknown }>`
+      SELECT u.id, u.username, u.avatar, u.style, s.playtime_seconds, s.last_played_at
       FROM vanity.friendships f
       JOIN vanity.profiles u ON u.id = CASE WHEN f.requester_id = ${me} THEN f.addressee_id ELSE f.requester_id END
       JOIN vanity.game_stats s ON s.user_id = u.id AND s.game_key = ${c.req.param('key')} AND s.playtime_seconds > 0

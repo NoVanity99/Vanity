@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react'
+import { useInterface } from './settings'
 import { cn } from '@/lib/cn'
 
 interface Toast {
@@ -19,7 +20,11 @@ let nextId = 1
 export function ToastProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [toasts, setToasts] = useState<Toast[]>([])
 
+  // Settings → Customize can turn the small confirmations off; problems always show.
+  const quiet = useRef(false)
+  quiet.current = !useInterface().toasts
   const show = useCallback((message: string, kind: Toast['kind'] = 'info') => {
+    if (quiet.current && kind !== 'error') return
     const id = nextId++
     setToasts((t) => [...t, { id, message, kind }])
     setTimeout(() => setToasts((t) => t.map((x) => (x.id === id ? { ...x, leaving: true } : x))), 4300)

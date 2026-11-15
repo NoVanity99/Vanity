@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Layers, LayoutGrid, List, Pencil, Plus, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
+import { ChevronDown, Clock, Dices, FolderSearch, Image as ImageIcon, Layers, LayoutGrid, List, Pencil, Plus, RefreshCw, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { SurpriseDialog } from '@/components/SurpriseDialog'
 import { openVibeCheck } from '@/components/VibeCheck'
 import { openAppPicker } from '@/components/AppPicker'
@@ -17,6 +17,8 @@ import { cn } from '@/lib/cn'
 import { searchKey } from '@/lib/format'
 import { loadPref, savePref } from '@/lib/storage'
 import { useLibrary } from '@/state/library'
+import { useInterface } from '@/state/settings'
+import { useToast } from '@/state/toasts'
 
 type View = 'all' | 'recent' | 'favorites' | 'collection'
 type Sort = 'name' | 'recent' | 'added' | 'playtime' | 'rating' | 'release'
@@ -91,6 +93,8 @@ export function CollectionPage(): React.JSX.Element {
 
 export function LibraryPage({ view, collection }: { view: View; collection?: { id: number; name: string } }): React.JSX.Element {
   const { games, library, loading, scan, addManually, sessions, launch, install } = useLibrary()
+  const toast = useToast()
+  const ui = useInterface()
   const navigate = useNavigate()
   const { openMenu, menu } = useGameMenu()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -191,13 +195,13 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   // "Jump back in": the three most recent, on the main Library view when nothing is filtered.
   const recent = useMemo(
     () =>
-      view === 'all' && !filtered
+      view === 'all' && !filtered && ui.jumpBackIn
         ? games
             .filter((g) => g.lastPlayedAt !== null && !g.hidden)
             .sort(SORTERS.recent)
             .slice(0, 3)
         : [],
-    [games, view, filtered]
+    [games, view, filtered, ui.jumpBackIn]
   )
 
   return (
@@ -206,6 +210,22 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
         <div className="flex items-end gap-4">
           {view === 'collection' && <Layers className="mb-1.5 size-6 text-accent" />}
           <h1 className="text-3xl font-bold tracking-tight">{collection?.name ?? TITLES[view]}</h1>
+          {view !== 'collection' && (
+            <button
+              data-rescan
+              onClick={async () => {
+                const summary = await scan.start()
+                // Finding something new, or a launcher that couldn't be read, already says so itself.
+                if (summary && !summary.added && !summary.candidates.length && !summary.progress.some((p) => p.status === 'error')) toast('Your library is up to date')
+              }}
+              disabled={scan.running}
+              title={scan.running ? 'Scanning your launchers…' : 'Rescan your launchers for new games'}
+              aria-label={scan.running ? 'Scanning your launchers' : 'Rescan your launchers'}
+              className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-muted transition hover:-translate-y-0.5 hover:border-accent/60 hover:text-text active:scale-95 disabled:translate-y-0 disabled:text-accent"
+            >
+              <RefreshCw className={cn('size-4', scan.running && 'animate-spin')} />
+            </button>
+          )}
           <span className="pb-1 text-sm tabular-nums text-muted">
             {shown.length}
             {shown.length !== base.length && ` of ${base.length}`} games
@@ -338,7 +358,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             </button>
           )}
 
-          {view === 'all' && games.length > 1 && (
+          {view === 'all' && games.length > 1 && ui.vibeCheckButton && (
             <button
               onClick={openVibeCheck}
               title="What should I play right now? Pick your time and mood."
@@ -349,7 +369,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
             </button>
           )}
 
-          {view === 'all' && games.length > 1 && (
+          {view === 'all' && games.length > 1 && ui.surpriseButton && (
             <button
               onClick={() => setSurprise(true)}
               className="group/dice flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-text transition hover:-translate-y-0.5 hover:bg-accent/20"
@@ -437,7 +457,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                       game={g}
                       index={i}
                       session={sessions[g.id]}
-                      players={players[g.id]}
+                      players={ui.playerCounts ? players[g.id] : undefined}
                       onOpen={openGame}
                       onPlay={playGame}
                       onInstall={installGame}
@@ -454,7 +474,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
                     game={g}
                     index={i}
                     session={sessions[g.id]}
-                    players={players[g.id]}
+                    players={ui.playerCounts ? players[g.id] : undefined}
                     onOpen={openGame}
                     onPlay={playGame}
                     onInstall={installGame}

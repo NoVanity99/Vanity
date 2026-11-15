@@ -64,7 +64,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | GET | `/usernames/:name` | `{ available }`: whether a username is free (rate-limited per IP) |
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
-| PUT | `/me/profile` | `{ avatar?, bio? }`: the profile picture (a small PNG/JPEG/WebP as a `data:` address, about 40 KB at most; `null` removes it) and a bio of up to 200 characters. Fields left out stay as they are |
+| PUT | `/me/profile` | `{ avatar?, bio?, style? }`: the profile picture (a small PNG/JPEG/WebP as a `data:` address, about 40 KB at most; `null` removes it) a bio of up to 200 characters, and the profile's look: `style` is `{ banner?, frame?, nameStyle?, flair? }`, each an id from the fixed lists in `src/profileStyle.ts` (anything else is refused). Fields left out stay as they are |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
 | POST | `/sync` | Cloud-saved progress: the device sends what it knows (per-device counters, choices with timestamps, days, badges, collections, settings) and gets the merged result back. Rules are in `src/sync.ts`. Rate-limited per account |
 | GET | `/steam/link` | `{ configured, link }`: the linked Steam account (`steamId`, `name`, `avatar`, `profileUrl`, `verified`), and whether the server has a Steam key |

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ImagePlus, Loader2, Trash2 } from 'lucide-react'
+import { PROFILE_BANNERS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_STYLES, type ProfileStyle } from '@shared/profileStyle'
 import type { AccountState } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/Dialog'
+import { UserName } from '@/components/UserName'
+import { cn } from '@/lib/cn'
 import { toAvatar } from '@/lib/avatarImage'
 import { useToast } from '@/state/toasts'
 
@@ -12,7 +15,7 @@ const MAX_BIO = 200
 export function ProfileEditor({ account }: { account: AccountState }): React.JSX.Element {
   const toast = useToast()
   const file = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState<'picture' | 'bio' | null>(null)
+  const [busy, setBusy] = useState<'picture' | 'bio' | 'look' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [bio, setBio] = useState(account.bio)
   // A bio changed on another device shows here, unless you're in the middle of typing one.
@@ -22,14 +25,24 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
     saved.current = account.bio
   }, [account.bio])
 
-  const save = async (kind: 'picture' | 'bio', patch: { avatar?: string | null; bio?: string }, done: string): Promise<void> => {
+  const save = async (kind: 'picture' | 'bio' | 'look', patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }, done: string | null): Promise<void> => {
     setBusy(kind)
     setError(null)
     const res = await window.vanity.account.setProfile(patch).catch((err: unknown) => ({ error: err instanceof Error ? err.message : 'Could not save that.', data: undefined }))
     setBusy(null)
     if (res.error !== undefined) setError(res.error)
-    else toast(done)
+    else if (done) toast(done)
   }
+
+  // A look is saved the moment it is picked: the preview above shows it straight away.
+  const [picked, setPicked] = useState<Partial<ProfileStyle>>({})
+  const style: ProfileStyle = { ...account.style, ...picked }
+  const pickLook = (patch: Partial<ProfileStyle>): void => {
+    setPicked((p) => ({ ...p, ...patch }))
+    void save('look', { style: patch }, null).finally(() => setPicked({}))
+  }
+  const chip = (active: boolean): string =>
+    cn('rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition', active ? 'border-accent bg-accent/15 text-text ring-2 ring-accent/30' : 'border-border text-muted hover:border-white/25 hover:text-text')
 
   const pick = async (picked: File | undefined): Promise<void> => {
     if (!picked) return
@@ -99,6 +112,81 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
           </Button>
         </div>
       </form>
+
+      {/* The look: what you and everyone who sees your profile get. */}
+      <div className="mt-5 border-t border-border pt-4" data-profile-look>
+        <p className="text-xs font-semibold text-muted">Profile look</p>
+        <p className="mt-0.5 text-xs text-muted">Pick a banner, a frame for your picture, an effect for your name and an emoji. Your friends see them too.</p>
+
+        <div className="relative mt-3 overflow-clip rounded-xl border border-border bg-surface p-4" data-look-preview>
+          <div className="profile-banner" data-banner={style.banner} />
+          <div className="relative flex items-center gap-4">
+            <Avatar name={account.username ?? '?'} src={account.avatar} frame={style.frame} size="lg" />
+            <div className="min-w-0">
+              <p className="font-display text-2xl font-bold">
+                <UserName name={account.username ?? ''} style={style} verified={account.verified} admin={account.admin} badgeSize="md" />
+              </p>
+              <p className="text-xs text-muted">This is how you look to your friends.</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Banner</p>
+        <div className="grid grid-cols-6 gap-2 max-md:grid-cols-4" role="radiogroup" aria-label="Banner">
+          {PROFILE_BANNERS.map((b) => (
+            <button
+              key={b.id}
+              role="radio"
+              aria-checked={style.banner === b.id}
+              title={b.label}
+              onClick={() => pickLook({ banner: b.id })}
+              className={cn('relative h-11 overflow-hidden rounded-lg border bg-surface transition hover:-translate-y-0.5', style.banner === b.id ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25')}
+            >
+              <span className="profile-banner" data-banner={b.id} />
+              <span className="absolute inset-x-0 bottom-0.5 truncate px-1 text-center text-[10px] font-semibold text-white/90 drop-shadow">{b.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Picture frame</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Picture frame">
+          {PROFILE_FRAMES.map((f) => (
+            <button key={f.id} role="radio" aria-checked={style.frame === f.id} onClick={() => pickLook({ frame: f.id })} className={cn(chip(style.frame === f.id), 'flex items-center gap-2')}>
+              <span className="avatar-frame" data-frame={f.id} data-size="sm">
+                <span className="block size-4 rounded-full bg-surface-2 ring-1 ring-bg" />
+              </span>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Name effect</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Name effect">
+          {PROFILE_NAME_STYLES.map((n) => (
+            <button key={n.id} role="radio" aria-checked={style.nameStyle === n.id} onClick={() => pickLook({ nameStyle: n.id })} className={chip(style.nameStyle === n.id)}>
+              <span className="name-fx text-sm font-bold" data-name={n.id}>
+                {n.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Emoji next to your name</p>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Emoji next to your name">
+          {PROFILE_FLAIRS.map((f) => (
+            <button
+              key={f || 'none'}
+              role="radio"
+              aria-checked={style.flair === f}
+              aria-label={f || 'No emoji'}
+              onClick={() => pickLook({ flair: f })}
+              className={cn('flex size-9 items-center justify-center rounded-lg border text-lg transition hover:-translate-y-0.5', style.flair === f ? 'border-accent bg-accent/15 ring-2 ring-accent/30' : 'border-border hover:border-white/25')}
+            >
+              {f || <span className="text-[10px] font-semibold text-muted">None</span>}
+            </button>
+          ))}
+        </div>
+      </div>
       {error && (
         <p role="alert" className="animate-pop-in mt-3 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
           {error}

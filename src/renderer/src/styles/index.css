@@ -510,3 +510,215 @@ html {
     opacity: 0;
   }
 }
+
+/* ---- Profile looks (src/shared/profileStyle.ts): banner, picture frame, name effect ---- */
+
+/* The banner: a soft wash of colour behind a profile's header. */
+.profile-banner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  background-image: radial-gradient(60% 120% at 100% 0%, color-mix(in oklab, var(--color-accent) 32%, transparent), transparent 70%),
+    radial-gradient(50% 110% at 35% 110%, color-mix(in oklab, var(--color-accent-2) 20%, transparent), transparent 70%);
+}
+.profile-banner[data-banner='aurora'] {
+  background-image: linear-gradient(120deg, rgb(16 185 129 / 0.45), rgb(56 189 248 / 0.3) 45%, rgb(168 85 247 / 0.4));
+}
+.profile-banner[data-banner='sunset'] {
+  background-image: linear-gradient(120deg, rgb(249 115 22 / 0.5), rgb(236 72 153 / 0.4) 55%, rgb(124 58 237 / 0.35));
+}
+.profile-banner[data-banner='ocean'] {
+  background-image: linear-gradient(160deg, rgb(14 165 233 / 0.45), rgb(30 64 175 / 0.45) 60%, rgb(15 23 42 / 0.2));
+}
+.profile-banner[data-banner='synthwave'] {
+  background-image: linear-gradient(180deg, rgb(217 70 239 / 0.4), rgb(79 70 229 / 0.3) 55%, rgb(34 211 238 / 0.35)),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.06) 0 1px, transparent 1px 44px);
+}
+.profile-banner[data-banner='forest'] {
+  background-image: linear-gradient(135deg, rgb(21 128 61 / 0.5), rgb(101 163 13 / 0.3) 60%, rgb(20 83 45 / 0.25));
+}
+.profile-banner[data-banner='ember'] {
+  background-image: radial-gradient(80% 140% at 50% 120%, rgb(239 68 68 / 0.6), rgb(249 115 22 / 0.3) 45%, transparent 75%);
+}
+.profile-banner[data-banner='galaxy'] {
+  background-image: radial-gradient(1px 1px at 12% 30%, white, transparent), radial-gradient(1px 1px at 28% 72%, white, transparent), radial-gradient(1.5px 1.5px at 47% 22%, white, transparent),
+    radial-gradient(1px 1px at 63% 58%, white, transparent), radial-gradient(1.5px 1.5px at 81% 34%, white, transparent), radial-gradient(1px 1px at 92% 78%, white, transparent),
+    linear-gradient(130deg, rgb(76 29 149 / 0.6), rgb(30 27 75 / 0.5) 50%, rgb(190 24 93 / 0.4));
+}
+.profile-banner[data-banner='gold'] {
+  background-image: linear-gradient(115deg, rgb(251 191 36 / 0.45), rgb(180 83 9 / 0.3) 50%, rgb(253 224 71 / 0.3));
+}
+.profile-banner[data-banner='candy'] {
+  background-image: linear-gradient(120deg, rgb(244 114 182 / 0.45), rgb(196 181 253 / 0.35) 50%, rgb(125 211 252 / 0.4));
+}
+.profile-banner[data-banner='storm'] {
+  background-image: linear-gradient(160deg, rgb(100 116 139 / 0.5), rgb(30 41 59 / 0.5) 55%, rgb(56 189 248 / 0.25));
+}
+.profile-banner[data-banner='mono'] {
+  background-image: linear-gradient(135deg, rgb(255 255 255 / 0.14), transparent 60%);
+}
+
+/* The frame: a ring of colour around the profile picture. */
+.avatar-frame {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+  padding: 3px;
+  isolation: isolate;
+}
+.avatar-frame[data-size='sm'] {
+  padding: 2px;
+}
+.avatar-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--frame, transparent);
+  box-shadow: 0 0 10px var(--frame-glow, transparent);
+}
+.avatar-frame[data-frame='accent'] {
+  --frame: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  --frame-glow: color-mix(in oklab, var(--color-accent) 55%, transparent);
+}
+.avatar-frame[data-frame='gold'] {
+  --frame: linear-gradient(135deg, #fef08a, #f59e0b 45%, #b45309 70%, #fde047);
+  --frame-glow: rgb(251 191 36 / 0.55);
+}
+.avatar-frame[data-frame='neon'] {
+  --frame: linear-gradient(135deg, #22d3ee, #a3e635);
+  --frame-glow: rgb(34 211 238 / 0.7);
+}
+.avatar-frame[data-frame='ice'] {
+  --frame: linear-gradient(135deg, #e0f2fe, #7dd3fc 50%, #6366f1);
+  --frame-glow: rgb(125 211 252 / 0.55);
+}
+.avatar-frame[data-frame='fire'] {
+  --frame: conic-gradient(from 0deg, #facc15, #f97316, #ef4444, #f97316, #facc15);
+  --frame-glow: rgb(249 115 22 / 0.7);
+}
+.avatar-frame[data-frame='rainbow'] {
+  --frame: conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444);
+  --frame-glow: rgb(217 70 239 / 0.45);
+}
+.avatar-frame[data-frame='galaxy'] {
+  --frame: conic-gradient(from 0deg, #4c1d95, #db2777, #38bdf8, #4c1d95);
+  --frame-glow: rgb(139 92 246 / 0.6);
+}
+/* The frames made of a colour wheel slowly turn. */
+.avatar-frame[data-frame='fire']::before,
+.avatar-frame[data-frame='rainbow']::before,
+.avatar-frame[data-frame='galaxy']::before {
+  animation: frame-spin 6s linear infinite;
+}
+@keyframes frame-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The name effect: colour running through the letters. */
+.name-fx[data-name]:not([data-name='plain']) {
+  background-image: var(--name);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.name-fx[data-name='sunset'] {
+  --name: linear-gradient(90deg, #fb923c, #f472b6, #a78bfa);
+}
+.name-fx[data-name='ocean'] {
+  --name: linear-gradient(90deg, #22d3ee, #3b82f6, #818cf8);
+}
+.name-fx[data-name='gold'] {
+  --name: linear-gradient(90deg, #fde68a, #f59e0b, #fef3c7, #d97706);
+}
+.name-fx[data-name='ice'] {
+  --name: linear-gradient(90deg, #f0f9ff, #7dd3fc, #c7d2fe);
+}
+.name-fx[data-name='neon'] {
+  --name: linear-gradient(90deg, #a3e635, #22d3ee);
+  filter: drop-shadow(0 0 6px rgb(34 211 238 / 0.65));
+}
+.name-fx[data-name='rainbow'] {
+  --name: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444);
+  animation: name-flow 5s linear infinite;
+}
+@keyframes name-flow {
+  to {
+    background-position: 200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-frame::before,
+  .name-fx {
+    animation: none !important;
+  }
+}
+
+/* ---- Settings → Customize (src/shared/interfaceOptions.ts) ---- */
+
+/* Interface size: everything in Vanity is sized from this one number. */
+html[data-scale='compact'] {
+  font-size: 14px;
+}
+html[data-scale='large'] {
+  font-size: 18px;
+}
+
+/* Corner style: the roundness every card, button and cover uses. */
+html[data-corners='soft'] {
+  --radius-md: 0.25rem;
+  --radius-lg: 0.3rem;
+  --radius-xl: 0.4rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.65rem;
+  --radius-4xl: 0.8rem;
+}
+html[data-corners='square'] {
+  --radius-xs: 0;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 4px;
+  --radius-4xl: 4px;
+}
+
+/* Animations off: things appear and change at once. Spinners keep turning, so waiting still looks like waiting. */
+html[data-motion='reduced'] *:not(.animate-spin),
+html[data-motion='reduced'] *:not(.animate-spin)::before,
+html[data-motion='reduced'] *:not(.animate-spin)::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* What a cover does under the mouse. */
+html[data-cover-hover='lift'] .game-cover-art,
+html[data-cover-hover='none'] .game-cover-art {
+  transform: none !important;
+}
+html[data-cover-hover='lift'] .game-cover-shine,
+html[data-cover-hover='none'] .game-cover-shine {
+  display: none;
+}
+html[data-cover-hover='lift'] .tilt,
+html[data-cover-hover='none'] .tilt,
+html[data-cover-hover='none'] .game-cover {
+  transform: none !important;
+}
+
+/* Favourite stars and status labels on covers, and the names under them. */
+html[data-status-badges='false'] [data-status-badge],
+html[data-game-names='false'] [data-game-name] {
+  display: none;
+}

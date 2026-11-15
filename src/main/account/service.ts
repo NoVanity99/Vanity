@@ -1,4 +1,5 @@
 import type { BackendConfig } from '@shared/backend'
+import { normalizeProfileStyle, type ProfileStyle } from '../../shared/profileStyle'
 import type { AccountState } from '@shared/types'
 import type { LibraryStore } from '../library/store'
 import type { FetchFn } from '../metadata/http'
@@ -23,15 +24,17 @@ export interface SavedSession {
   /** The profile as last seen from the server, so it shows offline too. */
   avatar?: string | null
   bio?: string
+  style?: ProfileStyle
   verified?: boolean
   admin?: boolean
 }
 
 /** The parts of the server's answer that are kept with the session. */
-const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'verified' | 'admin'> => ({
+const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'style' | 'verified' | 'admin'> => ({
   username: me.username,
   avatar: me.avatar ?? null,
   bio: me.bio ?? '',
+  style: normalizeProfileStyle(me.style),
   verified: me.verified === true,
   admin: me.admin === true
 })
@@ -105,6 +108,7 @@ export class AccountService {
       remembered: !!this.saved && this.remember && this.kept,
       avatar: this.saved?.avatar ?? null,
       bio: this.saved?.bio ?? '',
+      style: normalizeProfileStyle(this.saved?.style),
       verified: this.saved?.verified === true,
       admin: this.saved?.admin === true
     }
@@ -179,8 +183,8 @@ export class AccountService {
     return this.state()
   }
 
-  /** Sets the profile picture (null removes it) and/or the bio. */
-  async setProfile(patch: { avatar?: string | null; bio?: string }): Promise<AccountState> {
+  /** Sets the profile picture (null removes it), the bio and/or the profile's look. */
+  async setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }): Promise<AccountState> {
     if (patch.avatar != null && !/^data:image\/(png|jpeg|webp);base64,/.test(patch.avatar)) throw new AccountError('That picture could not be used. Try a PNG or JPEG image.')
     if (patch.bio !== undefined && [...patch.bio.trim()].length > 200) throw new AccountError('Bios can be up to 200 characters.')
     const me = await this.guard((c) => c.setProfile(patch))

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import type { Progress, ProgressBadge, ProgressGame } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
-import { UserBadges } from '@/components/UserBadges'
+import { UserName } from '@/components/UserName'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime, formatRelativeDate } from '@/lib/format'
@@ -234,11 +234,10 @@ export function ProfilePage(): React.JSX.Element {
       <div className="stagger mx-auto max-w-5xl space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-14">
         {/* Who you are, and your level */}
         <section className="relative overflow-hidden rounded-3xl border border-border bg-surface p-7 max-md:p-5">
-          <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-accent/25 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-28 left-1/3 size-64 rounded-full bg-accent-2/15 blur-3xl" />
+          <div className="profile-banner" data-banner={account?.style.banner ?? 'default'} />
           <div className="relative flex flex-wrap items-center gap-6">
             {account?.username ? (
-              <Avatar name={name} src={account.avatar} size="xl" />
+              <Avatar name={name} src={account.avatar} frame={account.style.frame} size="xl" />
             ) : (
               <span className="flex size-20 items-center justify-center rounded-full bg-white/5 text-muted ring-2 ring-bg">
                 <UserCircle2 className="size-10" />
@@ -246,9 +245,8 @@ export function ProfilePage(): React.JSX.Element {
             )}
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>
-              <h1 className="flex items-center gap-3 font-display text-4xl font-black tracking-tight max-md:text-3xl">
-                <span className="truncate">{name}</span>
-                <UserBadges verified={account?.verified} admin={account?.admin} size="lg" />
+              <h1 className="font-display text-4xl font-black tracking-tight max-md:text-3xl">
+                <UserName name={name} style={account?.style} verified={account?.verified} admin={account?.admin} badgeSize="lg" />
               </h1>
               {account?.bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{account.bio}</p>}
               <p className="mt-1 text-sm text-muted">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DEFAULT_INTERFACE, type InterfaceOptions } from '@shared/interfaceOptions'
 import type { Settings } from '@shared/types'
 
 /**
@@ -45,4 +46,10 @@ export function useSettings(): Settings | null {
     }
   }, [])
   return s
+}
+
+/** The Customize options (complete, with defaults while settings are still loading). */
+export function useInterface(): InterfaceOptions {
+  const s = useSettings()
+  return s?.interface ?? DEFAULT_INTERFACE
 }

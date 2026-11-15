@@ -1,4 +1,6 @@
-import { UserBadges } from '@/components/UserBadges'
+import type { NavItemId } from '@shared/interfaceOptions'
+import { useInterface } from '@/state/settings'
+import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -120,12 +122,9 @@ function AccountItem(): React.JSX.Element {
     >
       {account?.signedIn && account.username ? (
         <>
-          <Avatar key={played} name={account.username} src={account.avatar} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
+          <Avatar key={played} name={account.username} src={account.avatar} frame={account.style.frame} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5 text-text">
-              <span className="truncate">{account.username}</span>
-              <UserBadges verified={account.verified} admin={account.admin} />
-            </span>
+            <UserName name={account.username} style={account.style} verified={account.verified} admin={account.admin} className="flex text-text" />
             <span className="block text-[11px] text-muted">Account</span>
           </span>
         </>
@@ -153,6 +152,9 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const collections = useCollections()
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const ui = useInterface()
+  const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
+  const count = (n: number | undefined): number | undefined => (ui.sidebarCounts ? n : undefined)
 
   return (
     <>
@@ -182,8 +184,9 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         </NavLink>
       </div>
 
-      <LevelBadge />
+      {ui.sidebarLevel && <LevelBadge />}
 
+      {ui.sidebarSearch && (
       <button
         onClick={() => {
           onClose?.()
@@ -195,18 +198,22 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <span className="flex-1 text-left">Search</span>
         <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
       </button>
+      )}
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        <NavItem to="/library" icon={LayoutGrid} label="Library" count={visible.length} animation="bounce" />
-        <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />
-        {!isAndroid() && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
-        <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />
-        <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />
-        <NavItem to="/favorites" icon={Star} label="Favorites" count={visible.filter((g) => g.favorite).length} animation="star" />
-        <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />
-        <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />
-        {!isAndroid() && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
+        <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" />
+        {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />}
+        {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
+        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />}
+        {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />}
+        {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" />}
+        {shows('stats') && <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />}
+        {shows('profile') && <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />}
+        {/* Downloads in progress always show, even with the entry hidden. */}
+        {!isAndroid() && (shows('downloads') || queued > 0) && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
 
+        {ui.sidebarCollections && (
+          <>
         <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-muted/80">Collections</span>
           <button onClick={() => setCreating(true)} title="New collection" aria-label="New collection" className="rounded p-0.5 text-muted transition hover:bg-white/10 hover:text-text">
@@ -219,8 +226,10 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
           </button>
         ) : (
           collections.map((c) => (
-            <NavItem key={c.id} to={`/collection/${c.id}`} icon={Layers} label={c.name} count={visible.filter((g) => g.collections.includes(c.id)).length} animation="bounce" />
+            <NavItem key={c.id} to={`/collection/${c.id}`} icon={Layers} label={c.name} count={count(visible.filter((g) => g.collections.includes(c.id)).length)} animation="bounce" />
           ))
+        )}
+          </>
         )}
       </nav>
 

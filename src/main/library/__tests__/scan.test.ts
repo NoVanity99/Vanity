@@ -1,3 +1,4 @@
+import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it, vi } from 'vitest'
 import type { GameCandidate, Settings } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -28,7 +29,8 @@ const settings: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  interface: DEFAULT_INTERFACE
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { Bell, BellRing, CalendarClock, Flame } from 'lucide-react'
 import type { UpcomingGame } from '@shared/types'
 import { cn } from '@/lib/cn'
@@ -117,7 +117,109 @@ const BannerCard = memo(function BannerCard({
   )
 })
 
-/** The most anticipated upcoming PC games, in hype order, slowly scrolling at the top of Trending. Hover to pause. */
+/**
+ * Moves the strip: it drifts left by itself, pauses while the mouse is over it, and can be
+ * grabbed and dragged either way (mouse or finger), with a little glide when let go. The strip
+ * holds two copies of the cards, so the position wraps around after one copy's width.
+ */
+function useDraggableStrip(scrolls: boolean, secondsPerLoop: number): { viewport: React.RefObject<HTMLDivElement | null>; strip: React.RefObject<HTMLDivElement | null> } {
+  const viewport = useRef<HTMLDivElement>(null)
+  const strip = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const view = viewport.current
+    const el = strip.current
+    if (!view || !el || !scrolls) return
+    let x = 0
+    let hovering = false
+    let drag: { startX: number; startOffset: number; moved: boolean; lastX: number; lastT: number } | null = null
+    let glide = 0 // px per ms, after letting go
+    let last = performance.now()
+    let frame = 0
+    const calm = (): boolean => document.documentElement.dataset.motion === 'reduced' || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const loop = (): number => el.scrollWidth / 2
+    const place = (): void => {
+      const w = loop()
+      if (w > 0) x = ((x % w) + w) % w
+      el.style.transform = `translate3d(${-x}px, 0, 0)`
+    }
+    const tick = (now: number): void => {
+      const dt = Math.min(64, now - last)
+      last = now
+      if (!drag) {
+        if (Math.abs(glide) > 0.02) {
+          x += glide * dt
+          glide *= Math.pow(0.994, dt)
+        } else if (!hovering && !calm() && !view.querySelector(':focus-visible')) {
+          x += (loop() / (secondsPerLoop * 1000)) * dt
+        }
+        place()
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+
+    const down = (e: PointerEvent): void => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      glide = 0
+      drag = { startX: e.clientX, startOffset: x, moved: false, lastX: e.clientX, lastT: e.timeStamp }
+    }
+    const move = (e: PointerEvent): void => {
+      if (!drag) return
+      const dx = e.clientX - drag.startX
+      // A few pixels of wobble is still a click, not a drag.
+      if (!drag.moved && Math.abs(dx) < 6) return
+      if (!drag.moved) {
+        drag.moved = true
+        view.setPointerCapture(e.pointerId)
+        view.dataset.dragging = 'true'
+      }
+      const dt = e.timeStamp - drag.lastT
+      if (dt > 0) glide = glide * 0.5 + (-(e.clientX - drag.lastX) / dt) * 0.5
+      drag.lastX = e.clientX
+      drag.lastT = e.timeStamp
+      x = drag.startOffset - dx
+      place()
+    }
+    const up = (e: PointerEvent): void => {
+      if (!drag) return
+      const moved = drag.moved
+      drag = null
+      delete view.dataset.dragging
+      if (view.hasPointerCapture(e.pointerId)) view.releasePointerCapture(e.pointerId)
+      if (!moved) glide = 0
+      else {
+        glide = Math.max(-3, Math.min(3, glide))
+        // The click that ends a drag must not open the card underneath.
+        const swallow = (ev: MouseEvent): void => {
+          ev.stopPropagation()
+          ev.preventDefault()
+        }
+        view.addEventListener('click', swallow, { capture: true, once: true })
+        setTimeout(() => view.removeEventListener('click', swallow, { capture: true }), 0)
+      }
+    }
+    const enter = (): void => void (hovering = true)
+    const leave = (): void => void (hovering = false)
+    view.addEventListener('pointerdown', down)
+    view.addEventListener('pointermove', move)
+    view.addEventListener('pointerup', up)
+    view.addEventListener('pointercancel', up)
+    view.addEventListener('mouseenter', enter)
+    view.addEventListener('mouseleave', leave)
+    return () => {
+      cancelAnimationFrame(frame)
+      view.removeEventListener('pointerdown', down)
+      view.removeEventListener('pointermove', move)
+      view.removeEventListener('pointerup', up)
+      view.removeEventListener('pointercancel', up)
+      view.removeEventListener('mouseenter', enter)
+      view.removeEventListener('mouseleave', leave)
+    }
+  }, [scrolls, secondsPerLoop])
+  return { viewport, strip }
+}
+
+/** The most anticipated upcoming PC games, in hype order, slowly scrolling at the top of Trending. Hover to pause; click and hold to drag it. */
 export function MostHypedBanner({
   games,
   followed,
@@ -134,6 +236,7 @@ export function MostHypedBanner({
   const maxHype = Math.max(1, ...picked.map((g) => g.hype))
   const following = new Set(followed)
   const scrolls = picked.length >= 3
+  const { viewport, strip: stripRef } = useDraggableStrip(scrolls, picked.length * SECONDS_PER_CARD)
 
   const strip = (copy: number): React.JSX.Element[] =>
     picked.map((g) => (
@@ -146,14 +249,19 @@ export function MostHypedBanner({
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-muted">
           <Flame className="size-4 text-orange-400" /> Most hyped · coming soon
         </h2>
-        <p className="text-xs text-muted">The upcoming PC games the most people are following, ranked by hype on IGDB.</p>
+        <p className="text-xs text-muted">The upcoming PC games the most people are following, ranked by hype on IGDB.{scrolls && ' Click and hold to drag.'}</p>
       </div>
       <div
-        className="marquee -mx-10 overflow-hidden px-10 py-2 [mask-image:linear-gradient(to_right,transparent,black_40px,black_calc(100%-40px),transparent)]"
+        ref={viewport}
+        data-hyped-strip
+        className={cn(
+          '-mx-10 touch-pan-y select-none overflow-hidden px-10 py-2 [mask-image:linear-gradient(to_right,transparent,black_40px,black_calc(100%-40px),transparent)]',
+          scrolls && 'cursor-grab data-[dragging]:cursor-grabbing data-[dragging]:[&_*]:pointer-events-none'
+        )}
         aria-label="Most hyped upcoming games"
       >
         {scrolls ? (
-          <div className="animate-marquee flex w-max" style={{ '--marquee-duration': `${picked.length * SECONDS_PER_CARD}s` } as React.CSSProperties}>
+          <div ref={stripRef} className="flex w-max will-change-transform">
             {[0, 1].map((copy) => (
               <div key={copy} className="flex gap-5 pr-5">
                 {strip(copy)}

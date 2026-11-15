@@ -30,7 +30,8 @@ interface LibraryState {
     running: boolean
     progress: ScanProgress[]
     last: ScanSummary | null
-    start(): Promise<void>
+    /** Rescans the launchers. Resolves to what was found, or null if the scan failed (it says so itself). */
+    start(): Promise<ScanSummary | null>
   }
   metadata: MetadataProgress
   /** Replaces a game in the list (after a dialog changed it). */
@@ -124,8 +125,10 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
       const failed = summary.progress.filter((p) => p.status === 'error').length
       if (failed) toast(`${failed} source${failed > 1 ? 's' : ''} could not be scanned. See Settings for details.`, 'error')
       else if (summary.added) toast(`Found ${summary.added} new game${summary.added > 1 ? 's' : ''}`)
+      return summary
     } catch (err) {
       toast(`Scan failed: ${message(err)}`, 'error')
+      return null
     } finally {
       setRunning(false)
     }

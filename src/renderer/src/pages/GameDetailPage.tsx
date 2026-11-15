@@ -15,7 +15,7 @@ import { SimilarGames } from '@/components/game/SimilarGames'
 import { TimeToBeat } from '@/components/game/TimeToBeat'
 import { YourStats } from '@/components/game/YourStats'
 import { milestones } from '@/lib/playtime'
-import { UserBadges } from '@/components/UserBadges'
+import { UserName } from '@/components/UserName'
 import { Avatar } from '@/components/Avatar'
 import { useAccount } from '@/state/account'
 import { SOURCE_LABELS } from '@shared/types'
@@ -402,12 +402,9 @@ export function GameDetailPage(): React.JSX.Element {
                         style={{ '--i': i } as React.CSSProperties}
                         className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4"
                       >
-                        <Avatar name={f.username} src={f.avatar} size="sm" />
+                        <Avatar name={f.username} src={f.avatar} frame={f.style?.frame} size="sm" />
                         <span>
-                          <span className="flex items-center gap-1.5 text-sm font-semibold">
-                            {f.username}
-                            <UserBadges verified={f.verified} admin={f.admin} />
-                          </span>
+                          <UserName name={f.username} style={f.style} verified={f.verified} admin={f.admin} className="flex text-sm font-semibold" />
                           <span className="block text-xs text-muted">
                             {formatPlaytime(f.playtimeSeconds)}
                             {f.lastPlayedAt ? ` · ${formatRelativeDate(f.lastPlayedAt).toLowerCase()}` : ''}

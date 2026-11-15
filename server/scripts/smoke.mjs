@@ -88,6 +88,14 @@ try {
     profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })
   }
   step('a bio can be saved, and a throwaway account gets no official badge', profile.status === 200 && profile.json?.user?.bio === 'Deploy check' && profile.json?.user?.verified === false && profile.json?.user?.admin === false, `HTTP ${profile.status} ${profile.text.slice(0, 200)}`)
+  // The same wait for the profile look, which only the new copy of the server knows.
+  let look = await api('PUT', '/me/profile', jwt, { style: { frame: 'gold' } })
+  for (let i = 0; i < 12 && look.status === 200 && !look.json?.user?.style; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    look = await api('PUT', '/me/profile', jwt, { style: { frame: 'gold' } })
+  }
+  step('a profile look can be saved', look.status === 200 && look.json?.user?.style?.frame === 'gold', `HTTP ${look.status} ${look.text.slice(0, 200)}`)
+  step('a look that is not on the list is refused', (await api('PUT', '/me/profile', jwt, { style: { banner: 'url(x)' } })).status === 400)
   step('friends list loads', (await api('GET', '/friends', jwt)).status === 200)
   const synced = await api('POST', '/sync', jwt, {
     deviceId: `smoke-${tag}`,

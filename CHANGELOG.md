@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.16.0 (2026-11-15)
+- New: **a round rescan button next to the Library title.** One click rescans your launchers; it spins while scanning and tells you when your library is already up to date. It is on Library, Recently Played and Favorites.
+- New: **profile looks.** On the Account page, under your picture and bio, pick a banner (12), a frame around your picture (8, three of them slowly turning), an effect for your name (7, including an animated rainbow) and an emoji next to it (20). A preview shows the result as you pick. The look is saved to your account and shows to you and your friends everywhere your name appears: sidebar, Profile, Friends, friend requests and "friends who played this". The server only accepts looks from Vanity's own lists.
+- New: **the Most Hyped row on Trending can be dragged.** Click and hold (or use a finger) and pull it left or right; it glides a little when you let go and wraps around. A plain click still opens the game, and it still pauses under the mouse.
+- New: **Settings → Customize**, with 25 options that apply at once and are kept on this device:
+  - **Start page:** the page Vanity opens on.
+  - **Sidebar:** show or hide each page (Trending, Steam Store, Friends, Recently Played, Favorites, Stats, Profile, Downloads), the level ring, the search box, collections and the game counts.
+  - **Top bar:** launcher status, the music player, and a clock (12- or 24-hour).
+  - **Library:** Jump back in, player counts, favourite stars and status labels, game names under covers, the Vibe Check and Surprise me buttons, and what covers do under the mouse.
+  - **Look and feel:** interface size (compact, normal, large), corners (round, soft, square), animations on or off, and the small confirmation messages.
+  - **Reset to defaults** puts everything back.
+
 ## 0.15.0 (2026-11-14)
 - New: **profile picture and bio.** On the Account page you can add a picture (Vanity crops and shrinks it), change it, remove it, and write a bio of up to 200 characters. Both are saved to your account, follow you to every device, and show to your friends. Works on Windows and Android.
 - New: **verified and admin badges.** A blue bubble with a check mark for verified accounts and a gold bubble with a crown for admins, side by side when an account has both, each with a light that sweeps across it. They show next to the name everywhere: sidebar, Account, Profile, Friends, friend requests and "friends who played this". Only Vanity's server hands them out (`server/src/roles.ts`); for now that is SBCVanity.

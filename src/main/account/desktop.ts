@@ -1,3 +1,4 @@
+import { normalizeProfileStyle } from '../../shared/profileStyle'
 import { promises as fs } from 'node:fs'
 import { dirname } from 'node:path'
 import { safeStorage } from 'electron'
@@ -40,6 +41,7 @@ export function createSessionVault(file: string): SessionVault {
           username: typeof parsed.username === 'string' ? parsed.username : null,
           avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
           bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+          style: normalizeProfileStyle(parsed.style),
           verified: parsed.verified === true,
           admin: parsed.admin === true
         }

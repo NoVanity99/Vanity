@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
-import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, Trash2, XCircle, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
 import { applyFont, applyTheme } from '@/lib/theme'
 import { saveSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
+import { CustomizeSettings } from '@/components/settings/CustomizeSettings'
+import { Section, Toggle } from '@/components/settings/controls'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
@@ -23,44 +25,14 @@ import { loadPref, savePref } from '@/lib/storage'
 const SHOW_API_KEYS = false
 
 /** Settings are split into a few short pages instead of one long one. */
-type SettingsTab = 'look' | 'library' | 'playing' | 'updates'
+type SettingsTab = 'look' | 'customize' | 'library' | 'playing' | 'updates'
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'look', label: 'Appearance', icon: Palette },
+  { id: 'customize', label: 'Customize', icon: SlidersHorizontal },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'playing', label: 'Playing', icon: Gamepad2 },
   { id: 'updates', label: 'Updates', icon: ArrowDownToLine }
 ]
-
-function Section({ title, description, children }: { title: string; description?: React.ReactNode; children: React.ReactNode }): React.JSX.Element {
-  return (
-    <section className="rounded-2xl border border-border bg-surface p-6">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description && <p className="mt-1 text-sm text-muted">{description}</p>}
-      <div className="mt-5">{children}</div>
-    </section>
-  )
-}
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }): React.JSX.Element {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition hover:bg-white/5"
-    >
-      {label}
-      <span className={cn('relative block h-6 w-11 shrink-0 rounded-full transition-colors duration-200', checked ? 'bg-accent' : 'bg-white/15')}>
-        <span
-          className={cn(
-            'absolute left-0 top-1 size-4 rounded-full bg-white shadow transition-transform duration-200',
-            checked ? 'translate-x-6' : 'translate-x-1'
-          )}
-        />
-      </span>
-    </button>
-  )
-}
 
 /** A credential field that saves when it loses focus or on Enter. */
 function SecretField({ label, value, onSave, help }: { label: string; value: string; onSave: (v: string) => void; help?: React.ReactNode }): React.JSX.Element {
@@ -522,6 +494,8 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </Section>
         )}
+
+        {tab === 'customize' && <CustomizeSettings options={settings.interface} onChange={(next, note) => save({ interface: next }, note)} />}
 
         {tab === 'playing' && (
           <>

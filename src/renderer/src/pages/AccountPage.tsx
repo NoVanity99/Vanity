@@ -5,7 +5,7 @@ import { Avatar } from '@/components/Avatar'
 import { Button, Dialog } from '@/components/Dialog'
 import { LinkedAccounts } from '@/components/LinkedAccounts'
 import { ProfileEditor } from '@/components/ProfileEditor'
-import { UserBadges } from '@/components/UserBadges'
+import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { useAccount } from '@/state/account'
 import { useToast } from '@/state/toasts'
@@ -293,14 +293,13 @@ export function AccountPage(): React.JSX.Element {
           <ChooseUsername email={account.email} />
         ) : (
           <section className="relative overflow-clip rounded-2xl border border-border bg-surface p-6">
-            <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-accent/20 blur-3xl" />
+            <div className="profile-banner h-40 [mask-image:linear-gradient(to_bottom,black,transparent)]" data-banner={account.style.banner} />
             <div className="relative flex items-center gap-5">
-              <Avatar name={account.username ?? '?'} src={account.avatar} size="xl" status="online" />
+              <Avatar name={account.username ?? '?'} src={account.avatar} frame={account.style.frame} size="xl" status="online" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted">Signed in as</p>
-                <p className="flex items-center gap-2.5 font-display text-3xl font-bold">
-                  <span className="truncate">{account.username}</span>
-                  <UserBadges verified={account.verified} admin={account.admin} size="lg" />
+                <p className="font-display text-3xl font-bold">
+                  <UserName name={account.username ?? ''} style={account.style} verified={account.verified} admin={account.admin} badgeSize="lg" />
                 </p>
                 {account.email && <p className="truncate text-sm text-muted">{account.email}</p>}
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-400">

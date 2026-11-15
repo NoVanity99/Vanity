@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { neonAuthVerifier, type VerifyToken } from '../src/auth'
 import type { Sql } from '../src/db'
+import { DEFAULT_PROFILE_STYLE, PROFILE_BANNERS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_STYLES } from '../../src/shared/profileStyle'
+import { DEFAULT_STYLE, STYLE_OPTIONS } from '../src/profileStyle'
 import { SCHEMA, schemaStatements } from '../src/schema'
 
 /** Stands in for Neon Auth: a token "t:<id>" belongs to user <id>. The real verifier is tested below. */
@@ -68,7 +70,7 @@ describe('/api prefix', () => {
 describe('accounts', () => {
   it('knows a signed-in account before and after it picks a username', async () => {
     const before = await call('GET', '/me', 't:u1')
-    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', verified: false, admin: false })
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: DEFAULT_STYLE, verified: false, admin: false })
     // Everything social needs a username first, and says so in a way the app can act on.
     const friends = await call('GET', '/friends', 't:u1')
     expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])
@@ -81,7 +83,7 @@ describe('accounts', () => {
   it('never stores passwords or emails', async () => {
     await register('alice')
     const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'username'])
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'style', 'username'])
   })
 
   it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {
@@ -162,6 +164,37 @@ describe('profile picture, bio and official badges', () => {
     expect((await call('GET', '/friends', bob.token)).json.friends[0]).toMatchObject({ username: 'sbcvanity', avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
     expect((await call('GET', `/friends/${boss.id}/stats`, bob.token)).json).toMatchObject({ avatar: PNG, bio: 'I make Vanity.', verified: true, admin: true })
     expect((await call('GET', `/friends/${bob.id}/stats`, boss.token)).json).toMatchObject({ avatar: null, bio: '', verified: false, admin: false })
+  })
+
+  it('saves a profile look from the fixed lists, shows it to friends, and refuses anything else', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    expect((await call('GET', '/me', a.token)).json.user.style).toEqual(DEFAULT_STYLE)
+    const set = await call('PUT', '/me/profile', a.token, { style: { banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' } })
+    expect(set.json.user.style).toEqual({ banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })
+    // Only what is sent changes.
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'gold' } })).json.user.style).toEqual({ banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
+    expect((await call('PUT', '/me/profile', a.token, { bio: 'hi' })).json.user.style.banner).toBe('aurora')
+
+    for (const style of [{ banner: 'url(https://evil.example/x.png)' }, { frame: 'none; color: red' }, { flair: '<b>hi</b>' }, { flair: 'not an emoji' }, { colour: 'red' }, { banner: 7 }, 'aurora', ['aurora'], null]) {
+      expect((await call('PUT', '/me/profile', a.token, { style })).status).toBe(400)
+    }
+    expect((await call('GET', '/me', a.token)).json.user.style.frame).toBe('gold')
+
+    await call('POST', '/friends/requests', a.token, { username: 'bob' })
+    expect((await call('GET', '/friends', b.token)).json.incoming[0].style).toMatchObject({ banner: 'aurora', frame: 'gold' })
+    await call('POST', `/friends/requests/${a.id}/accept`, b.token)
+    expect((await call('GET', '/friends', b.token)).json.friends[0].style).toEqual({ banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
+    expect((await call('GET', `/friends/${a.id}/stats`, b.token)).json.style).toMatchObject({ nameStyle: 'neon', flair: '🔥' })
+    expect((await call('GET', '/friends', a.token)).json.friends[0].style).toEqual(DEFAULT_STYLE)
+  })
+
+  it('knows exactly the looks the app offers', () => {
+    expect(STYLE_OPTIONS.banner).toEqual(PROFILE_BANNERS.map((x) => x.id))
+    expect(STYLE_OPTIONS.frame).toEqual(PROFILE_FRAMES.map((x) => x.id))
+    expect(STYLE_OPTIONS.nameStyle).toEqual(PROFILE_NAME_STYLES.map((x) => x.id))
+    expect(STYLE_OPTIONS.flair).toEqual([...PROFILE_FLAIRS])
+    expect(DEFAULT_STYLE).toEqual(DEFAULT_PROFILE_STYLE)
   })
 
   it('cannot be claimed from the app: badges come only from the server list', async () => {
@@ -280,7 +313,7 @@ describe('presence and stats', () => {
 
     expect((await call('GET', `/friends/${b.id}/stats`, c.token)).status).toBe(403)
     expect((await call('GET', '/games/steam%3A620/friends', a.token)).json.friends).toEqual([
-      { id: b.id, username: 'bob', avatar: null, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
+      { id: b.id, username: 'bob', avatar: null, style: DEFAULT_STYLE, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
     ])
     expect((await call('GET', '/games/steam%3A620/friends', c.token)).json.friends).toEqual([])
   })

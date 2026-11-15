@@ -1,3 +1,4 @@
+import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings, TrendingState } from '@shared/types'
 import { openDatabase } from '../../db/database'
@@ -26,7 +27,8 @@ const settings: Settings = {
   discordPresence: false,
   discordClientId: '',
   updateKey: '',
-  breakReminderMinutes: 0
+  breakReminderMinutes: 0,
+  interface: DEFAULT_INTERFACE
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

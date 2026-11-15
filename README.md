@@ -193,6 +193,7 @@ Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the 
 - **Friends, presence ("Playing X · 23 min") and shared stats** use the Vanity server, a Neon Function. The app only talks to that server, never to the database, and nothing secret ships with the app.
 - **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
 - **Profile picture and bio:** set on the Account page. The picture is cropped to a square and shrunk to 160×160 in the app (`src/renderer/src/lib/avatarImage.ts`) before it is sent, so only a few kilobytes are stored. Friends see both.
+- **Profile looks:** a banner, a frame for the picture, a name effect and an emoji, picked on the Account page and seen by friends. The choices are fixed lists (`src/shared/profileStyle.ts`; the server keeps the same lists in `server/src/profileStyle.ts` and refuses anything else), drawn by the stylesheet (`src/renderer/src/styles/index.css`).
 - **Verified and admin badges** (`src/renderer/src/components/UserBadges.tsx`) show next to a username. Who has them is decided only by the server, from the lists in [`server/src/roles.ts`](server/src/roles.ts).
 
 ## Cloud-saved progress, XP and badges
@@ -247,6 +248,14 @@ While you're signed in:
 - **Heartbeat:** Vanity sends one about every minute, and right away when a game starts or stops.
 - **Stats:** your playtime syncs after each session and every 15 minutes.
 - **Quitting:** you're marked offline when you quit.
+
+## Customize
+
+Settings → **Customize** switches parts of the launcher on and off and changes how it feels: the start page, which pages are in the sidebar, the top bar (launcher status, music player, clock), what the Library shows, interface size, corner style, animations and confirmation messages.
+
+- The options and their defaults are one list: `src/shared/interfaceOptions.ts`. They are stored in the settings as `interface` and kept on this device (not synced: a phone and a PC usually want different layouts).
+- Size, corners, animations and cover effects are attributes on the page (`data-scale`, `data-corners`, `data-motion`, `data-cover-hover`) that the stylesheet reacts to; the rest is read with `useInterface()` where the piece is drawn.
+- To add an option: add it to `InterfaceOptions`, `DEFAULT_INTERFACE` and `normalizeInterface`, read it where it applies, and add its switch in `src/renderer/src/components/settings/CustomizeSettings.tsx`.
 
 ## Controller
 

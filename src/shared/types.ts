@@ -1,3 +1,5 @@
+import type { InterfaceOptions } from './interfaceOptions'
+import type { ProfileStyle } from './profileStyle'
 // Types shared between the main process, preload and renderer.
 
 /** 'android': an app installed on the phone (the Android version of Vanity). */
@@ -207,6 +209,8 @@ export interface Settings {
   updateKey: string
   /** Remind you to take a break every this many minutes of play; 0 = off. */
   breakReminderMinutes: number
+  /** Which parts of the launcher show, and how it looks (Settings → Customize). Kept on this device. */
+  interface: InterfaceOptions
 }
 
 /** Fields the user can change on a game. */
@@ -349,6 +353,8 @@ export interface AccountState {
   /** Your profile picture (a small image as a data: address), or null for none. */
   avatar: string | null
   bio: string
+  /** How your profile looks to you and everyone else (see src/shared/profileStyle.ts). */
+  style: ProfileStyle
   /** Official badges. Only Vanity's server grants them. */
   verified: boolean
   admin: boolean
@@ -359,6 +365,7 @@ export interface PublicUser {
   id: string
   username: string
   avatar: string | null
+  style: ProfileStyle
   verified: boolean
   admin: boolean
 }
@@ -403,6 +410,7 @@ export interface FriendStats {
   username: string
   avatar: string | null
   bio: string
+  style: ProfileStyle
   verified: boolean
   admin: boolean
   level: number
