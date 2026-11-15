@@ -4,7 +4,7 @@ import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -218,17 +218,6 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
     <>
     {/* Phones: tap outside the menu to close it. */}
     <div aria-hidden onClick={onClose} className={cn('fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')} />
-    {ui.sidebarCollapsed && (
-      <button
-        onClick={() => setUi({ sidebarCollapsed: false })}
-        title="Show the sidebar"
-        aria-label="Show the sidebar"
-        data-sidebar-expand
-        className="fixed left-2 top-1.5 z-30 flex size-7 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-muted backdrop-blur transition hover:border-accent/60 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
-      >
-        <PanelLeftOpen className="size-4" />
-      </button>
-    )}
     <aside
       ref={sidebarRef}
       data-sidebar

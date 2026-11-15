@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.19.1 (2026-11-15)
+- Fixed: **the button that brings a hidden sidebar back couldn't be clicked on Windows.** It sat on the strip at the top of the window that you drag the window by, and Windows treated the click as a drag. The button is now part of that strip, marked as clickable the same way the music player and launcher status are.
+
 ## 0.19.0 (2026-11-15)
 - New: **the sidebar can be resized and hidden.** Drag its right edge to make it wider or narrower (200 to 420 pixels; double-click the edge to put it back). A small button at the top of the sidebar hides it completely, and a small button in the top-left corner brings it back. Both are remembered, and are also in Settings → Customize → Sidebar. Computers only: on phones the sidebar is already a slide-out menu.
 - Fixed: in a small window, scrolling the sidebar made **the highlight of the current page slide over the search box and level bar**. The highlight now stays inside the list: the part that scrolls out is cut off, and it is gone when its page has scrolled out of view.
