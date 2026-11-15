@@ -28,11 +28,12 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
       onClick={onSelect}
       style={{ '--i': index } as React.CSSProperties}
       className={cn(
-        'animate-card-in group flex w-full items-center gap-4 rounded-2xl border p-3.5 text-left transition duration-300 hover:-translate-y-0.5',
-        selected ? 'border-accent/50 bg-accent/10' : 'border-border bg-surface hover:border-white/20',
-        playing && !selected && 'border-accent/25 bg-gradient-to-r from-accent/10 to-transparent'
+        'animate-card-in group relative flex w-full items-center gap-4 overflow-clip rounded-2xl border bg-surface p-3.5 text-left transition duration-300 hover:-translate-y-0.5 [&>*]:relative',
+        selected ? 'border-accent ring-2 ring-accent/40' : playing ? 'border-accent/40 hover:border-accent/60' : 'border-border hover:border-white/25'
       )}
     >
+      {/* Their profile banner fills the row. */}
+      <span aria-hidden className="profile-banner !absolute" data-banner={friend.style?.banner ?? 'default'} data-row-banner />
       <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} status={friend.status.state} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
@@ -272,7 +273,8 @@ export function FriendsPage(): React.JSX.Element {
           <section className="mt-8 space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Requests</h2>
             {list.incoming.map((r) => (
-              <div key={r.id} className="animate-pop-in flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/10 p-3">
+              <div key={r.id} className="animate-pop-in relative flex items-center gap-3 overflow-clip rounded-2xl border border-accent/40 bg-surface p-3 [&>*]:relative">
+                <span aria-hidden className="profile-banner !absolute" data-banner={r.style?.banner ?? 'default'} />
                 <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} size="sm" />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
                   <UserName name={r.username} style={r.style} verified={r.verified} admin={r.admin} className="font-bold" /> <span className="shrink-0">wants to be friends</span>
@@ -286,7 +288,8 @@ export function FriendsPage(): React.JSX.Element {
               </div>
             ))}
             {list.outgoing.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3">
+              <div key={r.id} className="relative flex items-center gap-3 overflow-clip rounded-2xl border border-border bg-surface p-3 [&>*]:relative">
+                <span aria-hidden className="profile-banner !absolute opacity-60" data-banner={r.style?.banner ?? 'default'} />
                 <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} size="sm" />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-muted">
                   <span className="shrink-0">Waiting for</span> <UserName name={r.username} style={r.style} verified={r.verified} admin={r.admin} className="font-bold text-text" /> <span className="shrink-0">to accept</span>

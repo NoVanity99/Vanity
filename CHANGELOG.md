@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.17.2 (2026-11-15)
+- Changed: **in the Friends tab, each friend's banner fills their row** instead of a plain dark background. Friend requests show the sender's banner the same way. A friend who hasn't picked a banner gets the soft default one, and the friend you've selected is marked with a bright outline.
+
 ## 0.17.1 (2026-11-15)
 - Fixed: **"If you like this" on a game page now takes you somewhere.** Clicking a game you don't own used to do nothing. It now looks up the stores that game is sold on and lets you pick one (Steam, Epic, GOG, EA, Ubisoft, Battle.net, Microsoft Store): it opens in that launcher if you have it installed, otherwise in your browser, so you can buy it. Hovering a game shows "Where to buy". If Vanity can't find the game's own store pages, it opens a Steam search for its name and says so. Games you already own still open their page in your library.
 
