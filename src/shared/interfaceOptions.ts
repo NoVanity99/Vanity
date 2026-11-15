@@ -46,6 +46,13 @@ export const CLOCK_STYLES = [
   { id: '24', label: '24-hour' }
 ] as const
 
+/** The narrowest and widest the sidebar can be dragged to, and where it starts. */
+export const SIDEBAR_WIDTH = { min: 200, max: 420, normal: 240 } as const
+export function clampSidebarWidth(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : SIDEBAR_WIDTH.normal
+  return Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, n))
+}
+
 export interface InterfaceOptions {
   /** The page Vanity opens on. */
   startPage: StartPageId
@@ -55,6 +62,9 @@ export interface InterfaceOptions {
   sidebarLevel: boolean
   sidebarSearch: boolean
   sidebarCounts: boolean
+  /** How wide the sidebar is, in pixels (drag its edge), and whether it is tucked away. Computers only. */
+  sidebarWidth: number
+  sidebarCollapsed: boolean
   /** Top bar. */
   launcherStatus: boolean
   musicPlayer: boolean
@@ -81,6 +91,8 @@ export const DEFAULT_INTERFACE: InterfaceOptions = {
   sidebarLevel: true,
   sidebarSearch: true,
   sidebarCounts: true,
+  sidebarWidth: SIDEBAR_WIDTH.normal,
+  sidebarCollapsed: false,
   launcherStatus: true,
   musicPlayer: true,
   clock: 'off',
@@ -111,6 +123,8 @@ export function normalizeInterface(stored: unknown): InterfaceOptions {
     sidebarLevel: flag('sidebarLevel'),
     sidebarSearch: flag('sidebarSearch'),
     sidebarCounts: flag('sidebarCounts'),
+    sidebarWidth: clampSidebarWidth(v.sidebarWidth),
+    sidebarCollapsed: flag('sidebarCollapsed'),
     launcherStatus: flag('launcherStatus'),
     musicPlayer: flag('musicPlayer'),
     clock: oneOf(v.clock, CLOCK_STYLES, d.clock),

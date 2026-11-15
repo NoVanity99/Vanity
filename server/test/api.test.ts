@@ -125,6 +125,39 @@ describe('accounts', () => {
   })
 })
 
+describe('one account per username and per email', () => {
+  it('never lets two accounts share a username, whatever the capitals, and says it is in use', async () => {
+    const a = await register('Jordan_99')
+    for (const name of ['Jordan_99', 'jordan_99', 'JORDAN_99']) {
+      expect((await call('GET', `/usernames/${name}`)).json).toEqual({ available: false })
+      const r = await call('PUT', '/me/username', 't:someone-else', { username: name })
+      expect([r.status, r.json.error]).toEqual([409, 'That username is already in use.'])
+    }
+    // Renaming into someone else's name is refused too; keeping your own is fine.
+    const b = await register('bob')
+    expect((await call('PUT', '/me/username', b.token, { username: 'JORDAN_99' })).status).toBe(409)
+    expect((await call('PUT', '/me/username', a.token, { username: 'jordan_99' })).status).toBe(200)
+    // The database itself refuses a duplicate, even if two requests slip past the check together.
+    await expect(db.query("INSERT INTO vanity.profiles (id, username) VALUES ('sneaky', 'JoRdAn_99')")).rejects.toThrow()
+    expect((await db.query("SELECT count(*)::int AS n FROM vanity.profiles WHERE lower(username) = 'jordan_99'")).rows).toEqual([{ n: 1 }])
+  })
+
+  it('says whether an email already has an account, ignoring capitals', async () => {
+    // Neon Auth's own table of sign-in accounts, in the same database.
+    await db.query('CREATE SCHEMA neon_auth')
+    await db.query('CREATE TABLE neon_auth."user" (id text PRIMARY KEY, email text NOT NULL UNIQUE)')
+    await db.query("INSERT INTO neon_auth.\"user\" VALUES ('u1', 'taken@example.com')")
+    expect((await call('POST', '/emails/check', undefined, { email: 'taken@example.com' })).json).toEqual({ inUse: true })
+    expect((await call('POST', '/emails/check', undefined, { email: '  Taken@Example.COM ' })).json).toEqual({ inUse: true })
+    expect((await call('POST', '/emails/check', undefined, { email: 'free@example.com' })).json).toEqual({ inUse: false })
+    for (const email of ['not an email', '', 42, "x' OR '1'='1"]) expect((await call('POST', '/emails/check', undefined, { email })).status).toBe(400)
+  })
+
+  it('leaves it to Neon Auth when its tables cannot be read', async () => {
+    expect((await call('POST', '/emails/check', undefined, { email: 'someone@example.com' })).json).toEqual({ inUse: null })
+  })
+})
+
 describe('profile picture, bio and official badges', () => {
   const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 

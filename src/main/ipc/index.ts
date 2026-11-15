@@ -363,6 +363,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))
   ipcMain.handle(IPC.accountSignIn, (_e, email: string, p: string, remember: boolean) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)))
   ipcMain.handle(IPC.accountSignOut, () => account.signOut())
+  ipcMain.handle(IPC.accountAvailability, (_e, input: { username?: string; email?: string }) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })))
   ipcMain.handle(IPC.accountSetUsername, (_e, u: string) => wrap(() => account.setUsername(text(u))))
   ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })))
   ipcMain.handle(IPC.accountSendResetCode, (_e, email: string) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)))

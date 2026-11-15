@@ -74,6 +74,21 @@ try {
   if (!jwt) jwt = (await auth('GET', '/token', { cookie })).json?.token ?? null
   if (!step('Neon Auth issues a token', typeof jwt === 'string' && jwt.split('.').length === 3)) throw new Error('no token')
 
+  // One account per email: a second sign-up with the same address must not make another account.
+  const dup = await auth('POST', '/sign-up/email', { body: { email: email.toUpperCase(), password, name: 'someone_else' } })
+  const refused = dup.status !== 200 || !dup.json?.user?.id || dup.json.user.id === userId
+  // (The previous copy of the server doesn't know this route for a few seconds after a deploy.)
+  let checked = await api('POST', '/emails/check', null, { email })
+  for (let i = 0; i < 12 && checked.status === 404; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    checked = await api('POST', '/emails/check', null, { email })
+  }
+  const check = checked.json ?? {}
+  const free = (await api('POST', '/emails/check', null, { email: `nobody-${tag}@example.com` })).json ?? {}
+  step('the same email cannot make a second account', refused, `Neon Auth answered HTTP ${dup.status} ${dup.json?.code ?? ''}`)
+  if (check.inUse === true && free.inUse === false) step('the server can tell the sign-up form that an email is already in use', true)
+  else console.log(`note  the server cannot read Neon Auth's accounts (emails/check says ${JSON.stringify(check)} / ${JSON.stringify(free)}): the form learns an email is in use from Neon Auth when you press Create account`)
+
   const me = await api('GET', '/me', jwt)
   if (!step('the Vanity server accepts the token', me.status === 200 && me.json?.user?.id === userId, `HTTP ${me.status} ${me.text.slice(0, 200)}`)) throw new Error('token rejected')
   step('a made-up token is refused', (await api('GET', '/me', jwt.slice(0, -6) + 'AAAAAA')).status === 401)

@@ -23,6 +23,46 @@ function ErrorNote({ children }: { children: React.ReactNode }): React.JSX.Eleme
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'reset'
 
+type Free = boolean | null
+
+/**
+ * Asks the server, a moment after you stop typing, whether a username and an email are free.
+ * true: free. false: already in use. null: not checked (too short, not an address yet, or offline).
+ */
+function useAvailability(username: string, email: string, on: boolean): { username: Free; email: Free } {
+  const [free, setFree] = useState<{ username: Free; email: Free }>({ username: null, email: null })
+  useEffect(() => {
+    setFree({ username: null, email: null })
+    if (!on || (!username.trim() && !email.trim())) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      window.vanity.account.availability({ username, email }).then(
+        (r) => !cancelled && setFree(r),
+        () => {}
+      )
+    }, 450)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [username, email, on])
+  return free
+}
+
+/** The line under a field: "already in use" in red, or "available" in green. */
+function FreeNote({ free, what }: { free: Free; what: 'username' | 'email' }): React.JSX.Element | null {
+  if (free === null) return null
+  return free ? (
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-400" data-free={what}>
+      <Check className="size-3.5" /> {what === 'username' ? 'This username is available.' : 'This email can be used.'}
+    </p>
+  ) : (
+    <p role="alert" className="mt-1.5 text-xs font-semibold text-accent" data-taken={what}>
+      {what === 'username' ? 'That username is already in use.' : 'That email is already in use. Sign in instead, or use another email.'}
+    </p>
+  )
+}
+
 /** Sign in, create an account, or reset a forgotten password with a code sent by email. */
 function SignedOut({ expired }: { expired: boolean }): React.JSX.Element {
   const toast = useToast()
@@ -69,8 +109,9 @@ function SignedOut({ expired }: { expired: boolean }): React.JSX.Element {
     }
   }
 
+  const free = useAvailability(username, email, mode === 'signup')
   const ready =
-    mode === 'signin' ? !!email && !!password : mode === 'signup' ? !!email && !!username && password.length >= 8 : mode === 'forgot' ? !!email : code.length >= 4 && password.length >= 8
+    mode === 'signin' ? !!email && !!password : mode === 'signup' ? !!email && !!username && password.length >= 8 && free.username !== false && free.email !== false : mode === 'forgot' ? !!email : code.length >= 4 && password.length >= 8
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-6">
@@ -114,17 +155,21 @@ function SignedOut({ expired }: { expired: boolean }): React.JSX.Element {
         }}
       >
         {mode !== 'reset' && (
-          <div className="relative">
-            <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <input className={cn(input, 'pl-10')} type="email" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus spellCheck={false} />
+          <div>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <input className={cn(input, 'pl-10', mode === 'signup' && free.email === false && 'border-accent')} type="email" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus spellCheck={false} />
+            </div>
+            {mode === 'signup' && <FreeNote free={free.email} what="email" />}
           </div>
         )}
         {mode === 'signup' && (
           <div>
             <div className="relative">
               <AtSign className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-              <input className={cn(input, 'pl-10')} placeholder="Username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} spellCheck={false} maxLength={20} />
+              <input className={cn(input, 'pl-10', free.username === false && 'border-accent')} placeholder="Username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} spellCheck={false} maxLength={20} />
             </div>
+            <FreeNote free={free.username} what="username" />
             <p className="mt-1.5 text-xs text-muted">3–20 letters, numbers or underscores. Friends add you by it; your email stays private.</p>
           </div>
         )}
@@ -205,6 +250,7 @@ function ChooseUsername({ email }: { email: string | null }): React.JSX.Element 
   const [username, setUsername] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const free = useAvailability(username, '', true)
 
   const save = async (): Promise<void> => {
     setBusy(true)
@@ -223,17 +269,18 @@ function ChooseUsername({ email }: { email: string | null }): React.JSX.Element 
         className="mt-5 space-y-4"
         onSubmit={(e) => {
           e.preventDefault()
-          if (username && !busy) void save()
+          if (username && !busy && free.username !== false) void save()
         }}
       >
         <div className="relative">
           <AtSign className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <input className={cn(input, 'pl-10')} placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus spellCheck={false} maxLength={20} />
+          <input className={cn(input, 'pl-10', free.username === false && 'border-accent')} placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus spellCheck={false} maxLength={20} />
         </div>
+        <FreeNote free={free.username} what="username" />
         <p className="text-xs text-muted">3–20 letters, numbers or underscores.</p>
         {error && <ErrorNote>{error}</ErrorNote>}
         <div className="flex gap-3">
-          <Button type="submit" variant="primary" className="h-11 flex-1" disabled={busy || !username}>
+          <Button type="submit" variant="primary" className="h-11 flex-1" disabled={busy || !username || free.username === false}>
             <Check className="size-4" /> {busy ? 'Saving…' : 'Save username'}
           </Button>
           <Button type="button" className="h-11" onClick={() => void window.vanity.account.signOut()}>

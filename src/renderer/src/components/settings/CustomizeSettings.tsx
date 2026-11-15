@@ -65,6 +65,23 @@ export function CustomizeSettings({ options, onChange }: { options: InterfaceOpt
         {flag('sidebarSearch', 'Search box')}
         {flag('sidebarCollections', 'Collections')}
         {flag('sidebarCounts', 'Game counts', 'The numbers next to Library, Favorites and collections.')}
+        {!android && (
+          <>
+            <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-widest text-muted">Size</p>
+            {flag('sidebarCollapsed', 'Hide the sidebar', 'Also the small button at the top of the sidebar. A button in the top-left corner brings it back.')}
+            <Choice
+              label="Width"
+              hint={`You can also drag the sidebar's right edge. Now ${options.sidebarWidth} px.`}
+              value={options.sidebarWidth <= 210 ? 'narrow' : options.sidebarWidth >= 300 ? 'wide' : options.sidebarWidth === 240 ? 'normal' : 'custom'}
+              options={[
+                { id: 'narrow', label: 'Narrow' },
+                { id: 'normal', label: 'Normal' },
+                { id: 'wide', label: 'Wide' }
+              ]}
+              onPick={(w) => set({ sidebarWidth: w === 'narrow' ? 200 : w === 'wide' ? 320 : 240 })}
+            />
+          </>
+        )}
       </Section>
 
       <Section title="Top bar" description="The strip along the top of the window.">

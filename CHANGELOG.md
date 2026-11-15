@@ -3,6 +3,15 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.19.0 (2026-11-15)
+- New: **the sidebar can be resized and hidden.** Drag its right edge to make it wider or narrower (200 to 420 pixels; double-click the edge to put it back). A small button at the top of the sidebar hides it completely, and a small button in the top-left corner brings it back. Both are remembered, and are also in Settings → Customize → Sidebar. Computers only: on phones the sidebar is already a slide-out menu.
+- Fixed: in a small window, scrolling the sidebar made **the highlight of the current page slide over the search box and level bar**. The highlight now stays inside the list: the part that scrolls out is cut off, and it is gone when its page has scrolled out of view.
+- Changed: **one account per username and per email, and Vanity always says so.**
+  - While you type in Create account, a line under the field says "That username is already in use." or "This username is available." (capitals don't matter: "Max" and "max" are the same name), and the same for the email where the server can check it. The Create account button won't go ahead with one that is in use.
+  - Pressing Create account with a used email always answers "That email is already in use. Sign in instead, or use another email.", and nothing is created.
+  - Renaming to someone else's username gets the same answer.
+  - The database itself refuses a duplicate username, and the sign-in service refuses a second account for an email, so this holds even if two people try at the same moment.
+
 ## Server update (2026-11-15)
 - **chefdal** is now a verified account and an admin. No app update is needed: the badges appear by themselves.
 

@@ -6,7 +6,7 @@ import type { FetchFn } from '../metadata/http'
 import { AccountClient, type Me } from './client'
 import { AccountError } from './errors'
 import { gameKey } from './gameKey'
-import { jwtExpiry, NeonAuth, type AuthHttp, type AuthSession } from './neonAuth'
+import { EMAIL_IN_USE, jwtExpiry, NeonAuth, USERNAME_IN_USE, type AuthHttp, type AuthSession } from './neonAuth'
 
 const HEARTBEAT_MS = 60_000
 const STATS_SYNC_MS = 15 * 60_000
@@ -147,7 +147,9 @@ export class AccountService {
     if (!USERNAME.test(username)) throw new AccountError('Usernames are 3–20 letters, numbers or underscores.')
     if (password.length < 8) throw new AccountError('Passwords need at least 8 characters.')
     // Checked first, so a taken name doesn't leave a half-made account behind.
-    if (!(await this.client().usernameAvailable(username))) throw new AccountError('That username is taken.')
+    if (!(await this.client().usernameAvailable(username))) throw new AccountError(USERNAME_IN_USE)
+    // The same for the email. If the server can't tell, Neon Auth itself refuses a second account below.
+    if ((await this.client().emailInUse(email).catch(() => null)) === true) throw new AccountError(EMAIL_IN_USE)
     const session = await this.auth().signUp(email, password, username)
     await this.adopt(session, null, remember)
     try {
@@ -171,6 +173,25 @@ export class AccountService {
     }
     this.start()
     return this.state()
+  }
+
+  /**
+   * For the sign-up form, as you type: whether a username and an email are free.
+   * `null` means it couldn't be checked (offline, or not a valid name or address yet).
+   */
+  async availability(input: { username?: string; email?: string }): Promise<{ username: boolean | null; email: boolean | null }> {
+    const username = input.username?.trim() ?? ''
+    const email = input.email?.trim() ?? ''
+    const [u, e] = await Promise.all([
+      USERNAME.test(username) ? this.client().usernameAvailable(username).catch(() => null) : null,
+      /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
+        ? this.client()
+            .emailInUse(email)
+            .then((inUse) => (inUse === null ? null : !inUse))
+            .catch(() => null)
+        : null
+    ])
+    return { username: u, email: e }
   }
 
   /** Picks the username of a new account, or renames it. */

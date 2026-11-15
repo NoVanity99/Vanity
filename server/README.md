@@ -63,6 +63,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | GET | `/` | `{ name: "vanity-api", ok: true }` |
 | GET | `/usernames/:name` | `{ available }`: whether a username is free (rate-limited per IP) |
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
+| POST | `/emails/check` | `{ email }` → `{ inUse }`: whether an email already has an account (true/false), or `null` when Neon Auth's own tables can't be read from the server. Public and rate-limited; the sign-up form uses it. Neon Auth itself refuses a second account for an email either way |
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
 | PUT | `/me/profile` | `{ avatar?, bio?, style? }`: the profile picture (a small PNG/JPEG/WebP as a `data:` address, about 40 KB at most; `null` removes it) a bio of up to 200 characters, and the profile's look: `style` is `{ banner?, frame?, nameStyle?, flair? }`, each an id from the fixed lists in `src/profileStyle.ts` (anything else is refused). Fields left out stay as they are |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |

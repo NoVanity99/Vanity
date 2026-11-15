@@ -156,6 +156,7 @@ const api: VanityApi = {
     signUp: (email, username, password, remember) => ipcRenderer.invoke(IPC.accountSignUp, email, username, password, remember),
     signIn: (email, password, remember) => ipcRenderer.invoke(IPC.accountSignIn, email, password, remember),
     signOut: () => ipcRenderer.invoke(IPC.accountSignOut),
+    availability: (input) => ipcRenderer.invoke(IPC.accountAvailability, input),
     setUsername: (username) => ipcRenderer.invoke(IPC.accountSetUsername, username),
     setProfile: (patch) => ipcRenderer.invoke(IPC.accountSetProfile, patch),
     sendResetCode: (email) => ipcRenderer.invoke(IPC.accountSendResetCode, email),

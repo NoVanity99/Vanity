@@ -178,6 +178,8 @@ export interface VanityApi {
     /** `remember` false: signed in only until Vanity closes. */
     signIn(email: string, password: string, remember: boolean): Promise<Result<AccountState>>
     signOut(): Promise<AccountState>
+    /** Whether a username and an email are free (true), already in use (false), or couldn't be checked (null). */
+    availability(input: { username?: string; email?: string }): Promise<{ username: boolean | null; email: boolean | null }>
     /** Picks the username of a new account, or renames it. */
     setUsername(username: string): Promise<Result<AccountState>>
     /** Sets your profile picture (a small image as a data: address; null removes it), your bio and/or your profile's look. */
@@ -392,6 +394,7 @@ export const IPC = {
   accountSignIn: 'account:sign-in',
   accountSignOut: 'account:sign-out',
   accountSetUsername: 'account:set-username',
+  accountAvailability: 'account:availability',
   accountSetProfile: 'account:set-profile',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',

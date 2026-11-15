@@ -1,10 +1,10 @@
-import type { NavItemId } from '@shared/interfaceOptions'
-import { useInterface } from '@/state/settings'
+import { clampSidebarWidth, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
+import { saveSettings, useInterface } from '@/state/settings'
 import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -71,37 +71,67 @@ function NavItem({
  * One highlight that glides to the active item (instead of each item lighting up on its own).
  * It measures the element marked aria-current="page" inside `container`.
  */
-function useActiveIndicator(container: React.RefObject<HTMLElement | null>): { top: number; height: number; visible: boolean } {
+interface IndicatorPos {
+  top: number
+  height: number
+  visible: boolean
+  /** How much of it is scrolled out of the list, above and below: that part isn't drawn. */
+  clipTop: number
+  clipBottom: number
+  /** Following a scroll: it moves with the list at once instead of gliding after it. */
+  instant: boolean
+}
+
+function useActiveIndicator(container: React.RefObject<HTMLElement | null>): IndicatorPos {
   const location = useLocation()
-  const [pos, setPos] = useState({ top: 0, height: 0, visible: false })
+  const [pos, setPos] = useState<IndicatorPos>({ top: 0, height: 0, visible: false, clipTop: 0, clipBottom: 0, instant: false })
   useLayoutEffect(() => {
-    const update = (): void => {
+    const nav = container.current?.querySelector('nav') ?? null
+    const update = (instant: boolean): void => {
       const active = container.current?.querySelector<HTMLElement>('[aria-current="page"]')
       if (!active || !container.current) return setPos((p) => ({ ...p, visible: false }))
       const c = container.current.getBoundingClientRect()
       const a = active.getBoundingClientRect()
-      setPos({ top: a.top - c.top, height: a.height, visible: true })
+      // The list scrolls (a small window, or many collections). The highlight belongs to the list,
+      // so whatever part of the current page's entry has scrolled out of it is cut off, instead of
+      // sliding over the search box and level above or the buttons below.
+      let clipTop = 0
+      let clipBottom = 0
+      if (nav?.contains(active)) {
+        const n = nav.getBoundingClientRect()
+        clipTop = Math.min(a.height, Math.max(0, n.top - a.top))
+        clipBottom = Math.min(a.height, Math.max(0, a.bottom - n.bottom))
+      }
+      setPos({ top: a.top - c.top, height: a.height, visible: clipTop + clipBottom < a.height, clipTop, clipBottom, instant })
     }
-    update()
-    // The nav scrolls when there are many collections.
-    const nav = container.current?.querySelector('nav')
-    nav?.addEventListener('scroll', update, { passive: true })
-    const observer = new ResizeObserver(update)
+    update(false)
+    const onScroll = (): void => update(true)
+    // (An observer reports once as soon as it starts watching: that isn't a resize.)
+    let watching = false
+    const onResize = (): void => {
+      if (watching) update(true)
+    }
+    nav?.addEventListener('scroll', onScroll, { passive: true })
+    const observer = new ResizeObserver(onResize)
     if (container.current) observer.observe(container.current)
+    if (nav) observer.observe(nav)
+    const settle = requestAnimationFrame(() => requestAnimationFrame(() => (watching = true)))
     return () => {
+      cancelAnimationFrame(settle)
       observer.disconnect()
-      nav?.removeEventListener('scroll', update)
+      nav?.removeEventListener('scroll', onScroll)
     }
   }, [location.pathname, container])
   return pos
 }
 
-function Indicator({ top, height, visible }: { top: number; height: number; visible: boolean }): React.JSX.Element {
+function Indicator({ top, height, visible, clipTop, clipBottom, instant }: IndicatorPos): React.JSX.Element {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-3 rounded-lg bg-white/8 transition-[transform,height,opacity] duration-500 ease-[cubic-bezier(0.3,0.8,0.2,1)]"
-      style={{ transform: `translateY(${top}px)`, height, opacity: visible ? 1 : 0, top: 0 }}
+      data-nav-indicator
+      className={cn('pointer-events-none absolute inset-x-3 rounded-lg bg-white/8', !instant && 'transition-[transform,height,opacity] duration-500 ease-[cubic-bezier(0.3,0.8,0.2,1)]')}
+      style={{ transform: `translateY(${top}px)`, height, opacity: visible ? 1 : 0, top: 0, clipPath: clipTop || clipBottom ? `inset(${clipTop}px -14px ${clipBottom}px -14px)` : undefined }}
     >
       <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent shadow-[0_0_10px_var(--color-accent)]" />
     </div>
@@ -158,18 +188,82 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
   const count = (n: number | undefined): number | undefined => (ui.sidebarCounts ? n : undefined)
 
+  // Width and collapse (computers only: on phones the sidebar is a slide-out menu).
+  const setUi = (patch: Partial<InterfaceOptions>): void => void saveSettings({ interface: { ...ui, ...patch } }).catch(() => {})
+  // While the edge is being dragged the width follows the mouse; it is saved when you let go.
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
+  const width = dragWidth ?? ui.sidebarWidth
+  const startResize = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
+    const left = sidebarRef.current?.getBoundingClientRect().left ?? 0
+    let latest = ui.sidebarWidth
+    const move = (ev: PointerEvent): void => setDragWidth((latest = clampSidebarWidth(ev.clientX - left)))
+    const up = (): void => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+      handle.removeEventListener('pointercancel', up)
+      setUi({ sidebarWidth: latest })
+      // Keep showing the dragged width until the saved one arrives, so it doesn't jump back for a moment.
+      setTimeout(() => setDragWidth(null), 150)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
+    handle.addEventListener('pointercancel', up)
+  }
+
   return (
     <>
     {/* Phones: tap outside the menu to close it. */}
     <div aria-hidden onClick={onClose} className={cn('fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden', open ? 'opacity-100' : 'pointer-events-none opacity-0')} />
+    {ui.sidebarCollapsed && (
+      <button
+        onClick={() => setUi({ sidebarCollapsed: false })}
+        title="Show the sidebar"
+        aria-label="Show the sidebar"
+        data-sidebar-expand
+        className="fixed left-2 top-1.5 z-30 flex size-7 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-muted backdrop-blur transition hover:border-accent/60 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
+      >
+        <PanelLeftOpen className="size-4" />
+      </button>
+    )}
     <aside
       ref={sidebarRef}
+      data-sidebar
+      style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}
       className={cn(
-        'relative z-10 flex w-60 shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl',
+        'relative z-10 flex shrink-0 flex-col border-r border-white/5 bg-black/25 backdrop-blur-xl md:w-[var(--sidebar-w)]',
+        ui.sidebarCollapsed && 'md:hidden',
         'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:bg-bg max-md:pb-[env(safe-area-inset-bottom)] max-md:pt-[env(safe-area-inset-top)] max-md:transition-transform max-md:duration-300',
         !open && 'max-md:-translate-x-full'
       )}
     >
+      {/* Drag this edge to make the sidebar wider or narrower; double-click puts it back. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Sidebar width"
+        aria-valuemin={SIDEBAR_WIDTH.min}
+        aria-valuemax={SIDEBAR_WIDTH.max}
+        aria-valuenow={width}
+        tabIndex={0}
+        title="Drag to resize. Double-click to reset."
+        data-sidebar-resize
+        onPointerDown={startResize}
+        onDoubleClick={() => setUi({ sidebarWidth: SIDEBAR_WIDTH.normal })}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault()
+            setUi({ sidebarWidth: clampSidebarWidth(ui.sidebarWidth + (e.key === 'ArrowRight' ? 16 : -16)) })
+          }
+        }}
+        className={cn(
+          'absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize outline-none transition-colors after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:transition-colors hover:after:bg-accent focus-visible:after:bg-accent max-md:hidden [-webkit-app-region:no-drag]',
+          dragWidth !== null && 'after:bg-accent'
+        )}
+      />
       <Indicator {...indicator} />
       <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
         <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
@@ -184,6 +278,15 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         >
           <Tv className="size-[18px]" />
         </NavLink>
+        <button
+          onClick={() => setUi({ sidebarCollapsed: true })}
+          title="Hide the sidebar"
+          aria-label="Hide the sidebar"
+          data-sidebar-collapse
+          className="rounded-lg p-1.5 text-muted transition hover:bg-white/10 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
+        >
+          <PanelLeftClose className="size-[18px]" />
+        </button>
       </div>
 
       {ui.sidebarLevel && <LevelBadge />}

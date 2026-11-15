@@ -64,6 +64,8 @@ export class AccountClient {
   }
 
   usernameAvailable = async (username: string) => (await this.call<{ available: boolean }>('GET', `/usernames/${encodeURIComponent(username)}`, undefined, false)).available
+  /** True/false when the server knows; null when it can't tell (Neon Auth then decides at sign-up). */
+  emailInUse = async (email: string) => (await this.call<{ inUse: boolean | null }>('POST', '/emails/check', { email }, false)).inUse ?? null
   me = async () => (await this.call<{ user: Me }>('GET', '/me')).user
   setUsername = async (username: string) => (await this.call<{ user: Me }>('PUT', '/me/username', { username })).user
   /** Sets the picture (null removes it) and/or the bio; fields left out stay as they are. */

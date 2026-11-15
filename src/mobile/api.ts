@@ -400,6 +400,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       signUp: (email, u, p, remember) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)),
       signIn: (email, p, remember) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)),
       signOut: () => account.signOut(),
+      availability: (input) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })),
       setUsername: (u) => wrap(() => account.setUsername(text(u))),
       setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })),
       sendResetCode: (email) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)),

@@ -7,6 +7,9 @@
 
 import { AccountError } from './errors'
 
+export const USERNAME_IN_USE = 'That username is already in use.'
+export const EMAIL_IN_USE = 'That email is already in use. Sign in instead, or use another email.'
+
 export interface AuthRequest {
   url: string
   method: 'GET' | 'POST'
@@ -45,8 +48,8 @@ const MESSAGES: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD: 'Wrong email or password.',
   INVALID_EMAIL: "That doesn't look like an email address.",
   INVALID_PASSWORD: 'Wrong email or password.',
-  USER_ALREADY_EXISTS: 'An account with that email already exists. Sign in instead.',
-  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: 'An account with that email already exists. Sign in instead.',
+  USER_ALREADY_EXISTS: EMAIL_IN_USE,
+  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: EMAIL_IN_USE,
   PASSWORD_TOO_SHORT: 'Passwords need at least 8 characters.',
   PASSWORD_TOO_LONG: 'That password is too long.',
   EMAIL_NOT_VERIFIED: 'Check your email and confirm your address first, then sign in.',

@@ -167,6 +167,25 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), ...rolesFor(profile?.username) }
   }
 
+  /**
+   * Whether an email already has an account. Public (the sign-up form asks before creating
+   * the account) and rate-limited. Sign-in accounts live in Neon Auth's own tables in the same
+   * database; `inUse` is null when those can't be read, and Neon Auth's own refusal at sign-up
+   * is then what stops a second account (it enforces one account per email itself).
+   */
+  app.post('/emails/check', rateLimit, async (c) => {
+    const { email } = await body<{ email: string }>(c)
+    if (typeof email !== 'string' || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) || email.length > 320) fail(400, "That doesn't look like an email address.")
+    let inUse: boolean | null = null
+    try {
+      const rows = await sql`SELECT 1 FROM neon_auth."user" WHERE lower(email) = lower(${email!.trim()}) LIMIT 1`
+      inUse = rows.length > 0
+    } catch {
+      // Neon Auth's tables aren't readable from here: leave it to Neon Auth.
+    }
+    return c.json({ inUse })
+  })
+
   app.get('/me', requireAuth, async (c) => {
     return c.json({ user: await account(c) })
   })
@@ -203,13 +222,13 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     if (typeof username !== 'string' || !USERNAME.test(username)) fail(400, 'Usernames are 3–20 letters, numbers or underscores.')
     const me = c.get('userId')
     const taken = await sql`SELECT 1 FROM vanity.profiles WHERE lower(username) = lower(${username}) AND id <> ${me}`
-    if (taken.length) fail(409, 'That username is taken.')
+    if (taken.length) fail(409, 'That username is already in use.')
     try {
       await sql`INSERT INTO vanity.profiles (id, username) VALUES (${me}, ${username})
         ON CONFLICT (id) DO UPDATE SET username = excluded.username`
     } catch {
       // Lost a race with someone picking the same name.
-      fail(409, 'That username is taken.')
+      fail(409, 'That username is already in use.')
     }
     return c.json({ user: await account(c) })
   })
