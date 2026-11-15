@@ -397,11 +397,12 @@ export function GameDetailPage(): React.JSX.Element {
                 ) : (
                   <ul className="flex flex-wrap gap-3">
                     {friendsPlayed.map((f, i) => (
-                      <li
-                        key={f.id}
-                        style={{ '--i': i } as React.CSSProperties}
-                        className="animate-card-in flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4"
-                      >
+                      <li key={f.id} style={{ '--i': i } as React.CSSProperties} className="animate-card-in">
+                        <button
+                          onClick={() => navigate(`/friends/${f.id}`)}
+                          title={`Open ${f.username}'s profile`}
+                          className="flex items-center gap-3 rounded-2xl border border-border bg-surface-2 py-2 pl-2 pr-4 text-left transition hover:-translate-y-0.5 hover:border-white/25"
+                        >
                         <Avatar name={f.username} src={f.avatar} frame={f.style?.frame} size="sm" />
                         <span>
                           <UserName name={f.username} style={f.style} verified={f.verified} admin={f.admin} className="flex text-sm font-semibold" />
@@ -410,6 +411,7 @@ export function GameDetailPage(): React.JSX.Element {
                             {f.lastPlayedAt ? ` · ${formatRelativeDate(f.lastPlayedAt).toLowerCase()}` : ''}
                           </span>
                         </span>
+                        </button>
                       </li>
                     ))}
                   </ul>

@@ -35,7 +35,7 @@ import { mediaUrl, nameHue } from '@/lib/media'
 import { useAccount } from '@/state/account'
 import { syncNow, useProgress } from '@/state/progress'
 
-const BADGE_ICONS: Record<string, LucideIcon> = {
+export const BADGE_ICONS: Record<string, LucideIcon> = {
   play: Play,
   gamepad: Gamepad2,
   library: Library,

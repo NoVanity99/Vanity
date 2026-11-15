@@ -194,6 +194,7 @@ Vanity accounts run on **Neon** ([`server/README.md`](server/README.md) has the 
 - **If something is wrong** the Account page says what: offline, session expired (sign in again), wrong password, username taken.
 - **Profile picture and bio:** set on the Account page. The picture is cropped to a square and shrunk to 160×160 in the app (`src/renderer/src/lib/avatarImage.ts`) before it is sent, so only a few kilobytes are stored. Friends see both.
 - **Profile looks:** a banner, a frame for the picture, a name effect and an emoji, picked on the Account page and seen by friends. The choices are fixed lists (`src/shared/profileStyle.ts`; the server keeps the same lists in `server/src/profileStyle.ts` and refuses anything else), drawn by the stylesheet (`src/renderer/src/styles/index.css`).
+- **Friend profiles:** each friend has a page (`/friends/<id>`, `src/renderer/src/pages/FriendProfilePage.tsx`) with their look, bio, level, most played and recent games and earned badges. It uses what the server already shares with friends (`/friends` and `/friends/:id/stats`); profiles of people who aren't your friends can't be opened.
 - **Verified and admin badges** (`src/renderer/src/components/UserBadges.tsx`) show next to a username. Who has them is decided only by the server, from the lists in [`server/src/roles.ts`](server/src/roles.ts).
 
 ## Cloud-saved progress, XP and badges

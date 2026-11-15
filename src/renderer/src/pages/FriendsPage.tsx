@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, Users, X } from 'lucide-react'
+import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
@@ -12,7 +12,7 @@ import { useToast } from '@/state/toasts'
 
 const REFRESH_MS = 30_000
 
-function statusLine(f: Friend, now = Date.now()): string {
+export function statusLine(f: Friend, now = Date.now()): string {
   if (f.status.state === 'playing') {
     const mins = f.status.since ? Math.max(1, Math.round((now - f.status.since) / 60_000)) : null
     return `Playing ${f.status.gameName}${mins ? ` · ${mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h ${mins % 60} min`}` : ''}`
@@ -55,6 +55,7 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
 }
 
 function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => void }): React.JSX.Element {
+  const navigate = useNavigate()
   const toast = useToast()
   const [stats, setStats] = useState<FriendStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -71,22 +72,22 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 overflow-clip rounded-2xl border border-border bg-surface p-6 [&>*]:relative">
       {/* Their banner, fading out behind the top of the card. */}
       <div className="profile-banner !absolute h-36 [mask-image:linear-gradient(to_bottom,black,transparent)]" data-banner={friend.style?.banner ?? 'default'} />
-      <div className="flex items-center gap-4">
+      <button onClick={() => navigate(`/friends/${friend.id}`)} title={`Open ${friend.username}'s profile`} className="flex w-full items-center gap-4 rounded-xl text-left transition hover:brightness-110">
         <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} size="lg" status={friend.status.state} />
-        <div className="min-w-0">
-          <p className="font-display text-2xl font-bold">
+        <span className="block min-w-0">
+          <span className="block font-display text-2xl font-bold">
             <UserName name={friend.username} style={friend.style} verified={friend.verified} admin={friend.admin} badgeSize="md" />
-          </p>
-          <p className="truncate text-sm text-muted">{statusLine(friend)}</p>
-          <p className="mt-1 text-xs font-semibold text-accent">
+          </span>
+          <span className="block truncate text-sm text-muted">{statusLine(friend)}</span>
+          <span className="mt-1 block text-xs font-semibold text-accent">
             Level {stats?.level ?? friend.level}
             <span className="font-normal text-muted">
               {' '}
               · {(stats?.xp ?? friend.xp).toLocaleString()} XP{stats ? ` · ${stats.badges.length} badge${stats.badges.length === 1 ? '' : 's'}` : ''}
             </span>
-          </p>
-        </div>
-      </div>
+          </span>
+        </span>
+      </button>
       {(stats?.bio ?? friend.bio) && <p className="whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-3.5 py-3 text-sm text-text/85">{stats?.bio ?? friend.bio}</p>}
 
       <div className="grid grid-cols-2 gap-3">
@@ -139,6 +140,10 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
           </ul>
         </div>
       )}
+
+      <Button variant="primary" className="w-full justify-center" onClick={() => navigate(`/friends/${friend.id}`)} data-view-profile>
+        <UserRound className="size-4" /> View profile
+      </Button>
 
       <button
         className="flex items-center gap-1.5 text-xs text-muted transition hover:text-accent"

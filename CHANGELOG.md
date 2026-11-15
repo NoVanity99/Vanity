@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.17.0 (2026-11-15)
+- New: **friend profile pages.** Open a friend's own page from the Friends list (press "View profile", or click their picture or name in the panel) or from "friends who played this" on a game page. It shows their banner, framed picture, styled name, badges and bio, whether they are online or what they are playing, their level and XP, playtime and games played, their favourite game, how many of their most played games you have too, their ten most played games (click one you own to open it in your library), what they played recently and the badges they have earned. It keeps itself up to date while open.
+- New: **your banner shows behind your account** at the bottom of the sidebar, so the look you picked is visible on every page.
+
 ## 0.16.3 (2026-11-15)
 - Changed: **verified and admin badges now arrive live.** When a badge is granted (or taken away) on the server, every running copy of Vanity picks it up within about a minute, with no app update and no restart: the app's once-a-minute check-in with the server now brings the account's badges back with it. Friends see it the next time their Friends list refreshes (every 30 seconds while it is open).
 - **Max** is now a verified account.

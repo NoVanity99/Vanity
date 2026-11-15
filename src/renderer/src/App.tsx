@@ -24,6 +24,7 @@ import { StatsPage } from './pages/StatsPage'
 import { WrappedPage } from './pages/WrappedPage'
 import { BigPicturePage } from './pages/BigPicturePage'
 import { FriendsPage } from './pages/FriendsPage'
+import { FriendProfilePage } from './pages/FriendProfilePage'
 import { AccountPage } from './pages/AccountPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { DownloadsPage } from './pages/DownloadsPage'
@@ -116,6 +117,7 @@ function Shell(): React.JSX.Element {
             <Route path="/wrapped" element={<WrappedPage />} />
             <Route path="/big" element={<BigPicturePage />} />
             <Route path="/friends" element={<FriendsPage />} />
+            <Route path="/friends/:id" element={<FriendProfilePage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/downloads" element={<DownloadsPage />} />
