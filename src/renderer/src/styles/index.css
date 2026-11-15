@@ -746,3 +746,129 @@ html[data-game-names='false'] [data-game-name] {
     columns: 3;
   }
 }
+
+/* ---- More profile looks ---- */
+.profile-banner[data-banner='lava'] {
+  background-image: radial-gradient(70% 130% at 20% 120%, rgb(234 88 12 / 0.65), transparent 70%), radial-gradient(60% 120% at 85% 110%, rgb(220 38 38 / 0.55), transparent 70%), linear-gradient(180deg, rgb(69 10 10 / 0.5), transparent);
+}
+.profile-banner[data-banner='mint'] {
+  background-image: linear-gradient(120deg, rgb(52 211 153 / 0.45), rgb(153 246 228 / 0.25) 50%, rgb(45 212 191 / 0.4));
+}
+.profile-banner[data-banner='midnight'] {
+  background-image: radial-gradient(1px 1px at 18% 35%, white, transparent), radial-gradient(1px 1px at 72% 25%, white, transparent), radial-gradient(1px 1px at 55% 70%, white, transparent), linear-gradient(160deg, rgb(30 58 138 / 0.6), rgb(15 23 42 / 0.6) 60%, rgb(49 46 129 / 0.5));
+}
+.profile-banner[data-banner='rose'] {
+  background-image: linear-gradient(125deg, rgb(244 63 94 / 0.5), rgb(251 113 133 / 0.3) 50%, rgb(190 18 60 / 0.4));
+}
+.profile-banner[data-banner='toxic'] {
+  background-image: radial-gradient(60% 120% at 80% 0%, rgb(163 230 53 / 0.5), transparent 70%), linear-gradient(140deg, rgb(21 128 61 / 0.4), rgb(101 163 13 / 0.25) 60%, rgb(250 204 21 / 0.25));
+}
+.profile-banner[data-banner='arctic'] {
+  background-image: linear-gradient(135deg, rgb(224 242 254 / 0.3), rgb(125 211 252 / 0.4) 45%, rgb(99 102 241 / 0.3));
+}
+.profile-banner[data-banner='royal'] {
+  background-image: linear-gradient(120deg, rgb(126 34 206 / 0.55), rgb(88 28 135 / 0.4) 50%, rgb(234 179 8 / 0.35));
+}
+.profile-banner[data-banner='peach'] {
+  background-image: linear-gradient(120deg, rgb(253 186 116 / 0.45), rgb(251 146 60 / 0.3) 45%, rgb(244 114 182 / 0.4));
+}
+.profile-banner[data-banner='carbon'] {
+  background-image: repeating-linear-gradient(45deg, rgb(255 255 255 / 0.05) 0 2px, transparent 2px 8px), linear-gradient(135deg, rgb(82 82 91 / 0.5), rgb(24 24 27 / 0.5));
+}
+.profile-banner[data-banner='nebula'] {
+  background-image: radial-gradient(45% 110% at 15% 20%, rgb(236 72 153 / 0.5), transparent 70%), radial-gradient(50% 120% at 60% 90%, rgb(59 130 246 / 0.45), transparent 70%), radial-gradient(40% 100% at 95% 10%, rgb(168 85 247 / 0.5), transparent 70%);
+}
+.profile-banner[data-banner='retro'] {
+  background-image: repeating-linear-gradient(0deg, rgb(244 114 182 / 0.14) 0 1px, transparent 1px 22px), repeating-linear-gradient(90deg, rgb(244 114 182 / 0.14) 0 1px, transparent 1px 22px), linear-gradient(180deg, rgb(251 146 60 / 0.4), rgb(190 24 93 / 0.35) 55%, rgb(49 46 129 / 0.45));
+}
+.profile-banner[data-banner='blood'] {
+  background-image: radial-gradient(28% 90% at 82% 30%, rgb(248 113 113 / 0.6), rgb(153 27 27 / 0.3) 60%, transparent 75%), linear-gradient(160deg, rgb(69 10 10 / 0.6), rgb(23 23 23 / 0.4));
+}
+.profile-banner[data-banner='matrix'] {
+  background-image: repeating-linear-gradient(90deg, rgb(34 197 94 / 0.16) 0 2px, transparent 2px 14px), linear-gradient(180deg, rgb(21 128 61 / 0.45), rgb(5 46 22 / 0.5));
+}
+.profile-banner[data-banner='cotton'] {
+  background-image: radial-gradient(50% 120% at 20% 100%, rgb(249 168 212 / 0.45), transparent 70%), radial-gradient(50% 120% at 80% 0%, rgb(147 197 253 / 0.45), transparent 70%), linear-gradient(120deg, rgb(196 181 253 / 0.3), rgb(165 243 252 / 0.25));
+}
+
+.avatar-frame[data-frame='silver'] {
+  --frame: linear-gradient(135deg, #f8fafc, #94a3b8 45%, #475569 70%, #e2e8f0);
+  --frame-glow: rgb(203 213 225 / 0.45);
+}
+.avatar-frame[data-frame='emerald'] {
+  --frame: linear-gradient(135deg, #6ee7b7, #059669 55%, #a7f3d0);
+  --frame-glow: rgb(16 185 129 / 0.6);
+}
+.avatar-frame[data-frame='ruby'] {
+  --frame: linear-gradient(135deg, #fda4af, #e11d48 50%, #881337 75%, #fb7185);
+  --frame-glow: rgb(225 29 72 / 0.6);
+}
+.avatar-frame[data-frame='sapphire'] {
+  --frame: linear-gradient(135deg, #93c5fd, #2563eb 50%, #1e3a8a 75%, #60a5fa);
+  --frame-glow: rgb(37 99 235 / 0.6);
+}
+.avatar-frame[data-frame='sunset'] {
+  --frame: linear-gradient(135deg, #fb923c, #f472b6 55%, #a78bfa);
+  --frame-glow: rgb(244 114 182 / 0.55);
+}
+.avatar-frame[data-frame='toxic'] {
+  --frame: linear-gradient(135deg, #bef264, #22c55e 55%, #facc15);
+  --frame-glow: rgb(163 230 53 / 0.65);
+}
+.avatar-frame[data-frame='void'] {
+  --frame: conic-gradient(from 0deg, #0f172a, #7c3aed, #0f172a, #1e1b4b, #0f172a);
+  --frame-glow: rgb(124 58 237 / 0.7);
+}
+.avatar-frame[data-frame='pastel'] {
+  --frame: conic-gradient(from 0deg, #fbcfe8, #ddd6fe, #bae6fd, #bbf7d0, #fef08a, #fbcfe8);
+  --frame-glow: rgb(221 214 254 / 0.5);
+}
+.avatar-frame[data-frame='plasma'] {
+  --frame: conic-gradient(from 0deg, #22d3ee, #d946ef, #22d3ee, #6366f1, #22d3ee);
+  --frame-glow: rgb(217 70 239 / 0.65);
+}
+.avatar-frame[data-frame='candy'] {
+  --frame: repeating-conic-gradient(from 0deg, #f472b6 0 30deg, #fdf2f8 30deg 60deg);
+  --frame-glow: rgb(244 114 182 / 0.5);
+}
+.avatar-frame[data-frame='void']::before,
+.avatar-frame[data-frame='pastel']::before,
+.avatar-frame[data-frame='plasma']::before,
+.avatar-frame[data-frame='candy']::before {
+  animation: frame-spin 6s linear infinite;
+}
+.avatar-frame[data-frame='plasma']::before {
+  animation-duration: 3s;
+}
+
+.name-fx[data-name='fire'] {
+  --name: linear-gradient(90deg, #fde047, #f97316, #ef4444);
+  filter: drop-shadow(0 0 5px rgb(249 115 22 / 0.55));
+}
+.name-fx[data-name='mint'] {
+  --name: linear-gradient(90deg, #6ee7b7, #2dd4bf, #a7f3d0);
+}
+.name-fx[data-name='rose'] {
+  --name: linear-gradient(90deg, #fda4af, #f43f5e, #fb7185);
+}
+.name-fx[data-name='silver'] {
+  --name: linear-gradient(90deg, #f8fafc, #94a3b8, #e2e8f0, #64748b);
+}
+.name-fx[data-name='toxic'] {
+  --name: linear-gradient(90deg, #bef264, #22c55e);
+  filter: drop-shadow(0 0 6px rgb(132 204 22 / 0.6));
+}
+.name-fx[data-name='royal'] {
+  --name: linear-gradient(90deg, #c084fc, #7c3aed, #facc15);
+}
+.name-fx[data-name='candy'] {
+  --name: linear-gradient(90deg, #f9a8d4, #c4b5fd, #7dd3fc);
+}
+.name-fx[data-name='aurora'] {
+  --name: linear-gradient(90deg, #34d399, #38bdf8, #a78bfa, #34d399);
+  animation: name-flow 6s linear infinite;
+}
+.name-fx[data-name='lava'] {
+  --name: linear-gradient(90deg, #7f1d1d, #f97316, #fde047, #f97316, #7f1d1d);
+  animation: name-flow 4s linear infinite;
+}

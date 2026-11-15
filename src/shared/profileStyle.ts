@@ -26,7 +26,21 @@ export const PROFILE_BANNERS = [
   { id: 'gold', label: 'Gold rush' },
   { id: 'candy', label: 'Candy' },
   { id: 'storm', label: 'Storm' },
-  { id: 'mono', label: 'Mono' }
+  { id: 'mono', label: 'Mono' },
+  { id: 'lava', label: 'Lava' },
+  { id: 'mint', label: 'Mint' },
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'rose', label: 'Rose' },
+  { id: 'toxic', label: 'Toxic' },
+  { id: 'arctic', label: 'Arctic' },
+  { id: 'royal', label: 'Royal' },
+  { id: 'peach', label: 'Peach' },
+  { id: 'carbon', label: 'Carbon' },
+  { id: 'nebula', label: 'Nebula' },
+  { id: 'retro', label: 'Retro grid' },
+  { id: 'blood', label: 'Blood moon' },
+  { id: 'matrix', label: 'Matrix' },
+  { id: 'cotton', label: 'Cotton sky' }
 ] as const
 
 export const PROFILE_FRAMES = [
@@ -37,7 +51,17 @@ export const PROFILE_FRAMES = [
   { id: 'ice', label: 'Ice' },
   { id: 'fire', label: 'Fire' },
   { id: 'rainbow', label: 'Rainbow' },
-  { id: 'galaxy', label: 'Galaxy' }
+  { id: 'galaxy', label: 'Galaxy' },
+  { id: 'silver', label: 'Silver' },
+  { id: 'emerald', label: 'Emerald' },
+  { id: 'ruby', label: 'Ruby' },
+  { id: 'sapphire', label: 'Sapphire' },
+  { id: 'sunset', label: 'Sunset' },
+  { id: 'toxic', label: 'Toxic' },
+  { id: 'void', label: 'Void' },
+  { id: 'pastel', label: 'Pastel' },
+  { id: 'plasma', label: 'Plasma' },
+  { id: 'candy', label: 'Candy' }
 ] as const
 
 export const PROFILE_NAME_STYLES = [
@@ -47,10 +71,19 @@ export const PROFILE_NAME_STYLES = [
   { id: 'gold', label: 'Gold' },
   { id: 'neon', label: 'Neon glow' },
   { id: 'ice', label: 'Ice' },
-  { id: 'rainbow', label: 'Rainbow' }
+  { id: 'rainbow', label: 'Rainbow' },
+  { id: 'fire', label: 'Fire' },
+  { id: 'mint', label: 'Mint' },
+  { id: 'rose', label: 'Rose' },
+  { id: 'silver', label: 'Silver' },
+  { id: 'toxic', label: 'Toxic' },
+  { id: 'royal', label: 'Royal' },
+  { id: 'candy', label: 'Candy' },
+  { id: 'aurora', label: 'Aurora' },
+  { id: 'lava', label: 'Lava flow' }
 ] as const
 
-export const PROFILE_FLAIRS = ['', '🎮', '🕹️', '🔥', '⭐', '💎', '🚀', '🌙', '⚡', '🎧', '🏆', '🐉', '🍀', '💀', '🌈', '👾', '🎯', '🧩', '🦊', '🐱', '☕'] as const
+export const PROFILE_FLAIRS = ['', '🎮', '🕹️', '🔥', '⭐', '💎', '🚀', '🌙', '⚡', '🎧', '🏆', '🐉', '🍀', '💀', '🌈', '👾', '🎯', '🧩', '🦊', '🐱', '☕', '🎲', '🏹', '⚔️', '🛡️', '🧙', '👻', '🤖', '👽', '🦄', '🐺', '🦉', '🐼', '🐸', '🦖', '🐙', '🌟', '❄️', '🌊', '🌸', '🍕', '🍩', '🎸', '🎨', '📚', '🏎️', '⚽', '🏀', '🧠', '💜', '🖤', '💚', '☠️', '🥷', '🪐', '🌋'] as const
 
 const ids = (list: readonly { id: string }[]): string[] => list.map((x) => x.id)
 

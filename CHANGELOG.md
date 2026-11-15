@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.18.0 (2026-11-15)
+- New: **many more profile looks to pick on the Account page.**
+  - **Banners: 26** (was 12). New: Lava, Mint, Midnight, Rose, Toxic, Arctic, Royal, Peach, Carbon, Nebula, Retro grid, Blood moon, Matrix and Cotton sky.
+  - **Picture frames: 18** (was 8). New: Silver, Emerald, Ruby, Sapphire, Sunset, Toxic, and four that turn: Void, Pastel, Plasma and Candy.
+  - **Name effects: 16** (was 7). New: Fire, Mint, Rose, Silver, Toxic, Royal, Candy, and two that move: Aurora and Lava flow.
+  - **Emoji next to your name: 55** (was 20).
+- Friends on an older version of Vanity see a new look as the plain default until they update.
+
 ## 0.17.2 (2026-11-15)
 - Changed: **in the Friends tab, each friend's banner fills their row** instead of a plain dark background. Friend requests show the sender's banner the same way. A friend who hasn't picked a banner gets the soft default one, and the friend you've selected is marked with a bright outline.
 

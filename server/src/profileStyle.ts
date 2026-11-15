@@ -10,10 +10,10 @@ export interface ProfileStyle {
 }
 
 export const STYLE_OPTIONS = {
-  banner: ['default', 'aurora', 'sunset', 'ocean', 'synthwave', 'forest', 'ember', 'galaxy', 'gold', 'candy', 'storm', 'mono'],
-  frame: ['none', 'accent', 'gold', 'neon', 'ice', 'fire', 'rainbow', 'galaxy'],
-  nameStyle: ['plain', 'sunset', 'ocean', 'gold', 'neon', 'ice', 'rainbow'],
-  flair: ['', '🎮', '🕹️', '🔥', '⭐', '💎', '🚀', '🌙', '⚡', '🎧', '🏆', '🐉', '🍀', '💀', '🌈', '👾', '🎯', '🧩', '🦊', '🐱', '☕']
+  banner: ['default', 'aurora', 'sunset', 'ocean', 'synthwave', 'forest', 'ember', 'galaxy', 'gold', 'candy', 'storm', 'mono', 'lava', 'mint', 'midnight', 'rose', 'toxic', 'arctic', 'royal', 'peach', 'carbon', 'nebula', 'retro', 'blood', 'matrix', 'cotton'],
+  frame: ['none', 'accent', 'gold', 'neon', 'ice', 'fire', 'rainbow', 'galaxy', 'silver', 'emerald', 'ruby', 'sapphire', 'sunset', 'toxic', 'void', 'pastel', 'plasma', 'candy'],
+  nameStyle: ['plain', 'sunset', 'ocean', 'gold', 'neon', 'ice', 'rainbow', 'fire', 'mint', 'rose', 'silver', 'toxic', 'royal', 'candy', 'aurora', 'lava'],
+  flair: ['', '🎮', '🕹️', '🔥', '⭐', '💎', '🚀', '🌙', '⚡', '🎧', '🏆', '🐉', '🍀', '💀', '🌈', '👾', '🎯', '🧩', '🦊', '🐱', '☕', '🎲', '🏹', '⚔️', '🛡️', '🧙', '👻', '🤖', '👽', '🦄', '🐺', '🦉', '🐼', '🐸', '🦖', '🐙', '🌟', '❄️', '🌊', '🌸', '🍕', '🍩', '🎸', '🎨', '📚', '🏎️', '⚽', '🏀', '🧠', '💜', '🖤', '💚', '☠️', '🥷', '🪐', '🌋']
 } as const satisfies Record<keyof ProfileStyle, readonly string[]>
 
 export const DEFAULT_STYLE: ProfileStyle = { banner: 'default', frame: 'none', nameStyle: 'plain', flair: '' }
