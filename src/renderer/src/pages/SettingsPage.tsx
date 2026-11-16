@@ -127,25 +127,14 @@ function UpdatesSection({
   return (
     <Section
       title="Updates"
-      description={
-        update.mode === 'unsupported'
-          ? 'This is an installed build. Install a newer build to update.'
-          : update.mode === 'apk'
-            ? 'Vanity checks GitHub for a new version when it opens and every hour. When one is out, the round button at the top shows a red badge: tap it to download the update, then open the file to install it.'
-            : update.mode === 'release'
-              ? 'Vanity checks GitHub for a new version when it starts and every hour, and downloads it in the background. When it is ready, the round button at the top right shows a red badge: restart to install, or it installs the next time you quit.'
-              : update.mode === 'vercel'
-                ? 'Vanity checks your Vanity server on Vercel for a new version every minute. When one is out, the round button at the top right shows a red badge.'
-                : 'Vanity checks GitHub for a new version every minute. When one is out, the round button at the top right shows a red badge. To update from your Vercel server instead, set the server address on the Account page.'
-      }
     >
       <div className="flex flex-wrap items-center gap-4">
         {count > 0 ? (
-          <Button variant="primary" onClick={openUpdateDialog}>
+          <Button variant="primary" className="h-11 px-5" onClick={openUpdateDialog}>
             <ArrowDownToLine className="size-4" /> Install v{update.latest}
           </Button>
         ) : (
-          <Button onClick={() => void checkForUpdate()} disabled={update.checking || update.mode === 'unsupported'}>
+          <Button variant="primary" className="h-11 px-5" onClick={() => void checkForUpdate()} disabled={update.checking || update.mode === 'unsupported'} data-check-updates>
             <RefreshCw className={cn('size-4', update.checking && 'animate-spin')} /> {update.checking ? 'Checking…' : 'Check now'}
           </Button>
         )}
@@ -159,11 +148,11 @@ function UpdatesSection({
                 : update.error
                   ? update.error
                   : update.lastChecked
-                    ? `Up to date. Checked ${formatAgo(update.lastChecked)}.`
-                    : ''}
+                    ? `You're on the latest version (v${update.current}). Checked ${formatAgo(update.lastChecked)}.`
+                    : `Vanity v${update.current}`}
         </span>
       </div>
-      {update.mode === 'vercel' && (
+      {update.mode === 'vercel' && update.error && (
         <div className="mt-5">
           <SecretField
             label="Update key (optional)"
@@ -178,7 +167,7 @@ function UpdatesSection({
           />
         </div>
       )}
-      {update.mode === 'github' && (
+      {update.mode === 'github' && update.needsToken && (
         <div className="mt-5">
           <SecretField
             label="GitHub token"
@@ -306,11 +295,6 @@ function PlaytimeSection(): React.JSX.Element {
       )}
     </Section>
   )
-}
-
-function VersionLabel(): React.JSX.Element | null {
-  const update = useUpdate()
-  return update ? <p className="!mt-3 text-right text-[11px] tabular-nums text-muted/70">Vanity v{update.current}</p> : null
 }
 
 export function SettingsPage(): React.JSX.Element {
@@ -551,7 +535,6 @@ export function SettingsPage(): React.JSX.Element {
           <>
 
         <UpdatesSection settings={settings} save={save} />
-            <VersionLabel />
           </>
         )}
 

@@ -4,7 +4,13 @@ import type { AccountState, DownloadItem, Game, SteamState, StoreAccounts, Progr
 
 const api: VanityApi = {
   platform: 'desktop',
-  notify: (title, body) => ipcRenderer.invoke(IPC.appNotify, title, body),
+  notify: (title, body, action) => ipcRenderer.invoke(IPC.appNotify, title, body, action),
+  onNotificationClick: (callback) => {
+    const listener = (_e: unknown, action: string): void => callback(action)
+    ipcRenderer.on(IPC.appNotificationClick, listener)
+    return () => ipcRenderer.removeListener(IPC.appNotificationClick, listener)
+  },
+  allowNotifications: async () => true,
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
@@ -148,6 +154,20 @@ const api: VanityApi = {
     recentGames: () => ipcRenderer.invoke(IPC.steamRecentGames),
     achievements: (appId) => ipcRenderer.invoke(IPC.steamAchievements, appId)
   },
+  groups: {
+    list: () => ipcRenderer.invoke(IPC.groupsList),
+    create: (name, memberIds) => ipcRenderer.invoke(IPC.groupsCreate, name, memberIds),
+    rename: (id, name) => ipcRenderer.invoke(IPC.groupsRename, id, name),
+    add: (id, userId) => ipcRenderer.invoke(IPC.groupsAdd, id, userId),
+    remove: (id, userId) => ipcRenderer.invoke(IPC.groupsRemove, id, userId),
+    messages: (id, opts) => ipcRenderer.invoke(IPC.groupsMessages, id, opts),
+    send: (id, text) => ipcRenderer.invoke(IPC.groupsSend, id, text)
+  },
+  gifs: {
+    search: (q, page) => ipcRenderer.invoke(IPC.gifsSearch, q, page),
+    upload: (b64) => ipcRenderer.invoke(IPC.gifsUpload, b64),
+    media: (id) => ipcRenderer.invoke(IPC.gifsMedia, id)
+  },
   voice: {
     start: (opts) => ipcRenderer.invoke(IPC.voiceStart, opts),
     join: (roomId) => ipcRenderer.invoke(IPC.voiceJoin, roomId),
@@ -206,6 +226,7 @@ const api: VanityApi = {
     decline: (id) => ipcRenderer.invoke(IPC.friendsDecline, id),
     remove: (id) => ipcRenderer.invoke(IPC.friendsRemove, id),
     stats: (id) => ipcRenderer.invoke(IPC.friendsStats, id),
+    search: (q) => ipcRenderer.invoke(IPC.friendsSearch, q),
     messages: (id, opts) => ipcRenderer.invoke(IPC.friendsMessages, id, opts),
     send: (id, text) => ipcRenderer.invoke(IPC.friendsSend, id, text),
     forGame: (gameId) => ipcRenderer.invoke(IPC.friendsForGame, gameId)

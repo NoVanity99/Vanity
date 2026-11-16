@@ -4,8 +4,13 @@ import { AudioLines, Gamepad2, MessageCircle, Wifi, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
-import { openChat } from '@/state/chats'
-import { onFriendNote, type FriendNote } from '@/state/friends'
+import { openChat, openGroupChat } from '@/state/chats'
+import { currentFriends, onFriendNote, type FriendNote } from '@/state/friends'
+import { currentGroups } from '@/state/groups'
+import { useAccount } from '@/state/account'
+import { systemNotification } from '@/lib/notifications'
+import { isAndroid } from '@/lib/platform'
+import { loadPref, savePref } from '@/lib/storage'
 import { useInterface } from '@/state/settings'
 import { voice } from '@/state/voice'
 
@@ -17,10 +22,12 @@ const KINDS = {
   voice: { icon: AudioLines, tone: 'text-emerald-400', label: 'In voice' }
 } as const
 
+
 /**
  * Cards in the top-right corner when a friend comes online, starts a game or writes to you:
  * their banner behind, their picture and name, and what happened. Click one to go to their
- * profile (or the chat). While Vanity isn't in front, a Windows notification is shown too.
+ * profile (or the chat). A Windows (or Android) notification is shown too: by default while
+ * Vanity isn't in front, or always, or never (Settings → Customize).
  * Each kind can be turned off in Settings → Customize.
  */
 export function FriendNotifications(): React.JSX.Element | null {
@@ -31,16 +38,48 @@ export function FriendNotifications(): React.JSX.Element | null {
   useEffect(() => {
     const wanted = { online: ui.notifyFriendOnline, playing: ui.notifyFriendPlaying, message: ui.notifyFriendMessage, voice: ui.notifyFriendOnline || ui.notifyFriendPlaying }
     return onFriendNote((note) => {
-      if (!wanted[note.kind]) return
+      if (note.group ? !ui.notifyGroupMessage : !wanted[note.kind]) return
       // Already in that room: nothing to say.
       if (note.kind === 'voice' && note.friend.voice?.roomId === voice.snapshot.room?.id) return
       // At most four at once: the oldest makes room.
       setNotes((list) => [...list.slice(-3), note])
       setTimeout(() => setNotes((list) => list.map((n) => (n.id === note.id ? { ...n, leaving: true } : n))), SHOWN_MS - 250)
       setTimeout(() => setNotes((list) => list.filter((n) => n.id !== note.id)), SHOWN_MS)
-      if (!document.hasFocus()) void window.vanity.notify(`${note.friend.username} ${note.action}`, note.detail ?? 'Vanity').catch(() => {})
+      // Also a Windows / Android notification (by default only while Vanity isn't in front).
+      const inFront = document.hasFocus() && document.visibilityState === 'visible'
+      if (ui.systemNotifications === 'always' || (ui.systemNotifications === 'background' && !inFront)) {
+        const { title, body, action } = systemNotification(note)
+        void window.vanity.notify(title, body, action).catch(() => {})
+      }
     })
-  }, [ui.notifyFriendOnline, ui.notifyFriendPlaying, ui.notifyFriendMessage])
+  }, [ui.notifyFriendOnline, ui.notifyFriendPlaying, ui.notifyFriendMessage, ui.notifyGroupMessage, ui.systemNotifications])
+
+  // Clicking a Windows / Android notification opens what it was about.
+  useEffect(
+    () =>
+      window.vanity.onNotificationClick((action) => {
+        const [kind, id = ''] = action.split(/:(.*)/s)
+        if (kind === 'chat') {
+          const f = currentFriends()?.friends.find((x) => x.id === id)
+          if (f) openChat(f)
+          else navigate('/friends')
+        } else if (kind === 'group') {
+          const g = currentGroups()?.find((x) => x.id === id)
+          if (g) openGroupChat(g)
+          else navigate('/friends')
+        } else if (kind === 'friend') navigate(`/friends/${id}`)
+        else if (kind === 'voice') navigate('/voice')
+      }),
+    [navigate]
+  )
+
+  // Phones: ask once (Android 13+) whether Vanity may show notifications, once signed in.
+  const signedIn = !!useAccount()?.username
+  useEffect(() => {
+    if (!signedIn || !isAndroid() || loadPref<boolean>('asked-notifications', false)) return
+    savePref('asked-notifications', true)
+    void window.vanity.allowNotifications().catch(() => false)
+  }, [signedIn])
 
   if (notes.length === 0) return null
   const close = (id: number): void => setNotes((list) => list.filter((n) => n.id !== id))
@@ -65,7 +104,8 @@ export function FriendNotifications(): React.JSX.Element | null {
               onClick={() => {
                 close(note.id)
                 // A message opens its chat pop-up; anything else, the friend's page.
-                if (note.kind === 'message') openChat(note.friend)
+                if (note.group) openGroupChat(note.group)
+                else if (note.kind === 'message') openChat(note.friend)
                 else navigate(note.to)
               }}
               className="relative flex w-full items-center gap-3 p-3.5 pr-10 text-left"

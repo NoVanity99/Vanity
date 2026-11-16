@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Award, CalendarDays, Clock, ExternalLink, Flame, Gamepad2, Heart, MessageCircle, Rocket, Star, Trophy, UserCheck, Users } from 'lucide-react'
+import { ArrowLeft, Award, CalendarDays, Clock, ExternalLink, Flame, Gamepad2, Heart, MessageCircle, Rocket, Star, Trophy, UserCheck, Users, UserPlus } from 'lucide-react'
 import { BADGES, levelFor } from '@shared/progress'
 import { PLAY_STATUS_LABELS, type Friend, type FriendGameStat, type FriendStats, type PlayStatus } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
@@ -9,6 +9,7 @@ import { ProfileTitle, UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
+import { useToast } from '@/state/toasts'
 import { useAccount } from '@/state/account'
 import { openChat } from '@/state/chats'
 import { useLibrary } from '@/state/library'
@@ -57,7 +58,29 @@ function Cover({ name, src, className }: { name: string; src: string | null | un
   )
 }
 
-/** A friend's profile: their look, level, bio, what they play, how you compare, and your chat. */
+/** Someone who isn't your friend, as the profile page needs them (no online status: that's for friends). */
+function strangerFrom(id: string, s: FriendStats): Friend {
+  return {
+    id,
+    username: s.username,
+    avatar: s.avatar,
+    style: s.style,
+    verified: s.verified,
+    admin: s.admin,
+    bio: s.bio,
+    unread: 0,
+    lastMessage: null,
+    status: { state: 'offline', gameName: null, since: null, lastSeen: null },
+    totalPlaytimeSeconds: s.totalPlaytimeSeconds,
+    gamesPlayed: s.gamesPlayed,
+    topGame: s.top[0]?.gameName ?? null,
+    level: s.level,
+    xp: s.xp,
+    voice: null
+  }
+}
+
+/** A player's profile (a friend's, or anyone who shows theirs): their look, level, bio, what they play, how you compare. */
 export function FriendProfilePage(): React.JSX.Element {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
@@ -66,6 +89,10 @@ export function FriendProfilePage(): React.JSX.Element {
   const { library } = useLibrary()
   const [friend, setFriend] = useState<Friend | null>(null)
   const [stats, setStats] = useState<FriendStats | null>(null)
+  const [isFriend, setIsFriend] = useState(true)
+  const [requested, setRequested] = useState<'sent' | 'incoming' | null>(null)
+  const [adding, setAdding] = useState(false)
+  const toast = useToast()
   const [error, setError] = useState<string | null>(null)
   const [covers, setCovers] = useState<Record<string, string | null>>({})
 
@@ -82,8 +109,13 @@ export function FriendProfilePage(): React.JSX.Element {
       if (!list || !s) return setError("Couldn't reach Vanity's server. Check your connection and try again.")
       if (list.error !== undefined) return setError(list.error)
       const found = list.data.friends.find((f) => f.id === id) ?? null
-      if (!found) return setError("This person isn't on your friends list (any more).")
-      setFriend(found)
+      if (s.error !== undefined && !found) return setError(s.error)
+      // Not a friend: the profile comes from their public stats (if they show them to everyone).
+      const shown = found ?? (s.data ? strangerFrom(id, s.data) : null)
+      if (!shown) return setError("That player couldn't be found.")
+      setFriend(shown)
+      setIsFriend(!!found)
+      setRequested(list.data.outgoing.some((r) => r.id === id) ? 'sent' : list.data.incoming.some((r) => r.id === id) ? 'incoming' : null)
       if (s.error !== undefined) return setError(s.error)
       setError(null)
       setStats(s.data)
@@ -172,12 +204,12 @@ export function FriendProfilePage(): React.JSX.Element {
   const facts: [string, string][] = stats
     ? [
         ['Joined Vanity', dateOf(stats.memberSince)],
-        ['Friends since', dateOf(stats.friendsSince)],
+        ...(isFriend ? [['Friends since', dateOf(stats.friendsSince)] as [string, string]] : []),
         ['Friends', `${(stats.friendCount ?? 0).toLocaleString()}${stats.mutualFriends ? ` · ${stats.mutualFriends} you both know` : ''}`],
         ['Games finished', (stats.finished ?? 0).toLocaleString()],
         ['Average rating', stats.averageRating ? `${stats.averageRating} / 5 over ${stats.ratedGames} game${stats.ratedGames === 1 ? '' : 's'}` : 'No ratings yet'],
         ['Best streak', `${stats.bestStreak ?? 0} day${stats.bestStreak === 1 ? '' : 's'} in a row`],
-        ['Messages between you', totalChat ? `${totalChat.toLocaleString()} since ${dateOf(stats.messages.firstAt)}` : 'None yet']
+        ...(isFriend ? [['Messages between you', totalChat ? `${totalChat.toLocaleString()} since ${dateOf(stats.messages.firstAt)}` : 'None yet'] as [string, string]] : [])
       ]
     : []
 
@@ -264,14 +296,39 @@ export function FriendProfilePage(): React.JSX.Element {
               </h1>
               <ProfileTitle title={style?.title} className="mt-1.5" />
               {bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{bio}</p>}
-              <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
-                {playing && <Gamepad2 className="size-4 shrink-0" />}
-                {statusLine(friend)}
-              </p>
+              {isFriend && (
+                <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
+                  {playing && <Gamepad2 className="size-4 shrink-0" />}
+                  {statusLine(friend)}
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="primary" onClick={() => openChat(friend)} data-open-chat>
-                  <MessageCircle className="size-4" /> Message
-                </Button>
+                {isFriend ? (
+                  <Button variant="primary" onClick={() => openChat(friend)} data-open-chat>
+                    <MessageCircle className="size-4" /> Message
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    disabled={adding || requested === 'sent'}
+                    onClick={async () => {
+                      setAdding(true)
+                      const r = await window.vanity.friends.add(friend.username).catch(() => null)
+                      setAdding(false)
+                      if (!r || r.error !== undefined) return toast(r?.error ?? "Couldn't send the request.", 'error')
+                      if (r.data === 'accepted') {
+                        setIsFriend(true)
+                        toast(`You and ${friend.username} are now friends`)
+                      } else {
+                        setRequested('sent')
+                        toast(`Friend request sent to ${friend.username}`)
+                      }
+                    }}
+                    data-add-friend-profile
+                  >
+                    <UserPlus className="size-4" /> {requested === 'sent' ? 'Request sent' : requested === 'incoming' ? 'Accept friend request' : 'Add friend'}
+                  </Button>
+                )}
                 {stats?.steam && (
                   <a href={stats.steam.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-border bg-black/25 px-3.5 py-2 text-sm font-medium backdrop-blur transition hover:border-white/25">
                     Steam: {stats.steam.name} <ExternalLink className="size-3.5 text-muted" />

@@ -1,6 +1,6 @@
 import type { BackendConfig } from '@shared/backend'
 import { normalizeProfileStyle, type ProfileStyle } from '../../shared/profileStyle'
-import type { AccountState } from '@shared/types'
+import { statsVisibilityOf, type AccountState, type StatsVisibility } from '../../shared/types'
 import type { LibraryStore } from '../library/store'
 import type { FetchFn } from '../metadata/http'
 import { AccountClient, type Me } from './client'
@@ -25,16 +25,18 @@ export interface SavedSession {
   avatar?: string | null
   bio?: string
   style?: ProfileStyle
+  statsVisibility?: StatsVisibility
   verified?: boolean
   admin?: boolean
 }
 
 /** The parts of the server's answer that are kept with the session. */
-const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'style' | 'verified' | 'admin'> => ({
+const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'style' | 'statsVisibility' | 'verified' | 'admin'> => ({
   username: me.username,
   avatar: me.avatar ?? null,
   bio: me.bio ?? '',
   style: normalizeProfileStyle(me.style),
+  statsVisibility: statsVisibilityOf(me.statsVisibility),
   verified: me.verified === true,
   admin: me.admin === true
 })
@@ -109,6 +111,7 @@ export class AccountService {
       avatar: this.saved?.avatar ?? null,
       bio: this.saved?.bio ?? '',
       style: normalizeProfileStyle(this.saved?.style),
+      statsVisibility: statsVisibilityOf(this.saved?.statsVisibility),
       verified: this.saved?.verified === true,
       admin: this.saved?.admin === true
     }
@@ -205,7 +208,7 @@ export class AccountService {
   }
 
   /** Sets the profile picture (null removes it), the bio and/or the profile's look. */
-  async setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }): Promise<AccountState> {
+  async setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: StatsVisibility }): Promise<AccountState> {
     if (patch.avatar != null && !/^data:image\/(png|jpeg|webp);base64,/.test(patch.avatar)) throw new AccountError('That picture could not be used. Try a PNG or JPEG image.')
     if (patch.bio !== undefined && [...patch.bio.trim()].length > 200) throw new AccountError('Bios can be up to 200 characters.')
     const me = await this.guard((c) => c.setProfile(patch))

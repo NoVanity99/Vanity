@@ -20,6 +20,8 @@ ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS avatar text;
 ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
 -- How the profile looks (banner, picture frame, name effect, emoji): ids from a fixed list, as JSON.
 ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS style text NOT NULL DEFAULT '{}';
+-- Who can see this player's stats on their profile: everyone signed in (the default), friends, or only them.
+ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS stats_visibility text NOT NULL DEFAULT 'everyone' CHECK (stats_visibility IN ('everyone', 'friends', 'private'));
 
 -- One row per friend request. The status becomes 'accepted' when the other side accepts.
 CREATE TABLE IF NOT EXISTS vanity.friendships (
@@ -86,6 +88,40 @@ CREATE TABLE IF NOT EXISTS vanity.voice_signals (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS voice_signals_to ON vanity.voice_signals (to_id, id);
+
+-- Group chats: a name, who made it (or took over), who is in it, and the messages (kept for good).
+CREATE TABLE IF NOT EXISTS vanity.chat_groups (
+  id          text PRIMARY KEY,
+  name        text NOT NULL,
+  owner_id    text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS vanity.chat_group_members (
+  group_id   text NOT NULL REFERENCES vanity.chat_groups (id) ON DELETE CASCADE,
+  user_id    text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  joined_at  timestamptz NOT NULL DEFAULT now(),
+  -- The newest message they've read.
+  last_read  bigint NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS chat_group_members_user ON vanity.chat_group_members (user_id);
+CREATE TABLE IF NOT EXISTS vanity.group_messages (
+  id          bigserial PRIMARY KEY,
+  group_id    text NOT NULL REFERENCES vanity.chat_groups (id) ON DELETE CASCADE,
+  sender_id   text NOT NULL,
+  body        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS group_messages_group ON vanity.group_messages (group_id, id);
+-- GIFs sent from people's devices (base64), up to 3 MB each.
+CREATE TABLE IF NOT EXISTS vanity.chat_media (
+  id          text PRIMARY KEY,
+  owner_id    text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  mime        text NOT NULL,
+  data        text NOT NULL,
+  size        integer NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
 
 -- What each user is doing right now. The app sends a heartbeat about once a minute.
 -- signed_off is true after the user signs out or closes Vanity. updated_at is then "last seen".

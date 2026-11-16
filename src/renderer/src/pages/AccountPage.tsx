@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, AtSign, Check, CloudOff, KeyRound, LogOut, Mail, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { STATS_VISIBILITY_LABELS, type AccountState, type StatsVisibility } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button, Dialog } from '@/components/Dialog'
 import { LinkedAccounts } from '@/components/LinkedAccounts'
@@ -292,6 +293,41 @@ function ChooseUsername({ email }: { email: string | null }): React.JSX.Element 
   )
 }
 
+/** Who can see your profile and stats: everyone (the default), friends, or only you. */
+function StatsPrivacy({ account }: { account: AccountState }): React.JSX.Element {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const pick = async (v: StatsVisibility): Promise<void> => {
+    if (v === account.statsVisibility) return
+    setBusy(true)
+    const r = await window.vanity.account.setProfile({ statsVisibility: v }).catch(() => null)
+    setBusy(false)
+    if (!r || r.error !== undefined) toast(r?.error ?? "Couldn't change that.", 'error')
+    else toast(`Profile: ${STATS_VISIBILITY_LABELS[v].label.toLowerCase()} can see it`)
+  }
+  return (
+    <div className="relative mt-5 border-t border-border pt-4" data-stats-privacy>
+      <p className="text-xs font-semibold text-muted">Who can see my profile and stats</p>
+      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Who can see my profile and stats">
+        {(Object.keys(STATS_VISIBILITY_LABELS) as StatsVisibility[]).map((v) => (
+          <button
+            key={v}
+            role="radio"
+            aria-checked={account.statsVisibility === v}
+            disabled={busy}
+            onClick={() => void pick(v)}
+            className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold transition', account.statsVisibility === v ? 'border-accent bg-accent/15 text-text ring-2 ring-accent/30' : 'border-border text-muted hover:border-white/25 hover:text-text')}
+            data-visibility={v}
+          >
+            {STATS_VISIBILITY_LABELS[v].label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted">{STATS_VISIBILITY_LABELS[account.statsVisibility].hint}</p>
+    </div>
+  )
+}
+
 export function AccountPage(): React.JSX.Element {
   const account = useAccount()
   const toast = useToast()
@@ -358,6 +394,7 @@ export function AccountPage(): React.JSX.Element {
               </div>
             </div>
             <ProfileEditor account={account} />
+            <StatsPrivacy account={account} />
             <div className="relative mt-6 flex flex-wrap gap-3">
               <Button variant="primary" onClick={() => navigate('/friends')}>
                 <Users className="size-4" /> Friends

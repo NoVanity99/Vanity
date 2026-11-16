@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowUp, AudioLines, CheckCheck, Loader2, MessageCircle, SendHorizontal, Smile } from 'lucide-react'
+import { ArrowUp, AudioLines, CheckCheck, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatMessage, Friend } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { useNavigate } from 'react-router-dom'
-import { EmojiPicker } from '@/components/EmojiPicker'
+import { ChatComposer } from '@/components/chat/ChatComposer'
+import { ChatGif } from '@/components/chat/ChatGif'
+import { gifOf } from '@shared/groups'
 import { isVoiceInvite, voice } from '@/state/voice'
-import { bigEmoji, replaceEmoticon } from '@/lib/emoji'
+import { bigEmoji } from '@/lib/emoji'
 import { refreshFriends, useFriends, watchChat } from '@/state/friends'
 
 const POLL_MS = 4000
 
-const MAX = 2000
 
 const dayOf = (at: number | null): string => (at ? new Date(at).toDateString() : '')
 function dayLabel(at: number | null): string {
@@ -41,7 +42,6 @@ export function FriendChat({
   /** Replaces the plain title bar (the pop-up has its own, with minimize and close). */
   header?: React.ReactNode
 }): React.JSX.Element {
-  const [emojiOpen, setEmojiOpen] = useState(false)
   const navigate = useNavigate()
   // The friend's voice room right now, for the Join button under an invite.
   const theirVoice = useFriends()?.friends.find((f) => f.id === friend.id)?.voice ?? null
@@ -49,11 +49,8 @@ export function FriendChat({
   const [more, setMore] = useState(false)
   const [seenUpTo, setSeenUpTo] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const box = useRef<HTMLDivElement>(null)
-  const input = useRef<HTMLTextAreaElement>(null)
   // Whether the view is at the newest message: only then does a new one pull it down.
   const atBottom = useRef(true)
   const lastId = useRef(0)
@@ -115,10 +112,6 @@ export function FriendChat({
     if (el && atBottom.current) el.scrollTop = el.scrollHeight
   }, [messages])
 
-  useEffect(() => {
-    if (autoFocus) input.current?.focus()
-  }, [autoFocus, friend.id])
-
   const older = async (): Promise<void> => {
     const el = box.current
     if (!messages?.length || loadingOlder) return
@@ -136,22 +129,22 @@ export function FriendChat({
     })
   }
 
-  const send = async (): Promise<void> => {
-    const body = text.trim()
-    if (!body || sending || [...body].length > MAX) return
-    setSending(true)
+  const send = async (body: string): Promise<boolean> => {
     setError(null)
     const r = await window.vanity.friends.send(friend.id, body).catch(() => null)
-    setSending(false)
-    if (!r) return setError("Couldn't send that. Check your connection and try again.")
-    if (r.error !== undefined) return setError(r.error)
-    setText('')
+    if (!r) {
+      setError("Couldn't send that. Check your connection and try again.")
+      return false
+    }
+    if (r.error !== undefined) {
+      setError(r.error)
+      return false
+    }
     atBottom.current = true
     merge([r.data], 'end')
-    input.current?.focus()
+    return true
   }
 
-  const length = [...text.trim()].length
   const lastMine = messages ? [...messages].reverse().find((m) => m.mine) : undefined
 
   return (
@@ -204,7 +197,12 @@ export function FriendChat({
                     </p>
                   )}
                   <div className={cn('flex', m.mine ? 'justify-end' : 'justify-start', joined ? 'mt-0.5' : 'mt-2')} data-message={m.mine ? 'mine' : 'theirs'}>
-                    {bigEmoji(m.text) ? (
+                    {gifOf(m.text) ? (
+                      <div title={m.at ? new Date(m.at).toLocaleString() : undefined} className={cn('flex items-end gap-2', m.mine && 'flex-row-reverse')}>
+                        <ChatGif gif={gifOf(m.text)!} />
+                        <span className="pb-1 text-[10px] tabular-nums text-muted">{timeOf(m.at)}</span>
+                      </div>
+                    ) : bigEmoji(m.text) ? (
                       // Just emoji: shown big, without a bubble.
                       <div title={m.at ? new Date(m.at).toLocaleString() : undefined} className={cn('flex items-end gap-2', m.mine && 'flex-row-reverse')} data-big-emoji>
                         <span className="text-4xl leading-tight">{m.text.trim()}</span>
@@ -254,76 +252,7 @@ export function FriendChat({
           {error}
         </p>
       )}
-      <form
-        className="relative flex shrink-0 items-end gap-2 border-t border-border p-3"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void send()
-        }}
-      >
-        <textarea
-          ref={input}
-          value={text}
-          onChange={(e) => {
-            // A typed face like :) becomes its emoji once a space follows it.
-            const el = e.target
-            const swapped = replaceEmoticon(el.value, el.selectionStart ?? el.value.length)
-            if (!swapped) return setText(el.value)
-            setText(swapped.text)
-            requestAnimationFrame(() => el.setSelectionRange(swapped.cursor, swapped.cursor))
-          }}
-          onKeyDown={(e) => {
-            // Enter sends; Shift+Enter makes a new line.
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              void send()
-            }
-          }}
-          rows={Math.min(5, Math.max(1, text.split('\n').length))}
-          placeholder={`Message ${friend.username}`}
-          aria-label={`Message ${friend.username}`}
-          className="min-h-10 flex-1 resize-none rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-sm outline-none transition placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15"
-        />
-        <button
-          type="button"
-          data-emoji-toggle
-          onClick={() => setEmojiOpen((v) => !v)}
-          aria-label="Emoji"
-          aria-expanded={emojiOpen}
-          title="Emoji"
-          className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl border border-border transition hover:border-white/25 hover:text-text', emojiOpen ? 'bg-accent/15 text-text' : 'text-muted')}
-        >
-          <Smile className="size-5" />
-        </button>
-        {emojiOpen && (
-          <EmojiPicker
-            className="absolute bottom-full right-2 z-20 mb-2"
-            onClose={() => setEmojiOpen(false)}
-            onPick={(e) => {
-              // At the cursor, or the end.
-              const el = input.current
-              const at = el ? el.selectionStart : text.length
-              const end = el ? el.selectionEnd : text.length
-              const next = text.slice(0, at) + e + text.slice(end)
-              setText(next)
-              requestAnimationFrame(() => {
-                el?.focus()
-                el?.setSelectionRange(at + e.length, at + e.length)
-              })
-            }}
-          />
-        )}
-        {length > MAX - 200 && <span className={cn('pb-2.5 text-[11px] tabular-nums', length > MAX ? 'font-semibold text-accent' : 'text-muted')}>{MAX - length}</span>}
-        <button
-          type="submit"
-          disabled={!length || length > MAX || sending}
-          aria-label="Send"
-          title="Send (Enter)"
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition hover:brightness-110 disabled:opacity-40"
-        >
-          {sending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
-        </button>
-      </form>
+      <ChatComposer placeholder={`Message ${friend.username}`} onSend={send} autoFocus={autoFocus} focusKey={friend.id} />
     </section>
   )
 }

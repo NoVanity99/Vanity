@@ -54,7 +54,16 @@ const steam = fakeSteam([
 const api = createApp({
   sql,
   steamApiKey: process.env.NO_STEAM ? '' : KEY,
-  fetchFn: steam.fetchFn,
+  // GIF search answers like KLIPY does (KLIPY_FAKE=1), since tests can't reach it.
+  klipyKey: process.env.KLIPY_FAKE ? 'local-test-key' : '',
+  fetchFn: async (url: string, init?: RequestInit) => {
+    if (url.includes('api.klipy.com')) {
+      const q = new URL(url).searchParams.get('q') ?? 'trending'
+      const data = Array.from({ length: 6 }, (_, i) => ({ id: `${q}-${i}`, type: 'gif', file: { md: { gif: { url: `https://static.klipy.com/test/${q}-${i}.gif`, width: 320, height: 180 } }, sm: { gif: { url: `https://static.klipy.com/test/${q}-${i}-sm.gif`, width: 160, height: 90 } } } }))
+      return new Response(JSON.stringify({ result: true, data: { data, current_page: 1, has_next: false } }), { status: 200 })
+    }
+    return steam.fetchFn(url, init)
+  },
   verifyToken: neonAuthVerifier(async (header, token) =>
     (keys ??= createLocalJWKSet((await (await auth.handler(new Request(`${base}/neondb/auth/.well-known/jwks.json`))).json()) as JSONWebKeySet))(header, token)
   ),

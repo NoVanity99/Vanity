@@ -50,6 +50,15 @@ export function setChatOwner(username: string | null): void {
 
 const slim = (f: ChatFriend): ChatFriend => ({ id: f.id, username: f.username, avatar: f.avatar ?? null, style: f.style, verified: f.verified === true, admin: f.admin === true })
 
+/** Group chats share the pop-ups: their id there is "group:<id>". */
+export const groupChatId = (groupId: string): string => `group:${groupId}`
+export const isGroupChat = (id: string): boolean => id.startsWith('group:')
+
+/** Opens (or brings back up) a group chat's pop-up. */
+export function openGroupChat(group: { id: string; name: string }): void {
+  openChat({ id: groupChatId(group.id), username: group.name, avatar: null, style: undefined as never, verified: false, admin: false })
+}
+
 /** Opens (or brings back up) the chat with a friend. */
 export function openChat(friend: ChatFriend): void {
   const rest = state.chats.filter((c) => c.friend.id !== friend.id)

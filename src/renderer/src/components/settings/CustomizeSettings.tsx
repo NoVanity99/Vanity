@@ -1,5 +1,5 @@
 import { RotateCcw } from 'lucide-react'
-import { CLOCK_STYLES, CORNER_STYLES, COVER_HOVERS, DEFAULT_INTERFACE, NAV_ITEMS, START_PAGES, UI_SCALES, type InterfaceOptions } from '@shared/interfaceOptions'
+import { SYSTEM_NOTIFICATIONS, CLOCK_STYLES, CORNER_STYLES, COVER_HOVERS, DEFAULT_INTERFACE, NAV_ITEMS, START_PAGES, UI_SCALES, type InterfaceOptions } from '@shared/interfaceOptions'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { isAndroid } from '@/lib/platform'
@@ -100,10 +100,12 @@ export function CustomizeSettings({ options, onChange }: { options: InterfaceOpt
         {!android && <Choice label="When the mouse is over a cover" value={options.coverHover} options={COVER_HOVERS} onPick={(coverHover) => set({ coverHover })} />}
       </Section>
 
-      <Section title="Friend notifications" description="A card in the corner of Vanity (and a Windows notification when Vanity isn't in front) when a friend does one of these.">
+      <Section title="Friend notifications" description={`A card in the corner of Vanity, and a ${android ? 'phone' : 'Windows'} notification, when a friend does one of these.`}>
         {flag('notifyFriendOnline', 'A friend comes online')}
         {flag('notifyFriendPlaying', 'A friend starts a game', 'With the name of the game.')}
-        {flag('notifyFriendMessage', 'A friend sends you a message')}
+        {flag('notifyFriendMessage', 'A friend sends you a message', 'With what they wrote.')}
+        {flag('notifyGroupMessage', 'Someone writes in a group chat', 'With who wrote and what.')}
+        <Choice label={android ? 'Phone notifications' : 'Windows notifications'} hint="Besides the card inside Vanity." value={options.systemNotifications} options={SYSTEM_NOTIFICATIONS} onPick={(systemNotifications) => set({ systemNotifications })} />
       </Section>
 
       <Section title="Look and feel" description="Size, shape and movement, everywhere in Vanity.">

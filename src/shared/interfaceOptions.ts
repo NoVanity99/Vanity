@@ -60,6 +60,13 @@ export const COVER_HOVERS = [
   { id: 'lift', label: 'Lift only' },
   { id: 'none', label: 'Nothing' }
 ] as const
+/** When friend notifications also go to Windows (or Android) itself. */
+export const SYSTEM_NOTIFICATIONS = [
+  { id: 'background', label: "When Vanity isn't in front" },
+  { id: 'always', label: 'Always' },
+  { id: 'off', label: 'Never' }
+] as const
+
 export const CLOCK_STYLES = [
   { id: 'off', label: 'Off' },
   { id: '12', label: '12-hour' },
@@ -111,6 +118,9 @@ export interface InterfaceOptions {
   notifyFriendOnline: boolean
   notifyFriendPlaying: boolean
   notifyFriendMessage: boolean
+  /** Group chat messages. */
+  notifyGroupMessage: boolean
+  systemNotifications: (typeof SYSTEM_NOTIFICATIONS)[number]['id']
 }
 
 export const DEFAULT_INTERFACE: InterfaceOptions = {
@@ -139,7 +149,9 @@ export const DEFAULT_INTERFACE: InterfaceOptions = {
   toasts: true,
   notifyFriendOnline: true,
   notifyFriendPlaying: true,
-  notifyFriendMessage: true
+  notifyFriendMessage: true,
+  notifyGroupMessage: true,
+  systemNotifications: 'background'
 }
 
 const oneOf = <T extends string>(value: unknown, list: readonly { id: T }[], fallback: T): T => (list.some((x) => x.id === value) ? (value as T) : fallback)
@@ -175,6 +187,8 @@ export function normalizeInterface(stored: unknown): InterfaceOptions {
     toasts: flag('toasts'),
     notifyFriendOnline: flag('notifyFriendOnline'),
     notifyFriendPlaying: flag('notifyFriendPlaying'),
-    notifyFriendMessage: flag('notifyFriendMessage')
+    notifyFriendMessage: flag('notifyFriendMessage'),
+    notifyGroupMessage: flag('notifyGroupMessage'),
+    systemNotifications: oneOf(v.systemNotifications, SYSTEM_NOTIFICATIONS, d.systemNotifications)
   }
 }

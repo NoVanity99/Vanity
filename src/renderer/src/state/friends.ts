@@ -1,3 +1,4 @@
+import { previewOf } from '@shared/groups'
 import { useEffect, useState } from 'react'
 import type { Friend, FriendsList } from '@shared/types'
 
@@ -20,6 +21,8 @@ export interface FriendNote {
   detail: string | null
   /** Where clicking it goes. */
   to: string
+  /** A message in a group chat: which one (clicking opens it). */
+  group?: { id: string; name: string }
 }
 
 let current: FriendsList | null = null
@@ -61,7 +64,7 @@ export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, wa
     }
     const last = friend.lastMessage
     if (last && !last.mine && last.id > was.lastMessage && !isWatched(friend.id)) {
-      notes.push({ kind: 'message', friend, action: 'sent you a message', detail: last.text, to: `/friends/${friend.id}` })
+      notes.push({ kind: 'message', friend, action: 'sent you a message', detail: previewOf(last.text), to: `/friends/${friend.id}` })
     }
   }
   return notes
@@ -117,6 +120,9 @@ export function useFriendsRefresh(username: string | null | undefined): void {
   }, [username])
 }
 
+/** The friends list right now (outside React). */
+export const currentFriends = (): FriendsList | null => current
+
 export function useFriends(): FriendsList | null {
   const [list, setList] = useState<FriendsList | null>(current)
   useEffect(() => {
@@ -127,6 +133,17 @@ export function useFriends(): FriendsList | null {
     }
   }, [])
   return list
+}
+
+/** Shows a notification card from elsewhere (group chats). */
+export function emitFriendNote(note: Omit<FriendNote, 'id'>): void {
+  const full = { ...note, id: noteId++ }
+  for (const l of noteListeners) l(full)
+}
+
+/** Whether a chat (a friend's id, or "group:<id>") is open on screen right now. */
+export function isWatched(id: string): boolean {
+  return document.hasFocus() && watching.has(id)
 }
 
 export function onFriendNote(listener: (note: FriendNote) => void): () => void {

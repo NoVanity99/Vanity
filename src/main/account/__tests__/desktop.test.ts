@@ -38,10 +38,10 @@ describe('session vault (desktop)', () => {
     const raw = readFileSync(file, 'latin1')
     expect(raw).not.toContain('session_token')
     expect(raw).not.toContain('a@example.com')
-    expect(await createSessionVault(file).load()).toEqual({ ...session, avatar: null, bio: '', style: DEFAULT_PROFILE_STYLE, verified: false, admin: false })
+    expect(await createSessionVault(file).load()).toEqual({ ...session, avatar: null, bio: '', style: DEFAULT_PROFILE_STYLE, statsVisibility: 'everyone', verified: false, admin: false })
 
     // The profile last seen from the server is kept with it, so it shows offline too.
-    const profile = { avatar: 'data:image/jpeg;base64,AAAA', bio: 'hello', style: { ...DEFAULT_PROFILE_STYLE, banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥', aura: 'orbit', title: 'Night owl' }, verified: true, admin: true }
+    const profile = { avatar: 'data:image/jpeg;base64,AAAA', bio: 'hello', statsVisibility: 'friends' as const, style: { ...DEFAULT_PROFILE_STYLE, banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥', aura: 'orbit', title: 'Night owl' }, verified: true, admin: true }
     await vault.save({ ...session, ...profile })
     expect(await createSessionVault(file).load()).toEqual({ ...session, ...profile })
   })

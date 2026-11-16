@@ -40,6 +40,11 @@ export interface VanityNative {
    */
   installUpdate?(opts: { url: string }): Promise<void>
   addListener?(event: 'updateProgress', cb: (data: { percent: number }) => void): Promise<{ remove(): Promise<void> }> | { remove(): Promise<void> }
+  addListener?(event: 'notificationClick', cb: (data: { action: string }) => void): Promise<{ remove(): Promise<void> }> | { remove(): Promise<void> }
+  /** A notification; tapping it reports "notificationClick" with `action`. `shown` is false without permission. */
+  notify?(opts: { title: string; body: string; action: string }): Promise<{ shown: boolean }>
+  /** Asks for permission to show notifications (Android 13+). */
+  requestNotifications?(): Promise<{ granted: boolean }>
   /**
    * One https request made by the app itself, not the web view, so the Cookie and Origin headers
    * can be set (sign-in with Neon Auth needs both). Nothing is stored by Android.

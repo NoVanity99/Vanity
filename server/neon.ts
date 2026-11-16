@@ -16,6 +16,8 @@ export default defineConfig({
         // or in this repository. The Deploy backend workflow passes it from the GitHub secret
         // STEAM_WEB_API_KEY. A deploy without it keeps the value that is already set.
         STEAM_WEB_API_KEY: { value: process.env.STEAM_WEB_API_KEY, required: false, onUndefined: 'skip' },
+        // GIF search in chats (https://partner.klipy.com). Optional; without it, GIFs come from people's devices only.
+        KLIPY_API_KEY: { value: process.env.KLIPY_API_KEY, required: false, onUndefined: 'skip' },
         // Optional TURN relay for voice rooms (players on strict networks). TURN_SECRET makes each
         // player a short-lived login and never leaves this function. Passed from GitHub secrets.
         TURN_URLS: { value: process.env.TURN_URLS, required: false, onUndefined: 'skip' },

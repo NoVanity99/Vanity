@@ -1,4 +1,5 @@
 import { friendsVoice, iceConfigFromEnv, voiceRoutes, type IceConfig } from './voice'
+import { groupRoutes, validGifText } from './groups'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
@@ -21,6 +22,8 @@ export interface AppOptions {
   syncRateLimit?: number
   /** Max messages one account may send per minute. */
   messageRateLimit?: number
+  /** KLIPY's key for GIF search (optional: without it, only GIFs from people's devices). */
+  klipyKey?: string
   /** STUN/TURN for voice rooms (TURN optional). */
   voiceIce?: IceConfig
   /** Max voice requests (checking in, connection details) per account per minute. */
@@ -54,6 +57,11 @@ const MAX_AVATAR_CHARS = 60_000
 const AVATAR = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 /** What everyone may see of an account: its name, picture and official badges. */
+export type StatsVisibility = 'everyone' | 'friends' | 'private'
+const VISIBILITIES: StatsVisibility[] = ['everyone', 'friends', 'private']
+/** Who can see a player's stats (anything unknown counts as the default, everyone). */
+export const visibilityOf = (v: unknown): StatsVisibility => (VISIBILITIES.includes(v as StatsVisibility) ? (v as StatsVisibility) : 'everyone')
+
 export function publicUser(row: { id: string; username: string; avatar?: string | null; style?: unknown }): { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean } {
   return { id: row.id, username: row.username, avatar: row.avatar ?? null, style: readStyle(row.style), ...rolesFor(row.username) }
 }
@@ -109,7 +117,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -193,8 +201,8 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
 
   /** The signed-in account as the app sees it. */
   const account = async (c: Context<Env>) => {
-    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${c.get('userId')}`
-    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), ...rolesFor(profile?.username) }
+    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown; stats_visibility: string | null }>`SELECT username, avatar, bio, style, stats_visibility FROM vanity.profiles WHERE id = ${c.get('userId')}`
+    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), statsVisibility: visibilityOf(profile?.stats_visibility), ...rolesFor(profile?.username) }
   }
 
   /**
@@ -222,8 +230,12 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
 
   /** Sets the profile picture (null removes it) and/or the bio. Fields left out stay as they are. */
   app.put('/me/profile', requireAuth, requireUser, async (c) => {
-    const b = await body<{ avatar: string | null; bio: string; style: Partial<ProfileStyle> }>(c)
+    const b = await body<{ avatar: string | null; bio: string; style: Partial<ProfileStyle>; statsVisibility: string }>(c)
     const id = c.get('userId')
+    if (b.statsVisibility !== undefined) {
+      if (!VISIBILITIES.includes(b.statsVisibility as StatsVisibility)) fail(400, 'Pick everyone, friends or only you.')
+      await sql`UPDATE vanity.profiles SET stats_visibility = ${b.statsVisibility} WHERE id = ${id}`
+    }
     if (b.avatar !== undefined) {
       if (b.avatar !== null && (typeof b.avatar !== 'string' || !AVATAR.test(b.avatar))) fail(400, 'That picture could not be used. Try a PNG or JPEG image.')
       if (b.avatar !== null && b.avatar.length > MAX_AVATAR_CHARS) fail(400, 'That picture is too large.')
@@ -548,9 +560,21 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     return c.body(null, 204)
   })
 
-  app.get('/friends/:id/stats', requireAuth, requireUser, async (c) => {
-    const id = c.req.param('id')
-    if (!(await areFriends(c.get('userId'), id))) fail(403, 'You can only see stats of your friends.')
+  /**
+   * A player's profile and stats. Who may see them is the player's choice: everyone signed in
+   * (the default), friends only, or only themselves. `/users/:id/stats` and the older
+   * `/friends/:id/stats` are the same.
+   */
+  const playerStats = async (c: Context<Env>) => {
+    const id = c.req.param('id') ?? ''
+    const viewer = c.get('userId')
+    const [who] = await sql<{ username: string; stats_visibility: string | null }>`SELECT username, stats_visibility FROM vanity.profiles WHERE id = ${id}`
+    if (!who) fail(404, "That player doesn't exist (any more).", 'no_user')
+    const friends = viewer === id || (await areFriends(viewer, id))
+    const visibility = visibilityOf(who!.stats_visibility)
+    if (viewer !== id && (visibility === 'private' || (visibility === 'friends' && !friends))) {
+      fail(403, visibility === 'private' ? `${who!.username} keeps their profile private.` : `${who!.username} only shows their profile to friends.`, 'stats_hidden')
+    }
     const [user] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${id}`
     const [st] = await sql<{ level: number; xp: number; badges: unknown }>`SELECT level, xp, badges FROM vanity.user_state WHERE user_id = ${id}`
     const badges = typeof st?.badges === 'string' ? (JSON.parse(st.badges) as Record<string, number>) : ((st?.badges as Record<string, number> | undefined) ?? {})
@@ -631,8 +655,24 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       averageRating: rated.length ? Math.round((rated.reduce((sum, p) => sum + (p.user_rating ?? 0), 0) / rated.length) * 10) / 10 : null,
       ratedGames: rated.length,
       steam: steamLink ? { name: steamLink.display_name, profileUrl: steamLink.profile_url } : null,
-      messages: { sent: mine?.sent ?? 0, received: mine?.received ?? 0, firstAt: toMs(mine?.first_at) }
+      messages: { sent: mine?.sent ?? 0, received: mine?.received ?? 0, firstAt: toMs(mine?.first_at) },
+      id,
+      isFriend: friends && viewer !== id
     })
+  }
+  app.get('/friends/:id/stats', requireAuth, requireUser, playerStats)
+  app.get('/users/:id/stats', requireAuth, requireUser, playerStats)
+
+  /** Finds players by the start of their username (to view their profile or add them). */
+  app.get('/users/search', requireAuth, requireUser, rateLimit, async (c) => {
+    const q = (c.req.query('q') ?? '').trim()
+    if (!/^[A-Za-z0-9_]{1,20}$/.test(q)) return c.json({ users: [] })
+    const me = c.get('userId')
+    const rows = await sql<{ id: string; username: string; avatar: string | null; style: unknown }>`
+      SELECT id, username, avatar, style FROM vanity.profiles
+      WHERE lower(username) LIKE ${q.toLowerCase().replace(/_/g, '\\_') + '%'} AND id <> ${me}
+      ORDER BY (lower(username) = ${q.toLowerCase()}) DESC, length(username), username LIMIT 10`
+    return c.json({ users: rows.map((r) => publicUser(r)) })
   })
 
   // ---- messages between friends (kept for good) --------------------------------
@@ -681,6 +721,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const clean = typeof text === 'string' ? text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim() : ''
     if (!clean) fail(400, 'Write a message first.')
     if ([...clean].length > MAX_MESSAGE) fail(400, `Messages can be up to ${MAX_MESSAGE.toLocaleString('en-US')} characters.`)
+    if (!validGifText(clean)) fail(400, "That GIF can't be sent.")
     const t = Date.now()
     const s = sends.get(me)
     if (!s || s.reset < t) sends.set(me, { count: 1, reset: t + 60_000 })
@@ -706,6 +747,10 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   })
 
   // ---- voice rooms (see voice.ts) ---------------------------------------------
+  const chats = groupRoutes({ sql, requireAuth, requireUser, areFriends, klipyKey, fetchFn: fetchFn ?? fetch, messageRateLimit, now })
+  app.route('/groups', chats.groups)
+  app.route('/gifs', chats.gifs)
+  app.route('/media', chats.media)
   app.route('/voice', voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice: voiceIce ?? iceConfigFromEnv({}), rateLimit: voiceRateLimit, now }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))

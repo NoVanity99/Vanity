@@ -70,7 +70,7 @@ describe('/api prefix', () => {
 describe('accounts', () => {
   it('knows a signed-in account before and after it picks a username', async () => {
     const before = await call('GET', '/me', 't:u1')
-    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: DEFAULT_STYLE, verified: false, admin: false })
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: DEFAULT_STYLE, statsVisibility: 'everyone', verified: false, admin: false })
     // Everything social needs a username first, and says so in a way the app can act on.
     const friends = await call('GET', '/friends', 't:u1')
     expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])
@@ -83,7 +83,7 @@ describe('accounts', () => {
   it('never stores passwords or emails', async () => {
     await register('alice')
     const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'style', 'username'])
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'stats_visibility', 'style', 'username'])
   })
 
   it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {
@@ -513,7 +513,25 @@ describe('presence and stats', () => {
     expect(stats.recent[0].gameName).toBe('Celeste')
     expect((await call('GET', '/friends', a.token)).json.friends[0]).toMatchObject({ totalPlaytimeSeconds: 11300, gamesPlayed: 2, topGame: 'Portal 2' })
 
-    expect((await call('GET', `/friends/${b.id}/stats`, c.token)).status).toBe(403)
+    // Profiles are public by default: someone who isn't a friend sees them too.
+    expect((await call('GET', `/users/${b.id}/stats`, c.token)).json).toMatchObject({ username: 'bob', gamesPlayed: 2, isFriend: false })
+    expect((await call('GET', `/users/${b.id}/stats`, a.token)).json.isFriend).toBe(true)
+    expect((await call('GET', '/me', b.token)).json.user.statsVisibility).toBe('everyone')
+    // Friends only.
+    expect((await call('PUT', '/me/profile', b.token, { statsVisibility: 'friends' })).json.user.statsVisibility).toBe('friends')
+    const hidden = await call('GET', `/users/${b.id}/stats`, c.token)
+    expect([hidden.status, hidden.json.error]).toEqual([403, 'bob only shows their profile to friends.'])
+    expect((await call('GET', `/users/${b.id}/stats`, a.token)).status).toBe(200)
+    // Only me.
+    await call('PUT', '/me/profile', b.token, { statsVisibility: 'private' })
+    expect((await call('GET', `/friends/${b.id}/stats`, a.token)).status).toBe(403)
+    expect((await call('GET', `/users/${b.id}/stats`, b.token)).status).toBe(200)
+    expect((await call('PUT', '/me/profile', b.token, { statsVisibility: 'world' })).status).toBe(400)
+    await call('PUT', '/me/profile', b.token, { statsVisibility: 'everyone' })
+    expect((await call('GET', '/users/nobody-here/stats', a.token)).status).toBe(404)
+    // Finding players by name.
+    expect((await call('GET', '/users/search?q=BO', c.token)).json.users.map((u: any) => u.username)).toEqual(['bob'])
+    expect((await call('GET', '/users/search?q=%25', c.token)).json.users).toEqual([])
     expect((await call('GET', '/games/steam%3A620/friends', a.token)).json.friends).toEqual([
       { id: b.id, username: 'bob', avatar: null, style: DEFAULT_STYLE, verified: false, admin: false, playtimeSeconds: 7300, lastPlayedAt: null }
     ])

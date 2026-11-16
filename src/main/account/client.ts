@@ -1,7 +1,8 @@
 import type { SyncRequest, SyncResponse } from '@shared/sync'
 import type { VoiceSignal, VoiceUpdate } from '@shared/voiceProtocol'
+import type { GifResult, GroupChat, GroupMessage, GroupPage } from '@shared/groups'
 import type { ProfileStyle } from '../../shared/profileStyle'
-import type { ChatMessage, ChatPage, FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
+import type { ChatMessage, ChatPage, FriendsList, FriendStats, GameFriend, PublicUser, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
 import { AccountError } from './errors'
 import { OFFLINE_MESSAGE } from './neonAuth'
@@ -16,6 +17,7 @@ export interface Me {
   avatar: string | null
   bio: string
   style?: unknown
+  statsVisibility?: string
   verified: boolean
   admin: boolean
 }
@@ -70,7 +72,7 @@ export class AccountClient {
   me = async () => (await this.call<{ user: Me }>('GET', '/me')).user
   setUsername = async (username: string) => (await this.call<{ user: Me }>('PUT', '/me/username', { username })).user
   /** Sets the picture (null removes it) and/or the bio; fields left out stay as they are. */
-  setProfile = async (patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }) => (await this.call<{ user: Me }>('PUT', '/me/profile', patch)).user
+  setProfile = async (patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: string }) => (await this.call<{ user: Me }>('PUT', '/me/profile', patch)).user
   deleteAccount = () => this.call<void>('DELETE', '/me')
 
   heartbeat = (game: { gameKey: string; gameName: string; startedAt: number } | null) =>
@@ -98,7 +100,9 @@ export class AccountClient {
   accept = (id: string) => this.call<void>('POST', `/friends/requests/${encodeURIComponent(id)}/accept`)
   decline = (id: string) => this.call<void>('DELETE', `/friends/requests/${encodeURIComponent(id)}`)
   removeFriend = (id: string) => this.call<void>('DELETE', `/friends/${encodeURIComponent(id)}`)
-  friendStats = (id: string) => this.call<FriendStats>('GET', `/friends/${encodeURIComponent(id)}/stats`)
+  friendStats = (id: string) => this.call<FriendStats>('GET', `/users/${encodeURIComponent(id)}/stats`)
+  /** Players whose username starts with `q`. */
+  searchPlayers = async (q: string) => (await this.call<{ users: PublicUser[] }>('GET', `/users/search?q=${encodeURIComponent(q)}`)).users
   /** A page of the chat with a friend: the newest, older ones before a message, or only what is newer than one. */
   messages = (id: string, opts: { before?: number; after?: number; limit?: number } = {}) => {
     const q = new URLSearchParams(Object.entries(opts).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)).map(([k, v]): [string, string] => [k, String(Math.trunc(v as number))]))
@@ -106,6 +110,21 @@ export class AccountClient {
   }
   sendMessage = async (id: string, text: string) => (await this.call<{ message: ChatMessage }>('POST', `/friends/${encodeURIComponent(id)}/messages`, { text })).message
   gameFriends = async (key: string) => (await this.call<{ friends: GameFriend[] }>('GET', `/games/${encodeURIComponent(key)}/friends`)).friends
+
+  // Group chats, GIFs (server/src/groups.ts).
+  groups = async () => (await this.call<{ groups: GroupChat[] }>('GET', '/groups')).groups
+  createGroup = async (name: string, memberIds: string[]) => (await this.call<{ group: GroupChat }>('POST', '/groups', { name, memberIds })).group
+  renameGroup = async (id: string, name: string) => (await this.call<{ group: GroupChat }>('PATCH', `/groups/${encodeURIComponent(id)}`, { name })).group
+  addToGroup = async (id: string, userId: string) => (await this.call<{ group: GroupChat }>('POST', `/groups/${encodeURIComponent(id)}/members`, { userId })).group
+  removeFromGroup = (id: string, userId: string) => this.call<void>('DELETE', `/groups/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`)
+  groupMessages = (id: string, opts: { before?: number; after?: number } = {}) => {
+    const q = new URLSearchParams(Object.entries(opts).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)).map(([k, v]): [string, string] => [k, String(Math.trunc(v as number))]))
+    return this.call<GroupPage>('GET', `/groups/${encodeURIComponent(id)}/messages${q.size ? `?${q}` : ''}`)
+  }
+  sendGroupMessage = async (id: string, text: string) => (await this.call<{ message: GroupMessage }>('POST', `/groups/${encodeURIComponent(id)}/messages`, { text })).message
+  searchGifs = async (q: string, page = 1) => (await this.call<{ gifs: GifResult[] }>('GET', `/gifs?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page) })}`)).gifs
+  uploadGif = async (base64: string) => (await this.call<{ id: string }>('POST', '/media', { data: base64 })).id
+  media = (id: string) => this.call<{ mime: string; data: string }>('GET', `/media/${encodeURIComponent(id)}`)
 
   // Voice rooms (server/src/voice.ts).
   voiceStart = (opts: { private?: boolean; locked?: boolean }) => this.call<VoiceUpdate>('POST', '/voice/rooms', { private: opts.private === true, locked: opts.locked === true })

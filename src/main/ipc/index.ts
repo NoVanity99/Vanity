@@ -2,6 +2,7 @@ import type { PushToTalkHotkey } from '../voice/hotkeys'
 import { pickScreen, screenSources } from '../voice/screen'
 import { canShareScreenAudio, startScreenAudio, stopScreenAudio } from '../voice/screenAudio'
 import { setStreamWindowOnTop } from '../voice/streamWindows'
+import { chatApi } from '../account/chatApi'
 import { MAX_SIGNALS_PER_SEND, type VoiceSignal } from '@shared/voiceProtocol'
 import { DEFAULT_PROFILE_STYLE, type ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
@@ -52,6 +53,17 @@ const GAME_FILE_FILTERS: Electron.FileFilter[] = [
 ]
 
 /** Runs a handler and turns any failure into a message the UI can show. */
+/** Notifications are kept until closed: one that's garbage-collected stops reacting to clicks. */
+const shownNotifications = new Set<Notification>()
+function keepNotification(n: Notification): void {
+  shownNotifications.add(n)
+  const drop = (): void => void shownNotifications.delete(n)
+  n.on('close', drop)
+  n.on('click', drop)
+  // Windows keeps old ones in the Action Center; stop holding them after a day.
+  setTimeout(drop, 24 * 3600_000)
+}
+
 async function wrap<T>(fn: () => Promise<T>): Promise<Result<T>> {
   try {
     return { data: await fn() }
@@ -393,7 +405,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.accountSignOut, () => account.signOut())
   ipcMain.handle(IPC.accountAvailability, (_e, input: { username?: string; email?: string }) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })))
   ipcMain.handle(IPC.accountSetUsername, (_e, u: string) => wrap(() => account.setUsername(text(u))))
-  ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })))
+  ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: string }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.statsVisibility === 'everyone' || patch?.statsVisibility === 'friends' || patch?.statsVisibility === 'private' ? { statsVisibility: patch.statsVisibility } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })))
   ipcMain.handle(IPC.accountSendResetCode, (_e, email: string) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)))
   ipcMain.handle(IPC.accountResetPassword, (_e, email: string, code: string, p: string) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)))
   ipcMain.handle(IPC.accountDelete, () => wrap(() => account.deleteAccount()))
@@ -402,22 +414,37 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.friendsAccept, (_e, id: string) => wrap(async () => (await account.guard((c) => c.accept(text(id))), true as const)))
   ipcMain.handle(IPC.friendsDecline, (_e, id: string) => wrap(async () => (await account.guard((c) => c.decline(text(id))), true as const)))
   ipcMain.handle(IPC.friendsRemove, (_e, id: string) => wrap(async () => (await account.guard((c) => c.removeFriend(text(id))), true as const)))
-  ipcMain.handle(IPC.appNotify, (e, title: string, body: string) => {
+  ipcMain.handle(IPC.appNotify, (e, title: string, body: string, action?: string) => {
     if (!Notification.isSupported()) return
     const n = new Notification({ title: text(title, 120), body: text(body, 300) })
-    // Clicking it brings Vanity back to the front.
+    keepNotification(n)
+    // Clicking it brings Vanity back to the front, and opens what it was about (a chat, a profile).
     n.on('click', () => {
       const win = BrowserWindow.fromWebContents(e.sender)
       if (!win) return
       if (win.isMinimized()) win.restore()
       win.show()
       win.focus()
+      const a = typeof action === 'string' ? text(action, 120) : ''
+      if (a && !e.sender.isDestroyed()) e.sender.send(IPC.appNotificationClick, a)
     })
     n.show()
   })
   ipcMain.handle(IPC.friendsMessages, (_e, id: string, opts: { before?: number; after?: number; limit?: number }) => wrap(() => account.guard((c) => c.messages(text(id), chatOpts(opts)))))
   ipcMain.handle(IPC.friendsSend, (_e, id: string, body: string) => wrap(() => account.guard((c) => c.sendMessage(text(id), text(body, 4000)))))
   ipcMain.handle(IPC.friendsStats, (_e, id: string) => wrap(() => account.guard((c) => c.friendStats(text(id)))))
+  const chats = chatApi(account)
+  ipcMain.handle(IPC.groupsList, () => chats.groups.list())
+  ipcMain.handle(IPC.groupsCreate, (_e, name: string, ids: string[]) => chats.groups.create(name, ids))
+  ipcMain.handle(IPC.groupsRename, (_e, id: string, name: string) => chats.groups.rename(id, name))
+  ipcMain.handle(IPC.groupsAdd, (_e, id: string, userId: string) => chats.groups.add(id, userId))
+  ipcMain.handle(IPC.groupsRemove, (_e, id: string, userId: string) => chats.groups.remove(id, userId))
+  ipcMain.handle(IPC.groupsMessages, (_e, id: string, opts: { before?: number; after?: number }) => chats.groups.messages(id, opts))
+  ipcMain.handle(IPC.groupsSend, (_e, id: string, text: string) => chats.groups.send(id, text))
+  ipcMain.handle(IPC.gifsSearch, (_e, q: string, page: number) => chats.gifs.search(q, page))
+  ipcMain.handle(IPC.gifsUpload, (_e, b64: string) => chats.gifs.upload(b64))
+  ipcMain.handle(IPC.gifsMedia, (_e, id: string) => chats.gifs.media(id))
+  ipcMain.handle(IPC.friendsSearch, (_e, q: string) => wrap(() => account.guard((c) => c.searchPlayers(text(q, 20)))))
   ipcMain.handle(IPC.friendsForGame, (_e, gameId: number) =>
     wrap(async () => {
       const game = store.get(Number(gameId))

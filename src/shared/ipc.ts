@@ -1,5 +1,6 @@
 import type { ProfileStyle } from './profileStyle'
 import type { VoiceSignal, VoiceUpdate } from './voiceProtocol'
+import type { GifResult, GroupChat, GroupMessage, GroupPage } from './groups'
 import type {
   ChatMessage,
   ChatPage,
@@ -38,7 +39,9 @@ import type {
   TrackInfo,
   DiscordStatus,
   NowListening,
-  Collection
+  Collection,
+  PublicUser,
+  StatsVisibility
 } from './types'
 
 export interface PlayStats {
@@ -90,7 +93,14 @@ export interface VanityApi {
   /** Which version of Vanity this is: the Windows desktop app or the Android app. */
   platform: 'desktop' | 'android'
   /** Shows a system notification (on Windows; Android shows these inside the app only). Clicking it brings Vanity forward. */
-  notify(title: string, body: string): Promise<void>
+  /**
+   * A Windows or Android notification. `action` says what clicking it opens ("chat:<friend id>",
+   * "group:<group id>", "friend:<id>", "voice"), reported to onNotificationClick.
+   */
+  notify(title: string, body: string, action?: string): Promise<void>
+  onNotificationClick(callback: (action: string) => void): () => void
+  /** Asks to show notifications (phones, Android 13+). True when allowed. */
+  allowNotifications(): Promise<boolean>
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
@@ -204,12 +214,32 @@ export interface VanityApi {
     /** Picks the username of a new account, or renames it. */
     setUsername(username: string): Promise<Result<AccountState>>
     /** Sets your profile picture (a small image as a data: address; null removes it), your bio and/or your profile's look. */
-    setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle> }): Promise<Result<AccountState>>
+    setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: StatsVisibility }): Promise<Result<AccountState>>
     /** Emails a 6-digit code for choosing a new password. */
     sendResetCode(email: string): Promise<Result<true>>
     resetPassword(email: string, code: string, password: string): Promise<Result<true>>
     /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
+  }
+  /** Group chats with friends (kept on the Vanity server for good). */
+  groups: {
+    list(): Promise<Result<GroupChat[]>>
+    create(name: string, memberIds: string[]): Promise<Result<GroupChat>>
+    rename(id: string, name: string): Promise<Result<GroupChat>>
+    add(id: string, userId: string): Promise<Result<GroupChat>>
+    /** Leave ('me') or, for the group's owner, remove someone. */
+    remove(id: string, userId: string): Promise<Result<true>>
+    messages(id: string, opts?: { before?: number; after?: number }): Promise<Result<GroupPage>>
+    send(id: string, text: string): Promise<Result<GroupMessage>>
+  }
+  /** GIFs for chats: search (KLIPY, through Vanity's server), and GIFs from your device. */
+  gifs: {
+    /** Search, or what's trending with no text. `off` when the server has no GIF search set up. */
+    search(query: string, page?: number): Promise<Result<GifResult[]> & { off?: boolean }>
+    /** Sends a GIF file's bytes (base64) to the server; the id goes in a message. */
+    upload(base64: string): Promise<Result<string>>
+    /** An uploaded GIF, as a data: address (kept in memory once fetched). */
+    media(id: string): Promise<Result<string>>
   }
   /**
    * Voice rooms, run by the Vanity server (no separate voice server, no codes). Friends see your
@@ -312,6 +342,8 @@ export interface VanityApi {
     decline(id: string): Promise<Result<true>>
     remove(id: string): Promise<Result<true>>
     stats(id: string): Promise<Result<FriendStats>>
+    /** Players whose username starts with the text (to view their profile or add them). */
+    search(query: string): Promise<Result<PublicUser[]>>
     /** A page of your chat with a friend (reading it marks their messages as read). */
     messages(id: string, opts?: { before?: number; after?: number; limit?: number }): Promise<Result<ChatPage>>
     /** Sends a message to a friend. Messages are kept for good. */
@@ -401,6 +433,7 @@ export const IPC = {
   gamesCoversByName: 'games:covers-by-name',
   friendsMessages: 'friends:messages',
   friendsSend: 'friends:send',
+  appNotificationClick: 'app:notification-click',
   appNotify: 'app:notify',
   sessionsStates: 'sessions:states',
   collectionsList: 'collections:list',
@@ -467,6 +500,16 @@ export const IPC = {
   accountSignOut: 'account:sign-out',
   accountSetUsername: 'account:set-username',
   accountAvailability: 'account:availability',
+  groupsList: 'groups:list',
+  groupsCreate: 'groups:create',
+  groupsRename: 'groups:rename',
+  groupsAdd: 'groups:add',
+  groupsRemove: 'groups:remove',
+  groupsMessages: 'groups:messages',
+  groupsSend: 'groups:send',
+  gifsSearch: 'gifs:search',
+  gifsUpload: 'gifs:upload',
+  gifsMedia: 'gifs:media',
   voiceStart: 'voice:start',
   voiceJoin: 'voice:join',
   voiceLeave: 'voice:leave',
@@ -494,6 +537,7 @@ export const IPC = {
   friendsAccept: 'friends:accept',
   friendsDecline: 'friends:decline',
   friendsRemove: 'friends:remove',
+  friendsSearch: 'friends:search',
   friendsStats: 'friends:stats',
   friendsForGame: 'friends:for-game',
   liveGame: 'live:game',

@@ -1,14 +1,17 @@
+import { previewOf } from '@shared/groups'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AudioLines, Check, Clock, Gamepad2, Lock, LogIn, Radio, MessageCircle, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
-import type { Friend, FriendsList, FriendStats } from '@shared/types'
+import { AudioLines, Check, Clock, Gamepad2, Lock, LogIn, Radio, MessageCircle, Plus, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
+import type { Friend, FriendsList, FriendStats, PublicUser } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { ProfileTitle, UserName } from '@/components/UserName'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { useAccount } from '@/state/account'
-import { openChat } from '@/state/chats'
+import { openChat, openGroupChat } from '@/state/chats'
+import { useGroups } from '@/state/groups'
+import { NewGroupDialog } from '@/components/chat/GroupDialogs'
 import { publishFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
 import { useVoice, voice } from '@/state/voice'
@@ -22,6 +25,75 @@ export function statusLine(f: Friend, now = Date.now()): string {
   }
   if (f.status.state === 'online') return 'Online'
   return f.status.lastSeen ? `Last seen ${formatAgo(f.status.lastSeen)}` : 'Offline'
+}
+
+/** Your group chats (click one to open it), and making a new one. */
+function GroupChats(): React.JSX.Element {
+  const groups = useGroups()
+  const [making, setMaking] = useState(false)
+  return (
+    <section className="space-y-2.5" data-group-chats>
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">
+          Group chats {groups && groups.length > 0 && <span className="font-normal">· {groups.length}</span>}
+        </h2>
+        <Button className="ml-auto" onClick={() => setMaking(true)} data-new-group>
+          <Plus className="size-4" /> New group chat
+        </Button>
+      </div>
+      {groups && groups.length === 0 && <p className="rounded-2xl border border-dashed border-border px-4 py-5 text-center text-sm text-muted">Chat with several friends at once: make a group.</p>}
+      {groups?.map((g) => (
+        <button key={g.id} onClick={() => openGroupChat(g)} className="flex w-full items-center gap-4 rounded-2xl border border-border bg-surface p-3.5 text-left transition hover:-translate-y-0.5 hover:border-white/25" data-group-row={g.name}>
+          <span className="flex -space-x-3">
+            {g.members.slice(0, 3).map((m) => (
+              <Avatar key={m.id} name={m.username} src={m.avatar} className="ring-2 ring-surface" />
+            ))}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{g.name}</span>
+            <span className={cn('block truncate text-xs', g.unread ? 'font-semibold text-text' : 'text-muted')}>
+              {g.lastMessage ? `${g.lastMessage.senderName}: ${previewOf(g.lastMessage.text)}` : `${g.members.length} people · no messages yet`}
+            </span>
+          </span>
+          {g.unread > 0 && <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold tabular-nums text-white">{g.unread > 99 ? '99+' : g.unread}</span>}
+        </button>
+      ))}
+      {making && <NewGroupDialog onClose={() => setMaking(false)} />}
+    </section>
+  )
+}
+
+/** Players whose name starts with what's typed, under the search box: click one to see their profile. */
+function PlayerSearch({ query, friendIds, onPick }: { query: string; friendIds: Set<string>; onPick: (u: PublicUser) => void }): React.JSX.Element | null {
+  const [results, setResults] = useState<PublicUser[]>([])
+  const q = query.trim()
+  useEffect(() => {
+    if (!/^[A-Za-z0-9_]{2,20}$/.test(q)) return setResults([])
+    let alive = true
+    const t = setTimeout(() => {
+      void window.vanity.friends.search(q).then((r) => alive && setResults(r.data ?? []), () => {})
+    }, 250)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [q])
+  if (!results.length || !q) return null
+  return (
+    <ul className="animate-pop-in absolute right-0 top-full z-30 mt-2 w-80 rounded-2xl border border-white/15 bg-surface p-1.5 shadow-2xl shadow-black/60" data-player-search>
+      {results.map((u) => (
+        <li key={u.id}>
+          <button type="button" onClick={() => onPick(u)} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition hover:bg-white/5" data-player-result={u.username}>
+            <Avatar name={u.username} src={u.avatar} frame={u.style?.frame} aura={u.style?.aura} size="sm" />
+            <span className="min-w-0 flex-1">
+              <UserName name={u.username} style={u.style} verified={u.verified} admin={u.admin} className="text-sm font-semibold" />
+            </span>
+            <span className="shrink-0 text-xs text-muted">{friendIds.has(u.id) ? 'Friend' : 'View profile'}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; selected: boolean; onSelect: () => void; index: number }): React.JSX.Element {
@@ -66,7 +138,7 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
             <MessageCircle className="size-3 shrink-0" />
             <span className="truncate">
               {friend.lastMessage.mine ? 'You: ' : ''}
-              {friend.lastMessage.text}
+              {previewOf(friend.lastMessage.text)}
             </span>
           </span>
         )}
@@ -316,16 +388,17 @@ export function FriendsPage(): React.JSX.Element {
             </p>
           </div>
           <form
-            className="ml-auto flex gap-2"
+            className="relative ml-auto flex gap-2"
             onSubmit={(e) => {
               e.preventDefault()
               void add()
             }}
           >
+            <PlayerSearch query={adding} friendIds={new Set(list?.friends.map((f) => f.id) ?? [])} onPick={(u) => navigate(`/friends/${u.id}`)} />
             <input
               value={adding}
               onChange={(e) => setAdding(e.target.value)}
-              placeholder="Add a friend by username"
+              placeholder="Find a player or add a friend"
               spellCheck={false}
               className="h-10 w-64 rounded-xl border border-border bg-surface-2 px-4 text-sm outline-none transition placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15"
             />
@@ -378,6 +451,7 @@ export function FriendsPage(): React.JSX.Element {
               </div>
             )}
             {!list && !error && Array.from({ length: 3 }, (_, i) => <div key={i} className="shimmer h-[68px] rounded-2xl bg-surface" />)}
+            {list && list.friends.length > 0 && <GroupChats />}
             {groups.map((g) => (
               <section key={g.title} className="space-y-2.5">
                 <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">

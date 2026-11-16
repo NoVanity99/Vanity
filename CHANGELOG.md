@@ -3,6 +3,17 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.26.0 (2026-11-16)
+- New: **group chats.** On the Friends page, **New group chat** picks friends (and a name). It opens in the same pop-ups as your other chats, with everyone's picture and name. Anyone in it can rename it and add their friends; whoever made it can remove people. Up to 20 people.
+- New: **GIFs in every chat.** The **GIF** button next to emoji searches GIFs (trending ones show first), or sends a GIF from your PC or phone (up to 3 MB).
+  - GIF search needs a free KLIPY key added to the server once (see the release notes on GitHub); until then, sending GIFs from your device works.
+- New: **notifications everywhere.** A friend coming online, starting a game (with its name), sending you a message (with what they wrote), and messages in group chats now show as a card in Vanity **and** as a Windows notification or, on phones, an Android notification. Click one to open that chat or profile.
+  - Settings → Customize → **Windows notifications**: while Vanity isn't in front (default), always, or never. A new switch for group chat messages too.
+  - On Android, Vanity asks once for permission to show notifications.
+- New: **public profiles.** Anyone signed in can see your profile and stats by default. Pick who can on the Account page: **Everyone**, **Friends** or **Only me**. Find any player by name with the search box on the Friends page, open their profile, and add them from there.
+- Fixed: **Jump back in** could lose games (most often after an update) until you played them again. A game's last-played time now comes back from its play history, and a game found in two places keeps the latest play of both.
+- Changed: the **Updates** settings show just the **Check now** button and its status.
+
 ## 0.25.0 (2026-11-16)
 - New: **game details in Big Picture.** **Details** (or **X** on a controller) opens a full-screen details screen sized for a TV, without leaving Big Picture.
   - Big buttons for **Play** (or **Install**), **Close game** while it's running, **Favorite**, **Open folder** and **Full page**.

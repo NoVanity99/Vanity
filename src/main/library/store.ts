@@ -128,6 +128,10 @@ export function gameKey(g: Pick<DetectedGame, 'source' | 'externalId'>): string 
 const COLLECTION_IDS = '(SELECT group_concat(collection_id) FROM collection_games WHERE game_id = g.id) AS collection_ids'
 
 export function createSqliteStore(db: Db, now: () => number = Date.now): LibraryStore {
+  // A game played here always has its last-played time: if it was ever lost, it comes back from
+  // the newest play session on record (so "Jump back in" and "Recently played" stay right).
+  db.exec(`UPDATE games SET last_played_at = (SELECT MAX(COALESCE(s.ended_at, s.started_at)) FROM play_sessions s WHERE s.game_id = games.id)
+    WHERE last_played_at IS NULL AND EXISTS (SELECT 1 FROM play_sessions s WHERE s.game_id = games.id)`)
   const q = {
     list: db.prepare<[], GameRow>(`SELECT g.*, ${COLLECTION_IDS} FROM games g ORDER BY g.name COLLATE NOCASE`),
     get: db.prepare<[number], GameRow>(`SELECT g.*, ${COLLECTION_IDS} FROM games g WHERE g.id = ?`),

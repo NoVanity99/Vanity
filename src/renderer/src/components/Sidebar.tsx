@@ -1,6 +1,7 @@
 import { VoiceBar } from '@/components/voice/VoiceBar'
 import { useVoice } from '@/state/voice'
 import { useFriends } from '@/state/friends'
+import { useGroups } from '@/state/groups'
 import { clampSidebarWidth, NAV_ITEMS, SIDEBAR_WIDTH, type InterfaceOptions, TAB_ORDER_DEFAULT, type NavItemId, type TabId } from '@shared/interfaceOptions'
 import { useTabDrag } from './useTabDrag'
 import { ContextMenu, type MenuItem } from './ContextMenu'
@@ -223,7 +224,8 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   // How many friends are online right now, and how many messages are waiting (kept fresh in the background).
   const friendList = useFriends()
   const friendsOnline = friendList?.friends.filter((f) => f.status.state !== 'offline').length
-  const friendsUnread = friendList?.friends.reduce((sum, f) => sum + (f.unread ?? 0), 0)
+  const groupList = useGroups()
+  const friendsUnread = (friendList?.friends.reduce((sum, f) => sum + (f.unread ?? 0), 0) ?? 0) + (groupList?.reduce((sum, g) => sum + g.unread, 0) ?? 0) || undefined
   const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
   // People in your voice room (shown next to Voice while you're in one).
   const voiceState = useVoice()

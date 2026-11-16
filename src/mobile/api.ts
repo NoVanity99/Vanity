@@ -1,4 +1,5 @@
 import { DEFAULT_PROFILE_STYLE, type ProfileStyle } from '@shared/profileStyle'
+import { chatApi } from '../main/account/chatApi'
 import type { Result, VanityApi } from '@shared/ipc'
 import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, StoreAccounts, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
@@ -251,11 +252,19 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     Object.fromEntries((['before', 'after', 'limit'] as const).filter((k) => typeof o?.[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0).map((k) => [k, Math.trunc(o![k] as number)]))
   /** Only the four known fields of a profile look, as short text (the server checks the values). */
   const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((Object.keys(DEFAULT_PROFILE_STYLE) as (keyof ProfileStyle)[]).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
+  const chats = chatApi(account)
   const discordOff: DiscordStatus = { state: 'off', user: null, error: null }
 
   return {
     platform: 'android',
-    notify: async () => {},
+    notify: async (title, body, action) => {
+      await native.notify?.({ title: text(title, 120), body: text(body, 300), action: typeof action === 'string' ? text(action, 120) : '' }).catch(() => {})
+    },
+    onNotificationClick: (callback) => {
+      const handle = native.addListener?.('notificationClick', (d: { action: string }) => callback(d.action))
+      return () => void Promise.resolve(handle).then((h) => h?.remove())
+    },
+    allowNotifications: async () => (await native.requestNotifications?.().catch(() => null))?.granted ?? false,
     games: {
       list: async () => store.list(),
       get: async (id) => store.get(id),
@@ -399,6 +408,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       recentGames: () => wrap(() => steamService.recentGames()),
       achievements: (appId) => wrap(() => steamService.achievements(Number(appId)))
     },
+    ...chats,
     voice: {
       start: (o) => wrap(() => account.guard((c) => c.voiceStart({ private: o?.private === true, locked: o?.locked === true }))),
       join: (roomId) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))),
@@ -432,7 +442,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       signOut: () => account.signOut(),
       availability: (input) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })),
       setUsername: (u) => wrap(() => account.setUsername(text(u))),
-      setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })),
+      setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.statsVisibility === 'everyone' || patch?.statsVisibility === 'friends' || patch?.statsVisibility === 'private' ? { statsVisibility: patch.statsVisibility } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })),
       sendResetCode: (email) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)),
       resetPassword: (email, code, p) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)),
       deleteAccount: () => wrap(() => account.deleteAccount())
@@ -444,6 +454,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       decline: (id) => wrap(async () => (await account.guard((c) => c.decline(text(id))), true as const)),
       remove: (id) => wrap(async () => (await account.guard((c) => c.removeFriend(text(id))), true as const)),
       stats: (id) => wrap(() => account.guard((c) => c.friendStats(text(id)))),
+      search: (q) => wrap(() => account.guard((c) => c.searchPlayers(text(q, 20)))),
       messages: (id, opts) => wrap(() => account.guard((c) => c.messages(text(id), chatOpts(opts)))),
       send: (id, body) => wrap(() => account.guard((c) => c.sendMessage(text(id), text(body, 4000)))),
       forGame: (gameId) =>

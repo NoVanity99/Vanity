@@ -1,4 +1,5 @@
 import { normalizeProfileStyle } from '@shared/profileStyle'
+import { statsVisibilityOf } from '@shared/types'
 import type { AuthHttp } from '../main/account/neonAuth'
 import type { SavedSession, SessionVault } from '../main/account/service'
 import { native } from './native'
@@ -28,6 +29,7 @@ export const mobileSessionVault: SessionVault = {
           avatar: typeof parsed.avatar === 'string' ? parsed.avatar : null,
           bio: typeof parsed.bio === 'string' ? parsed.bio : '',
           style: normalizeProfileStyle(parsed.style),
+          statsVisibility: statsVisibilityOf(parsed.statsVisibility),
           verified: parsed.verified === true,
           admin: parsed.admin === true
         }

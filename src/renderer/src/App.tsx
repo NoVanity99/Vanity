@@ -16,6 +16,7 @@ import { FriendNotifications } from './components/FriendNotifications'
 import { ChatDock } from './components/ChatDock'
 import { useAccount } from './state/account'
 import { useFriendsRefresh } from './state/friends'
+import { useGroupsRefresh } from './state/groups'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { BottomNav } from './components/BottomNav'
@@ -88,6 +89,7 @@ function Shell(): React.JSX.Element {
 
   // Friends are kept fresh in the background for the sidebar's counts and for notifications.
   useFriendsRefresh(useAccount()?.username)
+  useGroupsRefresh(useAccount()?.username)
   const startPath = START_PAGES.find((p) => p.id === ui.startPage)?.path ?? '/library'
 
   // Cloud sync brought something in from another device: show it.

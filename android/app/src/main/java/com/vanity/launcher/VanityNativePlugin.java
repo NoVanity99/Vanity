@@ -2,6 +2,9 @@ package com.vanity.launcher;
 
 import android.Manifest;
 import android.app.AppOpsManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.ContentUris;
@@ -34,6 +37,7 @@ import com.getcapacitor.annotation.PermissionCallback;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.content.pm.PackageInfoCompat;
 
@@ -72,7 +76,9 @@ import java.util.concurrent.Executors;
     name = "VanityNative",
     permissions = {
         @Permission(alias = "audio", strings = { Manifest.permission.READ_MEDIA_AUDIO }),
-        @Permission(alias = "storage", strings = { Manifest.permission.READ_EXTERNAL_STORAGE })
+        @Permission(alias = "storage", strings = { Manifest.permission.READ_EXTERNAL_STORAGE }),
+        // Android 13+ asks before an app may show notifications (friends, messages).
+        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
     }
 )
 public class VanityNativePlugin extends Plugin {
@@ -661,5 +667,94 @@ public class VanityNativePlugin extends Plugin {
         } catch (Exception e) {
             call.reject("No app on this phone can open that link", e);
         }
+    }
+
+    // ---- notifications: friends coming online, starting a game, messages ------------------
+
+    private static final String FRIENDS_CHANNEL = "friends";
+
+    private boolean canNotify() {
+        return Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == PermissionState.GRANTED;
+    }
+
+    /** Asks for permission to show notifications (Android 13+). Resolves { granted }. */
+    @PluginMethod
+    public void requestNotifications(PluginCall call) {
+        if (canNotify()) {
+            JSObject r = new JSObject();
+            r.put("granted", true);
+            call.resolve(r);
+        } else {
+            requestPermissionForAlias("notifications", call, "notificationsPermission");
+        }
+    }
+
+    @PermissionCallback
+    private void notificationsPermission(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("granted", canNotify());
+        call.resolve(r);
+    }
+
+    /** Shows a notification. Tapping it opens Vanity and reports `action` (which chat or page to open). */
+    @PluginMethod
+    public void notify(PluginCall call) {
+        JSObject r = new JSObject();
+        if (!canNotify()) {
+            r.put("shown", false);
+            call.resolve(r);
+            return;
+        }
+        Context ctx = getContext();
+        String title = call.getString("title", "Vanity");
+        String body = call.getString("body", "");
+        String action = call.getString("action", "");
+        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = new NotificationChannel(FRIENDS_CHANNEL, "Friends and messages", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Friends coming online, starting games, and new messages");
+            nm.createNotificationChannel(channel);
+        }
+        int id = (int) (System.nanoTime() & 0x7fffffff);
+        Intent intent = new Intent(ctx, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.putExtra("vanityAction", action);
+        PendingIntent pending = PendingIntent.getActivity(ctx, id, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, FRIENDS_CHANNEL)
+            .setSmallIcon(ctx.getApplicationInfo().icon)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setAutoCancel(true)
+            .setContentIntent(pending);
+        nm.notify(id, b.build());
+        r.put("shown", true);
+        call.resolve(r);
+    }
+
+    @Override
+    public void load() {
+        super.load();
+        // Opened by tapping a notification while Vanity wasn't running.
+        reportNotificationTap(getActivity().getIntent());
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        reportNotificationTap(intent);
+    }
+
+    private void reportNotificationTap(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getStringExtra("vanityAction");
+        if (action == null || action.isEmpty()) return;
+        intent.removeExtra("vanityAction");
+        JSObject o = new JSObject();
+        o.put("action", action);
+        // Kept until the page is listening, so a cold start doesn't lose it.
+        notifyListeners("notificationClick", o, true);
     }
 }

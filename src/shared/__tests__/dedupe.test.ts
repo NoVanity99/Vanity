@@ -27,4 +27,9 @@ describe('no duplicate games', () => {
   it('never merges games whose names are only symbols', () => {
     expect(dedupeByName([g(1, '???'), g(2, '!!!')])).toHaveLength(2)
   })
+
+  it('gives the copy shown the latest play of any copy, so it stays in Jump back in', () => {
+    const [shown] = dedupeByName([g(1, 'Hades', { lastPlayedAt: null }), g(2, 'Hades', { source: 'custom', missing: true, lastPlayedAt: 5000 })])
+    expect([shown.id, shown.lastPlayedAt]).toEqual([1, 5000])
+  })
 })

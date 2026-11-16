@@ -38,6 +38,17 @@ export function dedupeByName(games: Game[]): Game[] {
     const current = best.get(key)
     best.set(key, current ? better(current, g) : g)
   }
+  // The copy shown carries the latest play of any copy, so it still counts as recently played.
+  const latest = new Map<string, number>()
+  for (const g of games) {
+    const key = nameKey(g.name) || `#${g.id}`
+    if (g.lastPlayedAt !== null && g.lastPlayedAt > (latest.get(key) ?? 0)) latest.set(key, g.lastPlayedAt)
+  }
   const keep = new Set([...best.values()].map((g) => g.id))
-  return games.filter((g) => keep.has(g.id))
+  return games
+    .filter((g) => keep.has(g.id))
+    .map((g) => {
+      const last = latest.get(nameKey(g.name) || `#${g.id}`) ?? null
+      return last !== null && last !== g.lastPlayedAt ? { ...g, lastPlayedAt: last } : g
+    })
 }

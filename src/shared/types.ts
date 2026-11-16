@@ -349,6 +349,15 @@ export interface GameLive {
 
 // ---- Accounts and friends ------------------------------------------------------
 
+/** Who can see a player's stats on their profile. */
+export type StatsVisibility = 'everyone' | 'friends' | 'private'
+export const STATS_VISIBILITY_LABELS: Record<StatsVisibility, { label: string; hint: string }> = {
+  everyone: { label: 'Everyone', hint: 'Anyone signed in to Vanity can see your profile and stats.' },
+  friends: { label: 'Friends', hint: 'Only your friends can see your profile and stats.' },
+  private: { label: 'Only me', hint: 'Nobody else can see your profile and stats.' }
+}
+export const statsVisibilityOf = (v: unknown): StatsVisibility => (v === 'friends' || v === 'private' ? v : 'everyone')
+
 export interface AccountState {
   /** This build knows where Vanity's account service is (src/shared/backend.ts). */
   available: boolean
@@ -367,6 +376,8 @@ export interface AccountState {
   bio: string
   /** How your profile looks to you and everyone else (see src/shared/profileStyle.ts). */
   style: ProfileStyle
+  /** Who can see your profile and stats (everyone by default). */
+  statsVisibility: StatsVisibility
   /** Official badges. Only Vanity's server grants them. */
   verified: boolean
   admin: boolean
@@ -451,6 +462,10 @@ export interface FriendGameStat {
 }
 
 export interface FriendStats {
+  /** Their account id (older servers may leave it out). */
+  id?: string
+  /** False when you're looking at the profile of someone who isn't your friend. */
+  isFriend?: boolean
   username: string
   avatar: string | null
   bio: string
