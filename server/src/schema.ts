@@ -32,6 +32,21 @@ CREATE TABLE IF NOT EXISTS vanity.friendships (
 );
 CREATE INDEX IF NOT EXISTS friendships_addressee ON vanity.friendships (addressee_id);
 
+-- Messages between friends. Kept for good: nothing here ever deletes a message
+-- (only deleting an account removes that account's side of its conversations).
+CREATE TABLE IF NOT EXISTS vanity.messages (
+  id            bigserial PRIMARY KEY,
+  sender_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  recipient_id  text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  body          text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  read_at       timestamptz,
+  CHECK (sender_id <> recipient_id)
+);
+-- A conversation is the two people, whoever wrote: least/greatest puts both directions under one key.
+CREATE INDEX IF NOT EXISTS messages_conversation ON vanity.messages (least(sender_id, recipient_id), greatest(sender_id, recipient_id), id DESC);
+CREATE INDEX IF NOT EXISTS messages_unread ON vanity.messages (recipient_id, sender_id) WHERE read_at IS NULL;
+
 -- What each user is doing right now. The app sends a heartbeat about once a minute.
 -- signed_off is true after the user signs out or closes Vanity. updated_at is then "last seen".
 CREATE TABLE IF NOT EXISTS vanity.presence (

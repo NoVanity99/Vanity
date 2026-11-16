@@ -18,6 +18,8 @@ export interface AppOptions {
   lookupRateLimit?: number
   /** Max syncs per account per minute. */
   syncRateLimit?: number
+  /** Max messages one account may send per minute. */
+  messageRateLimit?: number
   /** The Steam Web API key: a server secret, never sent to the app. Empty: Steam routes say "not set up". */
   steamApiKey?: string
   /** Max Steam requests per account per minute. */
@@ -39,6 +41,9 @@ const USERNAME = /^[A-Za-z0-9_]{3,20}$/
 const ONLINE_WINDOW = '3 minutes'
 const MAX_STATS = 5000
 const MAX_BIO = 200
+const MAX_MESSAGE = 2000
+/** Messages one account may send per minute. */
+const MESSAGE_RATE = 40
 /** A profile picture is a small image the app has already shrunk: about 40 KB at most. */
 const MAX_AVATAR_CHARS = 60_000
 const AVATAR = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
@@ -68,6 +73,26 @@ async function body<T>(c: Context): Promise<Partial<T>> {
   }
 }
 
+/** How many days someone has played, their run of days up to today (or yesterday), and their longest run. */
+function streaksOf(days: string[], nowMs: number): { days: number; current: number; best: number } {
+  const set = new Set(days.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))
+  const sorted = [...set].sort()
+  const dayNumber = (d: string): number => Math.round(Date.parse(`${d}T00:00:00Z`) / 86_400_000)
+  let best = 0
+  let run = 0
+  let prev = NaN
+  for (const d of sorted) {
+    const n = dayNumber(d)
+    run = n === prev + 1 ? run + 1 : 1
+    best = Math.max(best, run)
+    prev = n
+  }
+  // The run counts if its last day is today or yesterday (the friend may be in another time zone).
+  const today = Math.floor(nowMs / 86_400_000)
+  const current = sorted.length && today - dayNumber(sorted[sorted.length - 1]) <= 1 ? run : 0
+  return { days: set.size, current, best }
+}
+
 /** Shapes a presence row into what friends see. */
 function status(row: { online: boolean; game_name: string | null; started_at: unknown; updated_at: unknown }): {
   state: 'playing' | 'online' | 'offline'
@@ -79,7 +104,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -422,6 +447,11 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       top_game: string | null
       level: number | null
       xp: number | null
+      unread: number
+      last_id: string | number | null
+      last_body: string | null
+      last_at: unknown
+      last_mine: boolean | null
     }>`
       SELECT u.id, u.username, u.avatar, u.bio, u.style,
         COALESCE(NOT p.signed_off AND p.updated_at > now() - ${ONLINE_WINDOW}::interval, false) AS online,
@@ -429,11 +459,18 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
         COALESCE((SELECT SUM(playtime_seconds) FROM vanity.game_stats s WHERE s.user_id = u.id), 0)::int AS total,
         (SELECT COUNT(*) FROM vanity.game_stats s WHERE s.user_id = u.id AND s.playtime_seconds > 0)::int AS games,
         (SELECT game_name FROM vanity.game_stats s WHERE s.user_id = u.id ORDER BY playtime_seconds DESC LIMIT 1) AS top_game,
-        st.level, st.xp
+        st.level, st.xp,
+        (SELECT COUNT(*) FROM vanity.messages m WHERE m.recipient_id = ${me} AND m.sender_id = u.id AND m.read_at IS NULL)::int AS unread,
+        lm.id AS last_id, lm.body AS last_body, lm.created_at AS last_at, (lm.sender_id = ${me}) AS last_mine
       FROM vanity.friendships f
       JOIN vanity.profiles u ON u.id = CASE WHEN f.requester_id = ${me} THEN f.addressee_id ELSE f.requester_id END
       LEFT JOIN vanity.presence p ON p.user_id = u.id
       LEFT JOIN vanity.user_state st ON st.user_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT m.id, m.body, m.created_at, m.sender_id FROM vanity.messages m
+        WHERE least(m.sender_id, m.recipient_id) = least(${me}, u.id) AND greatest(m.sender_id, m.recipient_id) = greatest(${me}, u.id)
+        ORDER BY m.id DESC LIMIT 1
+      ) lm ON true
       WHERE f.status = 'accepted' AND (f.requester_id = ${me} OR f.addressee_id = ${me})
       ORDER BY lower(u.username)`
     const incoming = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
@@ -451,7 +488,9 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
         gamesPlayed: f.games,
         topGame: f.top_game,
         level: f.level ?? 1,
-        xp: f.xp ?? 0
+        xp: f.xp ?? 0,
+        unread: f.unread ?? 0,
+        lastMessage: f.last_id == null ? null : { id: Number(f.last_id), text: (f.last_body ?? '').slice(0, 200), at: toMs(f.last_at), mine: f.last_mine === true }
       })),
       incoming: incoming.map((r) => ({ ...publicUser(r), createdAt: toMs(r.created_at) })),
       outgoing: outgoing.map((r) => ({ ...publicUser(r), createdAt: toMs(r.created_at) }))
@@ -507,10 +546,50 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const [user] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${id}`
     const [st] = await sql<{ level: number; xp: number; badges: unknown }>`SELECT level, xp, badges FROM vanity.user_state WHERE user_id = ${id}`
     const badges = typeof st?.badges === 'string' ? (JSON.parse(st.badges) as Record<string, number>) : ((st?.badges as Record<string, number> | undefined) ?? {})
+    const me = c.get('userId')
+    const [user2] = await sql<{ created_at: unknown }>`SELECT created_at FROM vanity.profiles WHERE id = ${id}`
+    const [state] = await sql<{ days: unknown }>`SELECT days FROM vanity.user_state WHERE user_id = ${id}`
     const games = await sql<{ game_key: string; game_name: string; playtime_seconds: number; last_played_at: unknown }>`
       SELECT game_key, game_name, playtime_seconds, last_played_at FROM vanity.game_stats
       WHERE user_id = ${id} AND playtime_seconds > 0 ORDER BY playtime_seconds DESC`
-    const shape = (g: (typeof games)[number]) => ({ gameKey: g.game_key, gameName: g.game_name, playtimeSeconds: g.playtime_seconds, lastPlayedAt: toMs(g.last_played_at) })
+    // Launches and the first time each game was played, added up over the friend's devices.
+    const perGame = await sql<{ game_key: string; launches: number; first_played_at: unknown }>`
+      SELECT game_key, SUM(launches)::int AS launches, MIN(first_played_at) AS first_played_at
+      FROM vanity.device_games WHERE user_id = ${id} GROUP BY game_key`
+    const extra = new Map(perGame.map((g) => [g.game_key, g]))
+    const prefs = await sql<{ game_key: string; favorite: boolean; play_status: string | null; user_rating: number | null }>`
+      SELECT game_key, favorite, play_status, user_rating FROM vanity.game_prefs WHERE user_id = ${id}`
+    const pref = new Map(prefs.map((p) => [p.game_key, p]))
+    const [counts] = await sql<{ friends: number; mutual: number }>`
+      SELECT
+        (SELECT COUNT(*) FROM vanity.friendships f WHERE f.status = 'accepted' AND (f.requester_id = ${id} OR f.addressee_id = ${id}))::int AS friends,
+        (SELECT COUNT(*) FROM vanity.friendships a
+           JOIN vanity.friendships b ON b.status = 'accepted'
+            AND (CASE WHEN b.requester_id = ${me} THEN b.addressee_id ELSE b.requester_id END) = (CASE WHEN a.requester_id = ${id} THEN a.addressee_id ELSE a.requester_id END)
+            AND (b.requester_id = ${me} OR b.addressee_id = ${me})
+          WHERE a.status = 'accepted' AND (a.requester_id = ${id} OR a.addressee_id = ${id}))::int AS mutual`
+    const [steamLink] = await sql<{ display_name: string; profile_url: string }>`
+      SELECT display_name, profile_url FROM vanity.linked_accounts WHERE user_id = ${id} AND provider = 'steam'`
+    const [mine] = await sql<{ sent: number; received: number; first_at: unknown }>`
+      SELECT COUNT(*) FILTER (WHERE sender_id = ${me})::int AS sent, COUNT(*) FILTER (WHERE sender_id = ${id})::int AS received, MIN(created_at) AS first_at
+      FROM vanity.messages WHERE least(sender_id, recipient_id) = least(${me}, ${id}) AND greatest(sender_id, recipient_id) = greatest(${me}, ${id})`
+    const [since] = await sql<{ created_at: unknown }>`SELECT created_at FROM vanity.friendships
+      WHERE (requester_id = ${me} AND addressee_id = ${id}) OR (requester_id = ${id} AND addressee_id = ${me})`
+
+    const days = (typeof state?.days === 'string' ? (JSON.parse(state.days) as unknown) : state?.days) ?? []
+    const streaks = streaksOf(Array.isArray(days) ? days.filter((d): d is string => typeof d === 'string') : [], (now ?? Date.now)())
+    const shape = (g: (typeof games)[number]) => ({
+      gameKey: g.game_key,
+      gameName: g.game_name,
+      playtimeSeconds: g.playtime_seconds,
+      lastPlayedAt: toMs(g.last_played_at),
+      launches: extra.get(g.game_key)?.launches ?? 0,
+      firstPlayedAt: toMs(extra.get(g.game_key)?.first_played_at),
+      favorite: pref.get(g.game_key)?.favorite === true,
+      playStatus: pref.get(g.game_key)?.play_status ?? null,
+      rating: pref.get(g.game_key)?.user_rating ?? null
+    })
+    const rated = prefs.filter((p) => typeof p.user_rating === 'number')
     return c.json({
       username: user?.username ?? '',
       avatar: user?.avatar ?? null,
@@ -520,15 +599,87 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       level: st?.level ?? 1,
       xp: st?.xp ?? 0,
       badges: Object.keys(badges),
+      /** When each badge was earned (ms). */
+      badgeTimes: badges,
       totalPlaytimeSeconds: games.reduce((sum, g) => sum + g.playtime_seconds, 0),
       gamesPlayed: games.length,
-      top: games.slice(0, 10).map(shape),
+      top: games.slice(0, 25).map(shape),
       recent: [...games]
         .filter((g) => g.last_played_at)
         .sort((a, b) => (toMs(b.last_played_at) ?? 0) - (toMs(a.last_played_at) ?? 0))
-        .slice(0, 5)
-        .map(shape)
+        .slice(0, 8)
+        .map(shape),
+      memberSince: toMs(user2?.created_at),
+      friendsSince: toMs(since?.created_at),
+      friendCount: counts?.friends ?? 0,
+      mutualFriends: counts?.mutual ?? 0,
+      launches: perGame.reduce((sum, g) => sum + (g.launches ?? 0), 0),
+      daysPlayed: streaks.days,
+      currentStreak: streaks.current,
+      bestStreak: streaks.best,
+      favorites: games.filter((g) => pref.get(g.game_key)?.favorite).slice(0, 12).map(shape),
+      finished: prefs.filter((p) => p.play_status === 'beaten' || p.play_status === 'completed').length,
+      playing: games.filter((g) => pref.get(g.game_key)?.play_status === 'playing').slice(0, 6).map(shape),
+      averageRating: rated.length ? Math.round((rated.reduce((sum, p) => sum + (p.user_rating ?? 0), 0) / rated.length) * 10) / 10 : null,
+      ratedGames: rated.length,
+      steam: steamLink ? { name: steamLink.display_name, profileUrl: steamLink.profile_url } : null,
+      messages: { sent: mine?.sent ?? 0, received: mine?.received ?? 0, firstAt: toMs(mine?.first_at) }
     })
+  })
+
+  // ---- messages between friends (kept for good) --------------------------------
+
+  const sends = new Map<string, { count: number; reset: number }>()
+  type MessageRow = { id: string | number; sender_id: string; body: string; created_at: unknown; read_at: unknown }
+  const message = (m: MessageRow, me: string) => ({ id: Number(m.id), mine: m.sender_id === me, text: m.body, at: toMs(m.created_at), readAt: toMs(m.read_at) })
+
+  /**
+   * A page of the conversation with a friend, oldest first. `before` (a message id) pages back
+   * through history; `after` asks only for what is newer than the last message you have.
+   * Reading it marks their messages to you as read.
+   */
+  app.get('/friends/:id/messages', requireAuth, requireUser, async (c) => {
+    const me = c.get('userId')
+    const other = c.req.param('id')
+    if (!(await areFriends(me, other))) fail(403, 'You can only message your friends.')
+    const num = (v: string | undefined): number | null => (v && /^\d{1,15}$/.test(v) ? Number(v) : null)
+    const before = num(c.req.query('before'))
+    const after = num(c.req.query('after'))
+    const limit = Math.min(100, Math.max(1, num(c.req.query('limit')) ?? 50))
+    const rows =
+      after !== null
+        ? await sql<MessageRow>`SELECT id, sender_id, body, created_at, read_at FROM vanity.messages
+            WHERE least(sender_id, recipient_id) = least(${me}, ${other}) AND greatest(sender_id, recipient_id) = greatest(${me}, ${other}) AND id > ${after}
+            ORDER BY id ASC LIMIT ${limit + 1}`
+        : await sql<MessageRow>`SELECT id, sender_id, body, created_at, read_at FROM vanity.messages
+            WHERE least(sender_id, recipient_id) = least(${me}, ${other}) AND greatest(sender_id, recipient_id) = greatest(${me}, ${other})
+              AND (${before}::bigint IS NULL OR id < ${before}::bigint)
+            ORDER BY id DESC LIMIT ${limit + 1}`
+    const more = rows.length > limit
+    const page = rows.slice(0, limit)
+    if (after === null) page.reverse()
+    await sql`UPDATE vanity.messages SET read_at = now() WHERE recipient_id = ${me} AND sender_id = ${other} AND read_at IS NULL`
+    // What they have read of yours, so "Seen" can be shown under your last message.
+    const [seen] = await sql<{ id: string | number | null }>`SELECT MAX(id) AS id FROM vanity.messages WHERE sender_id = ${me} AND recipient_id = ${other} AND read_at IS NOT NULL`
+    return c.json({ messages: page.map((m) => message(m, me)), more, seenUpTo: seen?.id == null ? null : Number(seen.id) })
+  })
+
+  app.post('/friends/:id/messages', requireAuth, requireUser, async (c) => {
+    const me = c.get('userId')
+    const other = c.req.param('id')
+    if (!(await areFriends(me, other))) fail(403, 'You can only message your friends.')
+    const { text } = await body<{ text: string }>(c)
+    // Line breaks are kept; other control characters are dropped.
+    const clean = typeof text === 'string' ? text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim() : ''
+    if (!clean) fail(400, 'Write a message first.')
+    if ([...clean].length > MAX_MESSAGE) fail(400, `Messages can be up to ${MAX_MESSAGE.toLocaleString('en-US')} characters.`)
+    const t = Date.now()
+    const s = sends.get(me)
+    if (!s || s.reset < t) sends.set(me, { count: 1, reset: t + 60_000 })
+    else if (++s.count > messageRateLimit) fail(429, "You're sending messages very fast. Wait a moment and try again.")
+    const [row] = await sql<MessageRow>`INSERT INTO vanity.messages (sender_id, recipient_id, body) VALUES (${me}, ${other}, ${clean})
+      RETURNING id, sender_id, body, created_at, read_at`
+    return c.json({ message: message(row, me) }, 201)
   })
 
   /** Friends who have played a game (by Vanity's game key). */

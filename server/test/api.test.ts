@@ -125,6 +125,157 @@ describe('accounts', () => {
   })
 })
 
+describe('messages between friends', () => {
+  it('sends, keeps and returns a conversation in order, for both sides', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    await befriend(a, b, 'bob')
+    expect((await call('GET', `/friends/${b.id}/messages`, a.token)).json).toEqual({ messages: [], more: false, seenUpTo: null })
+
+    const sent = await call('POST', `/friends/${b.id}/messages`, a.token, { text: '  hey bob!\n\n\n\nfancy a game?  ' })
+    expect(sent.status).toBe(201)
+    expect(sent.json.message).toMatchObject({ mine: true, text: 'hey bob!\n\nfancy a game?', readAt: null })
+    await call('POST', `/friends/${a.id}/messages`, b.token, { text: 'sure, 8pm?' })
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'see you then' })
+
+    // Bob's friends list shows what's waiting, before he opens the chat.
+    const list = (await call('GET', '/friends', b.token)).json.friends[0]
+    expect(list).toMatchObject({ username: 'alice', unread: 2, lastMessage: { text: 'see you then', mine: false } })
+    expect((await call('GET', '/friends', a.token)).json.friends[0]).toMatchObject({ unread: 1, lastMessage: { mine: true } })
+
+    const bob = (await call('GET', `/friends/${a.id}/messages`, b.token)).json
+    expect(bob.messages.map((m: any) => [m.mine, m.text])).toEqual([[false, 'hey bob!\n\nfancy a game?'], [true, 'sure, 8pm?'], [false, 'see you then']])
+    expect(bob.more).toBe(false)
+    // Opening it marked Alice's messages as read, and Alice can see that.
+    expect((await call('GET', '/friends', b.token)).json.friends[0].unread).toBe(0)
+    const alice = (await call('GET', `/friends/${b.id}/messages`, a.token)).json
+    expect(alice.messages.map((m: any) => m.mine)).toEqual([true, false, true])
+    expect(alice.seenUpTo).toBe(alice.messages[2].id)
+    expect(alice.messages[0].readAt).not.toBeNull()
+  })
+
+  it('pages back through a long history and fetches only what is new', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    await befriend(a, b, 'bob')
+    for (let i = 1; i <= 7; i++) await call('POST', `/friends/${b.id}/messages`, a.token, { text: `m${i}` })
+    const latest = (await call('GET', `/friends/${a.id}/messages?limit=3`, b.token)).json
+    expect(latest.messages.map((m: any) => m.text)).toEqual(['m5', 'm6', 'm7'])
+    expect(latest.more).toBe(true)
+    const older = (await call('GET', `/friends/${a.id}/messages?limit=3&before=${latest.messages[0].id}`, b.token)).json
+    expect(older.messages.map((m: any) => m.text)).toEqual(['m2', 'm3', 'm4'])
+    const oldest = (await call('GET', `/friends/${a.id}/messages?limit=3&before=${older.messages[0].id}`, b.token)).json
+    expect([oldest.messages.map((m: any) => m.text), oldest.more]).toEqual([['m1'], false])
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'm8' })
+    expect((await call('GET', `/friends/${a.id}/messages?after=${latest.messages[2].id}`, b.token)).json.messages.map((m: any) => m.text)).toEqual(['m8'])
+    expect((await call('GET', `/friends/${a.id}/messages?after=999999`, b.token)).json.messages).toEqual([])
+  })
+
+  it('is only between friends, and nobody else can read it', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    const eve = await register('eve')
+    await befriend(a, b, 'bob')
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'secret plan' })
+    for (const [method, path, body] of [['GET', `/friends/${a.id}/messages`, undefined], ['GET', `/friends/${b.id}/messages`, undefined], ['POST', `/friends/${a.id}/messages`, { text: 'hi' }]] as const) {
+      const r = await call(method, path, eve.token, body)
+      expect([r.status, r.json.error]).toEqual([403, 'You can only message your friends.'])
+    }
+    expect((await call('GET', `/friends/${b.id}/messages`)).status).toBe(401)
+    // Eve befriends Bob: she sees her own chat with him, never Alice's.
+    await befriend(eve, b, 'bob')
+    expect((await call('GET', `/friends/${b.id}/messages`, eve.token)).json.messages).toEqual([])
+    // No longer friends: the chat can't be opened, but it is still there if they make up.
+    await call('DELETE', `/friends/${b.id}`, a.token)
+    expect((await call('GET', `/friends/${b.id}/messages`, a.token)).status).toBe(403)
+    await befriend(a, b, 'bob')
+    expect((await call('GET', `/friends/${b.id}/messages`, a.token)).json.messages.map((m: any) => m.text)).toEqual(['secret plan'])
+  })
+
+  it('refuses empty, huge and too many messages, and stores text as text', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    await befriend(a, b, 'bob')
+    for (const text of ['', '   \n  ', 42, null]) expect((await call('POST', `/friends/${b.id}/messages`, a.token, { text })).status).toBe(400)
+    expect((await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'x'.repeat(2001) })).status).toBe(400)
+    expect((await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'x'.repeat(2000) })).status).toBe(201)
+    const odd = `<img src=x onerror=alert(1)> '; DROP TABLE vanity.messages; -- 🎮`
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: odd })
+    expect((await call('GET', `/friends/${a.id}/messages`, b.token)).json.messages.at(-1).text).toBe(odd)
+
+    const fresh = await freshDb()
+    const strict = createApp({ sql: fresh.sql, verifyToken, migrate: fresh.migrate, lookupRateLimit: 1000, messageRateLimit: 3 })
+    const send = async (token: string, path: string, body?: unknown, method = 'POST') =>
+      strict.request(path, { method, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body) })
+    await send('t:x', '/me/username', { username: 'xena' }, 'PUT')
+    await send('t:y', '/me/username', { username: 'yuri' }, 'PUT')
+    await send('t:x', '/friends/requests', { username: 'yuri' })
+    await send('t:y', '/friends/requests/x/accept')
+    const codes = []
+    for (let i = 0; i < 5; i++) codes.push((await send('t:x', '/friends/y/messages', { text: `m${i}` })).status)
+    expect(codes).toEqual([201, 201, 201, 429, 429])
+  })
+
+  it('keeps messages for good: nothing deletes them but deleting the account', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    await befriend(a, b, 'bob')
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'keep me' })
+    await call('DELETE', `/friends/${b.id}`, a.token)
+    await call('PUT', '/me/username', a.token, { username: 'alice2' })
+    expect((await db.query('SELECT body FROM vanity.messages')).rows).toEqual([{ body: 'keep me' }])
+  })
+})
+
+describe('a friend\'s profile, in detail', () => {
+  it('shares totals, streaks, favourites, friends in common and when you became friends', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    const c = await register('cara')
+    await befriend(a, b, 'bob')
+    await befriend(a, c, 'cara')
+    await befriend(b, c, 'cara')
+    const day = (offset: number): string => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10)
+    await call('POST', '/sync', b.token, {
+      deviceId: 'device-pc-0000000001',
+      deviceName: 'PC',
+      games: [
+        { key: 'g:portal-2', name: 'Portal 2', playtimeSeconds: 7200, launches: 9, lastPlayedAt: Date.now() - 1000, firstPlayedAt: Date.now() - 9e9 },
+        { key: 'g:hades', name: 'Hades', playtimeSeconds: 3600, launches: 4, lastPlayedAt: Date.now() - 5000, firstPlayedAt: Date.now() - 8e9 }
+      ],
+      prefs: [
+        { key: 'g:portal-2', favorite: true, playStatus: 'completed', userRating: 5, notes: null, updatedAt: Date.now() },
+        { key: 'g:hades', favorite: false, playStatus: 'playing', userRating: 4, notes: null, updatedAt: Date.now() }
+      ],
+      days: [day(0), day(1), day(2), day(10), day(11)],
+      badges: { 'first-launch': 1_700_000_000_000 },
+      collections: null,
+      settings: null,
+      summary: { xp: 1200, level: 4 }
+    })
+    await call('PUT', '/stats', b.token, { games: [{ gameKey: 'g:portal-2', gameName: 'Portal 2', playtimeSeconds: 7200, lastPlayedAt: Date.now() - 1000 }, { gameKey: 'g:hades', gameName: 'Hades', playtimeSeconds: 3600, lastPlayedAt: Date.now() - 5000 }] })
+    await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'hi' })
+
+    const s = (await call('GET', `/friends/${b.id}/stats`, a.token)).json
+    expect(s).toMatchObject({ username: 'bob', gamesPlayed: 2, totalPlaytimeSeconds: 10800, friendCount: 2, mutualFriends: 1, launches: 13, daysPlayed: 5, currentStreak: 3, bestStreak: 3, finished: 1, averageRating: 4.5, ratedGames: 2, steam: null, messages: { sent: 1, received: 0 } })
+    expect(s.top[0]).toMatchObject({ gameName: 'Portal 2', launches: 9, favorite: true, playStatus: 'completed', rating: 5 })
+    expect(s.favorites.map((g: any) => g.gameName)).toEqual(['Portal 2'])
+    expect(s.playing.map((g: any) => g.gameName)).toEqual(['Hades'])
+    expect(s.badgeTimes).toEqual({ 'first-launch': 1_700_000_000_000 })
+    expect(typeof s.memberSince).toBe('number')
+    expect(typeof s.friendsSince).toBe('number')
+    // Their notes are never shared.
+    expect(JSON.stringify(s)).not.toContain('notes')
+  })
+
+  it('works for a friend who has shared nothing yet', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    await befriend(a, b, 'bob')
+    expect((await call('GET', `/friends/${b.id}/stats`, a.token)).json).toMatchObject({ gamesPlayed: 0, top: [], favorites: [], playing: [], launches: 0, daysPlayed: 0, currentStreak: 0, bestStreak: 0, averageRating: null, friendCount: 1, mutualFriends: 0, messages: { sent: 0, received: 0, firstAt: null } })
+  })
+})
+
 describe('one account per username and per email', () => {
   it('never lets two accounts share a username, whatever the capitals, and says it is in use', async () => {
     const a = await register('Jordan_99')

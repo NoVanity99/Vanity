@@ -246,12 +246,16 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   )
 
   const text = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(0, max) : '')
+  /** Only whole, sensible numbers reach the server. */
+  const chatOpts = (o: { before?: number; after?: number; limit?: number } | undefined): { before?: number; after?: number; limit?: number } =>
+    Object.fromEntries((['before', 'after', 'limit'] as const).filter((k) => typeof o?.[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0).map((k) => [k, Math.trunc(o![k] as number)]))
   /** Only the four known fields of a profile look, as short text (the server checks the values). */
   const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((['banner', 'frame', 'nameStyle', 'flair'] as const).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
   const discordOff: DiscordStatus = { state: 'off', user: null, error: null }
 
   return {
     platform: 'android',
+    notify: async () => {},
     games: {
       list: async () => store.list(),
       get: async (id) => store.get(id),
@@ -290,7 +294,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       },
       playStats: async (id) => gamePlayStats(db, Number(id)),
       details: (id, refresh) => details.forGame(Number(id), refresh === true).catch(() => null),
-      diskSize: async () => null
+      diskSize: async () => null,
+      coversByName: (names) => details.coversFor(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 60) : []).catch(() => ({}))
     },
     collections: {
       list: async () => collections.list(),
@@ -414,6 +419,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       decline: (id) => wrap(async () => (await account.guard((c) => c.decline(text(id))), true as const)),
       remove: (id) => wrap(async () => (await account.guard((c) => c.removeFriend(text(id))), true as const)),
       stats: (id) => wrap(() => account.guard((c) => c.friendStats(text(id)))),
+      messages: (id, opts) => wrap(() => account.guard((c) => c.messages(text(id), chatOpts(opts)))),
+      send: (id, body) => wrap(() => account.guard((c) => c.sendMessage(text(id), text(body, 4000)))),
       forGame: (gameId) =>
         wrap(async () => {
           const game = store.get(Number(gameId))

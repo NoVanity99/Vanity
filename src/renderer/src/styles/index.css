@@ -872,3 +872,23 @@ html[data-game-names='false'] [data-game-name] {
   --name: linear-gradient(90deg, #7f1d1d, #f97316, #fde047, #f97316, #7f1d1d);
   animation: name-flow 4s linear infinite;
 }
+
+/* Friend notifications: the card slides in from the right, and a line along its bottom runs out with its time. */
+@keyframes note-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes note-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

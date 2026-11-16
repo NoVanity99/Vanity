@@ -3,6 +3,8 @@ import type { Db } from '../db/database'
 import type { FetchFn } from '../metadata/http'
 import { Igdb } from '../metadata/igdb'
 import type { LibraryStore } from '../library/store'
+import { normalizeTitle } from '../metadata/match'
+import { requestJson } from '../metadata/http'
 import { folderSize } from '../util/fs'
 import { fetchIgdbExtra, fetchSteamExtra, fetchSteamNews, fetchSteamReviews, fetchTimeToBeat } from './sources'
 
@@ -19,6 +21,9 @@ export interface DetailsDeps {
   steamAppIdFor(game: Game): Promise<string | null>
   now?: () => number
 }
+
+const COVER_TTL_MS = 30 * 24 * 60 * 60_000
+const COVER_MISS_TTL_MS = 3 * 24 * 60 * 60_000
 
 type Cached = Omit<GameDetails, 'similar'> & { similar: Omit<GameDetails['similar'][number], 'libraryId'>[] }
 
@@ -137,6 +142,50 @@ export class DetailsService {
       sources: { igdb: extra !== null || ttb !== null, steam: steam !== null || reviews !== null || (news?.length ?? 0) > 0 },
       fetchedAt: this.now()
     }
+  }
+
+  /**
+   * Cover pictures for games known only by name (a friend's games that aren't in your library).
+   * Looked up on IGDB (with keys) and Steam's store search (no key needed), and remembered:
+   * found covers for a month, misses for three days.
+   */
+  async coversFor(names: string[]): Promise<Record<string, string | null>> {
+    const out: Record<string, string | null> = {}
+    const igdb = this.igdb()
+    for (const name of new Set(names.map((n) => n.trim()).filter(Boolean))) {
+      const wanted = normalizeTitle(name)
+      const key = `cover:v1:${wanted || name.toLowerCase()}`
+      const hit = this.kvGet<string | null>(key)
+      if (hit && this.now() - hit.at < (hit.value ? COVER_TTL_MS : COVER_MISS_TTL_MS)) {
+        out[name] = hit.value
+        continue
+      }
+      let cover: string | null = null
+      let answered = false
+      if (igdb) {
+        try {
+          const found = await igdb.search(name)
+          answered = true
+          const exact = found.find((g) => normalizeTitle(g.name) === wanted && g.thumbUrl) ?? null
+          cover = exact?.thumbUrl?.replace('/t_cover_small/', '/t_cover_big/') ?? null
+        } catch {
+          // Fall through to Steam.
+        }
+      }
+      if (!cover) {
+        try {
+          const res = await requestJson<{ items?: { id?: number; name?: string }[] }>(this.deps.fetchFn, `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(name)}&l=english&cc=US`, {}, 'Steam search')
+          answered = true
+          const app = (res.items ?? []).find((i) => typeof i.id === 'number' && typeof i.name === 'string' && normalizeTitle(i.name) === wanted)
+          if (app) cover = `https://shared.steamstatic.com/store_item_assets/steam/apps/${app.id}/library_600x900.jpg`
+        } catch {
+          // Offline: not remembered, so it is tried again next time.
+        }
+      }
+      if (cover || answered) this.kvSet(key, cover)
+      out[name] = cover
+    }
+    return out
   }
 
   /** Bytes used by the game's install folder (cached for a day), or null if it has none. */

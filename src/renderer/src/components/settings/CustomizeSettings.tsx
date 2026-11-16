@@ -72,13 +72,13 @@ export function CustomizeSettings({ options, onChange }: { options: InterfaceOpt
             <Choice
               label="Width"
               hint={`You can also drag the sidebar's right edge. Now ${options.sidebarWidth} px.`}
-              value={options.sidebarWidth <= 210 ? 'narrow' : options.sidebarWidth >= 300 ? 'wide' : options.sidebarWidth === 240 ? 'normal' : 'custom'}
+              value={options.sidebarWidth <= 225 ? 'narrow' : options.sidebarWidth >= 300 ? 'wide' : options.sidebarWidth === 240 ? 'normal' : 'custom'}
               options={[
                 { id: 'narrow', label: 'Narrow' },
                 { id: 'normal', label: 'Normal' },
                 { id: 'wide', label: 'Wide' }
               ]}
-              onPick={(w) => set({ sidebarWidth: w === 'narrow' ? 200 : w === 'wide' ? 320 : 240 })}
+              onPick={(w) => set({ sidebarWidth: w === 'narrow' ? 220 : w === 'wide' ? 320 : 240 })}
             />
           </>
         )}
@@ -98,6 +98,12 @@ export function CustomizeSettings({ options, onChange }: { options: InterfaceOpt
         {flag('vibeCheckButton', 'Vibe Check button')}
         {flag('surpriseButton', 'Surprise me button')}
         {!android && <Choice label="When the mouse is over a cover" value={options.coverHover} options={COVER_HOVERS} onPick={(coverHover) => set({ coverHover })} />}
+      </Section>
+
+      <Section title="Friend notifications" description="A card in the corner of Vanity (and a Windows notification when Vanity isn't in front) when a friend does one of these.">
+        {flag('notifyFriendOnline', 'A friend comes online')}
+        {flag('notifyFriendPlaying', 'A friend starts a game', 'With the name of the game.')}
+        {flag('notifyFriendMessage', 'A friend sends you a message')}
       </Section>
 
       <Section title="Look and feel" description="Size, shape and movement, everywhere in Vanity.">

@@ -12,6 +12,9 @@ import { UpdateBanner, UpdateButton } from './components/UpdateButton'
 import { CommandPalette } from './components/CommandPalette'
 import { SessionRecap } from './components/SessionRecap'
 import { VibeCheck } from './components/VibeCheck'
+import { FriendNotifications } from './components/FriendNotifications'
+import { useAccount } from './state/account'
+import { useFriendsRefresh } from './state/friends'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { BottomNav } from './components/BottomNav'
@@ -74,6 +77,8 @@ function Shell(): React.JSX.Element {
     if (ui.animations) delete root.dataset.motion
     else root.dataset.motion = 'reduced'
   }, [ui.scale, ui.corners, ui.coverHover, ui.statusBadges, ui.gameNames, ui.animations])
+  // Friends are kept fresh in the background for the sidebar's counts and for notifications.
+  useFriendsRefresh(useAccount()?.username)
   const startPath = START_PAGES.find((p) => p.id === ui.startPage)?.path ?? '/library'
 
   // Cloud sync brought something in from another device: show it.
@@ -151,6 +156,7 @@ function Shell(): React.JSX.Element {
       <InstallDialog />
       <SessionRecap />
       <VibeCheck />
+      <FriendNotifications />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

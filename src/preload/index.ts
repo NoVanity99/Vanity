@@ -4,6 +4,7 @@ import type { AccountState, DownloadItem, Game, SteamState, StoreAccounts, Progr
 
 const api: VanityApi = {
   platform: 'desktop',
+  notify: (title, body) => ipcRenderer.invoke(IPC.appNotify, title, body),
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),
@@ -32,7 +33,8 @@ const api: VanityApi = {
     addApp: async () => null,
     playStats: (id) => ipcRenderer.invoke(IPC.gamesPlayStats, id),
     details: (id, refresh) => ipcRenderer.invoke(IPC.gamesDetails, id, refresh === true),
-    diskSize: (id) => ipcRenderer.invoke(IPC.gamesDiskSize, id)
+    diskSize: (id) => ipcRenderer.invoke(IPC.gamesDiskSize, id),
+    coversByName: (names) => ipcRenderer.invoke(IPC.gamesCoversByName, names)
   },
   collections: {
     list: () => ipcRenderer.invoke(IPC.collectionsList),
@@ -170,6 +172,8 @@ const api: VanityApi = {
     decline: (id) => ipcRenderer.invoke(IPC.friendsDecline, id),
     remove: (id) => ipcRenderer.invoke(IPC.friendsRemove, id),
     stats: (id) => ipcRenderer.invoke(IPC.friendsStats, id),
+    messages: (id, opts) => ipcRenderer.invoke(IPC.friendsMessages, id, opts),
+    send: (id, text) => ipcRenderer.invoke(IPC.friendsSend, id, text),
     forGame: (gameId) => ipcRenderer.invoke(IPC.friendsForGame, gameId)
   },
   live: {

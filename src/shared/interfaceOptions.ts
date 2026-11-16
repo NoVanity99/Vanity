@@ -47,7 +47,7 @@ export const CLOCK_STYLES = [
 ] as const
 
 /** The narrowest and widest the sidebar can be dragged to, and where it starts. */
-export const SIDEBAR_WIDTH = { min: 200, max: 420, normal: 240 } as const
+export const SIDEBAR_WIDTH = { min: 220, max: 420, normal: 240 } as const
 export function clampSidebarWidth(value: unknown): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : SIDEBAR_WIDTH.normal
   return Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, n))
@@ -82,6 +82,10 @@ export interface InterfaceOptions {
   corners: (typeof CORNER_STYLES)[number]['id']
   animations: boolean
   toasts: boolean
+  /** Friends: a notification when one comes online, starts a game or messages you. */
+  notifyFriendOnline: boolean
+  notifyFriendPlaying: boolean
+  notifyFriendMessage: boolean
 }
 
 export const DEFAULT_INTERFACE: InterfaceOptions = {
@@ -106,7 +110,10 @@ export const DEFAULT_INTERFACE: InterfaceOptions = {
   scale: 'normal',
   corners: 'round',
   animations: true,
-  toasts: true
+  toasts: true,
+  notifyFriendOnline: true,
+  notifyFriendPlaying: true,
+  notifyFriendMessage: true
 }
 
 const oneOf = <T extends string>(value: unknown, list: readonly { id: T }[], fallback: T): T => (list.some((x) => x.id === value) ? (value as T) : fallback)
@@ -138,6 +145,9 @@ export function normalizeInterface(stored: unknown): InterfaceOptions {
     scale: oneOf(v.scale, UI_SCALES, d.scale),
     corners: oneOf(v.corners, CORNER_STYLES, d.corners),
     animations: flag('animations'),
-    toasts: flag('toasts')
+    toasts: flag('toasts'),
+    notifyFriendOnline: flag('notifyFriendOnline'),
+    notifyFriendPlaying: flag('notifyFriendPlaying'),
+    notifyFriendMessage: flag('notifyFriendMessage')
   }
 }

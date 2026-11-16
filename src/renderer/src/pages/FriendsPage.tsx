@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Clock, Gamepad2, LogIn, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
+import { Check, Clock, Gamepad2, LogIn, MessageCircle, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
@@ -8,6 +8,7 @@ import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { useAccount } from '@/state/account'
+import { publishFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
 
 const REFRESH_MS = 30_000
@@ -46,7 +47,21 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
           {playing && <Gamepad2 className="size-3.5 shrink-0" />}
           <span className="truncate">{statusLine(friend)}</span>
         </span>
+        {friend.lastMessage && (
+          <span className={cn('mt-0.5 flex items-center gap-1.5 truncate text-xs', friend.unread > 0 ? 'font-semibold text-text' : 'text-muted')} data-last-message>
+            <MessageCircle className="size-3 shrink-0" />
+            <span className="truncate">
+              {friend.lastMessage.mine ? 'You: ' : ''}
+              {friend.lastMessage.text}
+            </span>
+          </span>
+        )}
       </span>
+      {friend.unread > 0 && (
+        <span data-unread className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold tabular-nums text-white shadow shadow-accent/40" title={`${friend.unread} unread message${friend.unread === 1 ? '' : 's'}`}>
+          {friend.unread > 99 ? '99+' : friend.unread}
+        </span>
+      )}
       <span className="hidden text-right text-xs text-muted sm:block">
         <span className="block font-semibold tabular-nums text-text">{formatPlaytime(friend.totalPlaytimeSeconds)}</span>
         {friend.gamesPlayed} game{friend.gamesPlayed === 1 ? '' : 's'}
@@ -142,9 +157,15 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
         </div>
       )}
 
-      <Button variant="primary" className="w-full justify-center" onClick={() => navigate(`/friends/${friend.id}`)} data-view-profile>
-        <UserRound className="size-4" /> View profile
-      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="primary" className="justify-center" onClick={() => navigate(`/friends/${friend.id}?chat=1`)} data-message-friend>
+          <MessageCircle className="size-4" /> Message
+          {friend.unread > 0 && <span className="ml-1 rounded-full bg-white/25 px-1.5 text-[11px] font-bold tabular-nums">{friend.unread}</span>}
+        </Button>
+        <Button className="justify-center" onClick={() => navigate(`/friends/${friend.id}`)} data-view-profile>
+          <UserRound className="size-4" /> View profile
+        </Button>
+      </div>
 
       <button
         className="flex items-center gap-1.5 text-xs text-muted transition hover:text-accent"
@@ -178,6 +199,8 @@ export function FriendsPage(): React.JSX.Element {
     else {
       setError(null)
       setList(r.data)
+      // The sidebar's counts and the notifications read the same list.
+      publishFriends(r.data)
     }
   }, [])
 
@@ -187,6 +210,12 @@ export function FriendsPage(): React.JSX.Element {
     const t = setInterval(() => void load(), REFRESH_MS)
     return () => clearInterval(t)
   }, [account?.username, load])
+
+  // The background refresh (every 20 seconds, and when a friend does something) updates this page too.
+  const live = useFriends()
+  useEffect(() => {
+    if (live) setList(live)
+  }, [live])
 
   const groups = useMemo(() => {
     const f = list?.friends ?? []

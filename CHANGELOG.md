@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.20.0 (2026-11-16)
+- New: **messages between friends.** Every friend's page has a chat box, and the Friends tab has a Message button. Type and press Enter (Shift+Enter for a new line). Messages are kept on Vanity's server for good, so the whole chat is there on every device: the newest messages load first and "Earlier messages" pages back to the very first one. New messages arrive by themselves every few seconds while the chat is open, and "Seen" shows under your last message once your friend has read it. Only friends can message each other, and nobody else can read a chat.
+- New: **notifications for friends**, as a card in the top-right corner with their banner, picture and name: when a friend **comes online**, when they **start a game** (with the game's name), and when they **send you a message** (with the message). Click a card to open their page or the chat. When Vanity isn't the window in front, a Windows notification is shown too. Each of the three can be turned off in Settings → Customize → Friend notifications.
+- New: **the Friends entry in the sidebar shows how many friends are online** (green, with a dot), and a red bubble with the number of unread messages. Friends in the list show their latest message and their own unread count.
+- Changed: **friend pages show much more.** Covers for their most played, favourite, recent and currently played games (yours if you have the game, otherwise looked up by name); a "Playing now" box with the game's cover; launches, days played, current and best streak, games finished, average rating, when they joined, how long you've been friends, how many friends they have and how many you share, their linked Steam account, how many messages you've exchanged; their favourites and what they are playing these days; your own playtime next to theirs for games you both have; and the date each badge was earned. Their private notes on games are never shared.
+- Fixed: **the Vanity logo and name in a narrowed sidebar.** The logo keeps its full shape at every width and the name is no longer cut off (the narrowest the sidebar goes is now 220 pixels).
+- The Friends page now updates together with the sidebar, every 20 seconds and whenever you come back to the window.
+
 ## 0.19.1 (2026-11-15)
 - Fixed: **the button that brings a hidden sidebar back couldn't be clicked on Windows.** It sat on the strip at the top of the window that you drag the window by, and Windows treated the click as a drag. The button is now part of that strip, marked as clickable the same way the music player and launcher status are.
 

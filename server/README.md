@@ -81,12 +81,14 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | PUT | `/presence` | Heartbeat: `{ gameKey, gameName, startedAt }`, or `{ gameKey: null }` when not playing. Answers with the account's `{ verified, admin }` |
 | DELETE | `/presence` | Signed out / closed: shows as offline |
 | PUT | `/stats` | `{ games: [{ gameKey, gameName, playtimeSeconds, lastPlayedAt }] }` (up to 5000) |
-| GET | `/friends` | Friends with status (playing / online / offline) and totals, plus incoming and outgoing requests |
+| GET | `/friends` | Friends with status (playing / online / offline), totals, unread message count and the latest message of each chat, plus incoming and outgoing requests |
 | POST | `/friends/requests` | `{ username }`: sends a request, or accepts one they already sent you |
 | POST | `/friends/requests/:id/accept` | Accept a request from user `:id` |
 | DELETE | `/friends/requests/:id` | Decline or cancel a pending request |
 | DELETE | `/friends/:id` | Remove a friend |
-| GET | `/friends/:id/stats` | A friend's playtime totals, top games and recent games (friends only) |
+| GET | `/friends/:id/stats` | A friend's profile in detail: totals, top games (with launches, their rating and status), recent, favourites, what they're playing, streaks, days played, when they joined and when you became friends, friends in common, linked Steam account, and how many messages you've exchanged (friends only; their notes are never included) |
+| GET | `/friends/:id/messages` | A page of your chat with a friend, oldest first. `?before=<id>` pages back, `?after=<id>` returns only newer ones, `?limit=` up to 100. Reading marks their messages as read; `seenUpTo` is the newest of yours they have read |
+| POST | `/friends/:id/messages` | `{ text }` (up to 2,000 characters): sends a message. Friends only; 40 a minute per account. Messages are never deleted |
 | GET | `/games/:gameKey/friends` | Friends who've played a game |
 
 Routes after `/me` answer `409` with `code: "needs_username"` until the account has a username.

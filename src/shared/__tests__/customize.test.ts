@@ -16,7 +16,7 @@ describe('customize options', () => {
 
   it('keep the sidebar width between its narrowest and widest', () => {
     expect(normalizeInterface({ sidebarWidth: 300, sidebarCollapsed: true })).toMatchObject({ sidebarWidth: 300, sidebarCollapsed: true })
-    expect(normalizeInterface({ sidebarWidth: 5 }).sidebarWidth).toBe(200)
+    expect(normalizeInterface({ sidebarWidth: 5 }).sidebarWidth).toBe(220)
     expect(normalizeInterface({ sidebarWidth: 9000 }).sidebarWidth).toBe(420)
     expect(normalizeInterface({ sidebarWidth: 'wide' }).sidebarWidth).toBe(240)
     expect(normalizeInterface({ sidebarWidth: 250.6 }).sidebarWidth).toBe(251)

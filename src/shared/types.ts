@@ -387,8 +387,32 @@ export interface FriendStatus {
   lastSeen: number | null
 }
 
+/** One message in a chat with a friend. */
+export interface ChatMessage {
+  id: number
+  /** True if you wrote it. */
+  mine: boolean
+  text: string
+  at: number | null
+  /** When the other person read it (for your own messages), or you did. */
+  readAt: number | null
+}
+
+/** A page of a chat, oldest first. */
+export interface ChatPage {
+  messages: ChatMessage[]
+  /** There are older messages before this page. */
+  more: boolean
+  /** The newest of your messages that your friend has read. */
+  seenUpTo: number | null
+}
+
 export interface Friend extends PublicUser {
   bio: string
+  /** Messages from them you haven't read yet. */
+  unread: number
+  /** The newest message in your chat, either way. */
+  lastMessage: { id: number; text: string; at: number | null; mine: boolean } | null
   status: FriendStatus
   totalPlaytimeSeconds: number
   gamesPlayed: number
@@ -412,6 +436,12 @@ export interface FriendGameStat {
   gameName: string
   playtimeSeconds: number
   lastPlayedAt: number | null
+  launches: number
+  firstPlayedAt: number | null
+  favorite: boolean
+  playStatus: string | null
+  /** Their rating, 1–5. */
+  rating: number | null
 }
 
 export interface FriendStats {
@@ -429,6 +459,28 @@ export interface FriendStats {
   gamesPlayed: number
   top: FriendGameStat[]
   recent: FriendGameStat[]
+  /** Badge id → when it was earned (ms). */
+  badgeTimes: Record<string, number>
+  /** When they joined Vanity, and when you two became friends (ms). */
+  memberSince: number | null
+  friendsSince: number | null
+  friendCount: number
+  /** Friends you both have. */
+  mutualFriends: number
+  launches: number
+  daysPlayed: number
+  currentStreak: number
+  bestStreak: number
+  favorites: FriendGameStat[]
+  /** Games they've marked Beaten or Completed. */
+  finished: number
+  /** Games they've marked as playing now. */
+  playing: FriendGameStat[]
+  averageRating: number | null
+  ratedGames: number
+  steam: { name: string; profileUrl: string } | null
+  /** Messages in your chat with them. */
+  messages: { sent: number; received: number; firstAt: number | null }
 }
 
 export interface GameFriend extends PublicUser {

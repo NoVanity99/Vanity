@@ -1,5 +1,7 @@
 import type { ProfileStyle } from './profileStyle'
 import type {
+  ChatMessage,
+  ChatPage,
   GameStores,
   AccountState,
   DownloadItem,
@@ -72,6 +74,8 @@ export interface InstalledApp {
 export interface VanityApi {
   /** Which version of Vanity this is: the Windows desktop app or the Android app. */
   platform: 'desktop' | 'android'
+  /** Shows a system notification (on Windows; Android shows these inside the app only). Clicking it brings Vanity forward. */
+  notify(title: string, body: string): Promise<void>
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
@@ -111,6 +115,8 @@ export interface VanityApi {
     details(id: number, refresh?: boolean): Promise<GameDetails | null>
     /** Size of the install folder in bytes, or null if unknown. */
     diskSize(id: number): Promise<number | null>
+    /** Cover pictures for games by name (for games that aren't in your library, e.g. a friend's). Name → image address, or null. */
+    coversByName(names: string[]): Promise<Record<string, string | null>>
   }
   collections: {
     list(): Promise<Collection[]>
@@ -248,6 +254,10 @@ export interface VanityApi {
     decline(id: string): Promise<Result<true>>
     remove(id: string): Promise<Result<true>>
     stats(id: string): Promise<Result<FriendStats>>
+    /** A page of your chat with a friend (reading it marks their messages as read). */
+    messages(id: string, opts?: { before?: number; after?: number; limit?: number }): Promise<Result<ChatPage>>
+    /** Sends a message to a friend. Messages are kept for good. */
+    send(id: string, text: string): Promise<Result<ChatMessage>>
     /** Friends who have played a library game. */
     forGame(gameId: number): Promise<Result<GameFriend[]>>
   }
@@ -330,6 +340,10 @@ export const IPC = {
   gamesPlayStats: 'games:play-stats',
   gamesDetails: 'games:details',
   gamesDiskSize: 'games:disk-size',
+  gamesCoversByName: 'games:covers-by-name',
+  friendsMessages: 'friends:messages',
+  friendsSend: 'friends:send',
+  appNotify: 'app:notify',
   sessionsStates: 'sessions:states',
   collectionsList: 'collections:list',
   collectionsCreate: 'collections:create',

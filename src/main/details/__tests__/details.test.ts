@@ -125,3 +125,51 @@ describe('DetailsService', () => {
     expect(d).toMatchObject({ sources: { igdb: false, steam: false }, news: [], ratings: { critics: null, steam: null } })
   })
 })
+
+describe('covers for games known only by name', () => {
+  function covers(over: Partial<Settings> = {}, offline = false) {
+    const db = openDatabase(':memory:').db
+    const { fetch, calls } = fakeFetch([
+      () => (offline ? Promise.reject(new TypeError('fetch failed')) : undefined),
+      (c) => (c.url.includes('id.twitch.tv') ? json({ access_token: 'T', expires_in: 5_000_000 }) : undefined),
+      (c) =>
+        c.url.endsWith('/v4/games')
+          ? json(c.body?.includes('Hades') ? [{ id: 1, name: 'Hades II', cover: { image_id: 'h2' } }, { id: 2, name: 'Hades', cover: { image_id: 'h1' } }] : [])
+          : undefined,
+      (c) =>
+        c.url.includes('store.steampowered.com/api/storesearch')
+          ? json({ items: c.url.includes('Stardew') ? [{ id: 413150, name: 'Stardew Valley' }] : c.url.includes('Hades') ? [{ id: 1145360, name: 'Hades' }] : [] })
+          : undefined
+    ])
+    const service = new DetailsService({ db, store: createSqliteStore(db), fetchFn: fetch, getSettings: () => ({ ...settings, ...over }), steamAppIdFor: async () => null })
+    return { service, calls }
+  }
+
+  it('finds the exact game (not a sequel) on IGDB, then on Steam, and says so when there is none', async () => {
+    const { service } = covers()
+    expect(await service.coversFor(['Hades', 'Stardew Valley', 'Some Game Nobody Has', '  ', 'Hades'])).toEqual({
+      Hades: 'https://images.igdb.com/igdb/image/upload/t_cover_big/h1.jpg',
+      'Stardew Valley': 'https://shared.steamstatic.com/store_item_assets/steam/apps/413150/library_600x900.jpg',
+      'Some Game Nobody Has': null
+    })
+  })
+
+  it('works without IGDB keys, from Steam alone', async () => {
+    const { service } = covers({ igdbClientId: '', igdbClientSecret: '' })
+    expect(await service.coversFor(['Hades'])).toEqual({ Hades: 'https://shared.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg' })
+  })
+
+  it('remembers what it found, and asks again later when it was offline', async () => {
+    const { service, calls } = covers()
+    await service.coversFor(['Hades', 'Some Game Nobody Has'])
+    const before = calls.length
+    await service.coversFor(['Hades', 'hades', 'Some Game Nobody Has'])
+    expect(calls.length).toBe(before) // answered from memory, misses included
+
+    const off = covers({}, true)
+    expect(await off.service.coversFor(['Hades'])).toEqual({ Hades: null })
+    const again = off.calls.length
+    await off.service.coversFor(['Hades'])
+    expect(off.calls.length).toBeGreaterThan(again) // not remembered as "no cover": it is tried again
+  })
+})

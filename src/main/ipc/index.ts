@@ -1,7 +1,7 @@
 import type { ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
 import { IPC, type Result } from '@shared/ipc'
 import type { NowListening, ArtworkKind, DetectedGame, GameCandidate, GamePatch, MatchCandidate, ScanSummary, Settings, StoreLauncher } from '@shared/types'
 import type { TrendingService } from '../trending/service'
@@ -169,6 +169,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
 
   ipcMain.handle(IPC.gamesPlayStats, (_e, id: number) => gamePlayStats(db, Number(id)))
   ipcMain.handle(IPC.gamesDetails, (_e, id: number, refresh: boolean) => details.forGame(Number(id), refresh === true).catch(() => null))
+  ipcMain.handle(IPC.gamesCoversByName, (_e, names: string[]) => details.coversFor(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 60) : []).catch(() => ({})))
   ipcMain.handle(IPC.gamesDiskSize, (_e, id: number) => details.diskSize(Number(id)).catch(() => null))
 
   ipcMain.handle(IPC.collectionsList, () => collections.list())
@@ -328,6 +329,9 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.statsGet, () => stats())
 
   const text = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(0, max) : '')
+  /** Only whole, sensible numbers reach the server. */
+  const chatOpts = (o: { before?: number; after?: number; limit?: number } | undefined): { before?: number; after?: number; limit?: number } =>
+    Object.fromEntries((['before', 'after', 'limit'] as const).filter((k) => typeof o?.[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0).map((k) => [k, Math.trunc(o![k] as number)]))
   /** Only the four known fields of a profile look, as short text (the server checks the values). */
   const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((['banner', 'frame', 'nameStyle', 'flair'] as const).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
   ipcMain.handle(IPC.progressGet, () => sync.progress())
@@ -374,6 +378,21 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.friendsAccept, (_e, id: string) => wrap(async () => (await account.guard((c) => c.accept(text(id))), true as const)))
   ipcMain.handle(IPC.friendsDecline, (_e, id: string) => wrap(async () => (await account.guard((c) => c.decline(text(id))), true as const)))
   ipcMain.handle(IPC.friendsRemove, (_e, id: string) => wrap(async () => (await account.guard((c) => c.removeFriend(text(id))), true as const)))
+  ipcMain.handle(IPC.appNotify, (e, title: string, body: string) => {
+    if (!Notification.isSupported()) return
+    const n = new Notification({ title: text(title, 120), body: text(body, 300) })
+    // Clicking it brings Vanity back to the front.
+    n.on('click', () => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    })
+    n.show()
+  })
+  ipcMain.handle(IPC.friendsMessages, (_e, id: string, opts: { before?: number; after?: number; limit?: number }) => wrap(() => account.guard((c) => c.messages(text(id), chatOpts(opts)))))
+  ipcMain.handle(IPC.friendsSend, (_e, id: string, body: string) => wrap(() => account.guard((c) => c.sendMessage(text(id), text(body, 4000)))))
   ipcMain.handle(IPC.friendsStats, (_e, id: string) => wrap(() => account.guard((c) => c.friendStats(text(id)))))
   ipcMain.handle(IPC.friendsForGame, (_e, gameId: number) =>
     wrap(async () => {

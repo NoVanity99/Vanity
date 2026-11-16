@@ -1,6 +1,6 @@
 import type { SyncRequest, SyncResponse } from '@shared/sync'
 import type { ProfileStyle } from '../../shared/profileStyle'
-import type { FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
+import type { ChatMessage, ChatPage, FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
 import { AccountError } from './errors'
 import { OFFLINE_MESSAGE } from './neonAuth'
@@ -98,5 +98,11 @@ export class AccountClient {
   decline = (id: string) => this.call<void>('DELETE', `/friends/requests/${encodeURIComponent(id)}`)
   removeFriend = (id: string) => this.call<void>('DELETE', `/friends/${encodeURIComponent(id)}`)
   friendStats = (id: string) => this.call<FriendStats>('GET', `/friends/${encodeURIComponent(id)}/stats`)
+  /** A page of the chat with a friend: the newest, older ones before a message, or only what is newer than one. */
+  messages = (id: string, opts: { before?: number; after?: number; limit?: number } = {}) => {
+    const q = new URLSearchParams(Object.entries(opts).filter(([, v]) => typeof v === 'number' && Number.isFinite(v)).map(([k, v]): [string, string] => [k, String(Math.trunc(v as number))]))
+    return this.call<ChatPage>('GET', `/friends/${encodeURIComponent(id)}/messages${q.size ? `?${q}` : ''}`)
+  }
+  sendMessage = async (id: string, text: string) => (await this.call<{ message: ChatMessage }>('POST', `/friends/${encodeURIComponent(id)}/messages`, { text })).message
   gameFriends = async (key: string) => (await this.call<{ friends: GameFriend[] }>('GET', `/games/${encodeURIComponent(key)}/friends`)).friends
 }

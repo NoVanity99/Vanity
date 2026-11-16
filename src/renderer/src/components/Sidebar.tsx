@@ -1,3 +1,4 @@
+import { useFriends } from '@/state/friends'
 import { clampSidebarWidth, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
 import { saveSettings, useInterface } from '@/state/settings'
 import { UserName } from '@/components/UserName'
@@ -29,12 +30,18 @@ function NavItem({
   icon: Icon,
   label,
   count,
+  countTone,
+  badge,
   animation
 }: {
   to: string
   icon: LucideIcon
   label: string
   count?: number
+  /** 'online': the count is people online (green, with a dot). */
+  countTone?: 'online'
+  /** A red bubble, for things waiting for you (unread messages). */
+  badge?: number
   animation: IconAnimation
 }): React.JSX.Element {
   const [played, play] = useClickAnimation()
@@ -60,7 +67,20 @@ function NavItem({
             )}
           />
           <span className="min-w-0 flex-1 truncate">{label}</span>
-          {count !== undefined && count > 0 && <span className="text-xs tabular-nums text-muted">{count}</span>}
+          {badge !== undefined && badge > 0 && (
+            <span data-nav-badge className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold tabular-nums text-white shadow shadow-accent/40" title={`${badge} unread`}>
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
+          {count !== undefined && count > 0 &&
+            (countTone === 'online' ? (
+              <span data-nav-online className="flex shrink-0 items-center gap-1.5 text-xs font-semibold tabular-nums text-emerald-400" title={`${count} online`}>
+                <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]" />
+                {count}
+              </span>
+            ) : (
+              <span className="shrink-0 text-xs tabular-nums text-muted">{count}</span>
+            ))}
         </>
       )}
     </NavLink>
@@ -185,6 +205,10 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const ui = useInterface()
+  // How many friends are online right now, and how many messages are waiting (kept fresh in the background).
+  const friendList = useFriends()
+  const friendsOnline = friendList?.friends.filter((f) => f.status.state !== 'offline').length
+  const friendsUnread = friendList?.friends.reduce((sum, f) => sum + (f.unread ?? 0), 0)
   const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
   const count = (n: number | undefined): number | undefined => (ui.sidebarCounts ? n : undefined)
 
@@ -254,11 +278,11 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         )}
       />
       <Indicator {...indicator} />
-      <div className="flex h-16 items-center gap-2.5 px-5 [-webkit-app-region:drag]">
-        <div className="vanity-logo flex size-8 items-center justify-center rounded-lg">
+      <div className="flex h-16 items-center gap-2 px-4 [-webkit-app-region:drag]">
+        <div className="vanity-logo flex size-8 shrink-0 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
-        <span className="flex-1 text-lg font-bold tracking-tight">Vanity</span>
+        <span className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight">Vanity</span>
         <NavLink
           to="/big"
           title="Big Picture mode: full screen, for the couch"
@@ -298,7 +322,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" />
         {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />}
         {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
-        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" animation="wave" />}
+        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" />}
         {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />}
         {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" />}
         {shows('stats') && <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />}
