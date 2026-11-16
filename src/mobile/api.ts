@@ -400,11 +400,18 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       achievements: (appId) => wrap(() => steamService.achievements(Number(appId)))
     },
     voice: {
-      serverUrl: async () => {
-        const builtIn = backendConfig().voiceUrl
-        return { url: getSettings().voice.serverUrl || builtIn, builtIn }
-      },
-      token: () => wrap(() => account.token()),
+      start: (o) => wrap(() => account.guard((c) => c.voiceStart({ private: o?.private === true, locked: o?.locked === true }))),
+      join: (roomId) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))),
+      leave: () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)),
+      update: (after) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))),
+      state: (s) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: false })), true as const)),
+      signal: (signals) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, 40) : [])), true as const)),
+      setRoom: (p) => wrap(() => account.guard((c) => c.voiceSetRoom({ ...(typeof p?.private === 'boolean' ? { private: p.private } : {}), ...(typeof p?.locked === 'boolean' ? { locked: p.locked } : {}) }))),
+      invite: (userId) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)),
+      // Android's web view can't capture the screen: phones watch shared screens, they don't share.
+      canShareScreen: async () => false,
+      screenSources: async () => [],
+      pickScreen: async () => false,
       // Phones have no global keys: the voice page has an on-screen hold-to-talk button instead.
       onPushToTalk: () => () => {},
       hotkeyStatus: async () => ({ global: false, message: 'Push-to-talk keys are for Windows. On a phone, hold the talk button on the voice screen.' })

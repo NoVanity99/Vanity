@@ -12,7 +12,7 @@ const REFRESH_MS = 20_000
 
 export interface FriendNote {
   id: number
-  kind: 'online' | 'playing' | 'message'
+  kind: 'online' | 'playing' | 'message' | 'voice'
   friend: Friend
   /** What happened, after the friend's name: "is online", "started playing Hades", "sent you a message". */
   action: string
@@ -26,7 +26,7 @@ let current: FriendsList | null = null
 const listeners = new Set<(list: FriendsList | null) => void>()
 const noteListeners = new Set<(note: FriendNote) => void>()
 /** What each friend was doing the last time we looked. Null until the first look, which announces nothing. */
-let before: Map<string, { state: Friend['status']['state']; game: string | null; lastMessage: number }> | null = null
+let before: Map<string, { state: Friend['status']['state']; game: string | null; lastMessage: number; voiceRoom?: string | null }> | null = null
 let noteId = 1
 /** Friends whose chat is open on screen: their messages don't need announcing while you're looking at them. */
 const watching = new Map<string, number>()
@@ -55,6 +55,10 @@ export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, wa
     } else if (was.state === 'offline' && state !== 'offline') {
       notes.push({ kind: 'online', friend, action: 'is online', detail: null, to: `/friends/${friend.id}` })
     }
+    // Went into a voice room you can join.
+    if (friend.voice?.canJoin && friend.voice.roomId !== was.voiceRoom) {
+      notes.push({ kind: 'voice', friend, action: friend.voice.count > 1 ? `joined voice with ${friend.voice.names.filter((n) => n !== friend.username).slice(0, 2).join(', ')}` : 'started a voice room', detail: null, to: '/voice' })
+    }
     const last = friend.lastMessage
     if (last && !last.mine && last.id > was.lastMessage && !isWatched(friend.id)) {
       notes.push({ kind: 'message', friend, action: 'sent you a message', detail: last.text, to: `/friends/${friend.id}` })
@@ -64,7 +68,7 @@ export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, wa
 }
 
 const snapshot = (list: FriendsList): NonNullable<typeof before> =>
-  new Map(list.friends.map((f) => [f.id, { state: f.status.state, game: f.status.gameName, lastMessage: f.lastMessage?.id ?? 0 }]))
+  new Map(list.friends.map((f) => [f.id, { state: f.status.state, game: f.status.gameName, lastMessage: f.lastMessage?.id ?? 0, voiceRoom: f.voice?.roomId ?? null }]))
 
 /** Takes a freshly fetched list (from the background refresh, or a page that just loaded one). */
 export function publishFriends(list: FriendsList | null): void {

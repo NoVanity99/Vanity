@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_VOICE, keyLabel, mouseBinding, normalizeVoice, voiceServerUrl } from '@shared/voiceSettings'
+import { DEFAULT_VOICE, keyLabel, mouseBinding, normalizeVoice } from '@shared/voiceSettings'
 import { backoffMs, dbToUnit, levelDb, qualityOf, SpeechDetector, tuneOpus, unitToDb } from '../detect'
 
 describe('loudness', () => {
@@ -69,13 +69,6 @@ describe('voice settings', () => {
     expect(s.userVolumes).toEqual({ a: { volume: 1.5, muted: false }, c: { volume: 2, muted: true } })
     expect(normalizeVoice({ pttKey: { kind: 'key', code: '<script>' } }).pttKey).toBeNull()
     expect(normalizeVoice({ pttKey: { kind: 'mouse', button: 4 } }).pttKey).toEqual({ kind: 'mouse', button: 4, label: 'Mouse 4' })
-  })
-  it('accept a voice server address however it is typed', () => {
-    expect(voiceServerUrl('voice.example.com')).toBe('wss://voice.example.com')
-    expect(voiceServerUrl('https://voice.example.com/')).toBe('wss://voice.example.com')
-    expect(voiceServerUrl('ws://localhost:8787')).toBe('ws://localhost:8787')
-    expect(voiceServerUrl('ftp://x')).toBeNull()
-    expect(voiceServerUrl('  ')).toBeNull()
   })
   it('name keys and mouse buttons for people', () => {
     expect(keyLabel('KeyV')).toBe('V')

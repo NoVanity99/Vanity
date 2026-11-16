@@ -14,6 +14,8 @@ interface Conn {
   /** For packet loss between two measurements. */
   lastPackets: { received: number; lost: number } | null
   restartTimer: ReturnType<typeof setTimeout> | null
+  /** Sends the shared screen, once one has been shared. */
+  video: RTCRtpSender | null
 }
 
 /**
@@ -26,6 +28,7 @@ export class MeshTransport implements VoiceTransport {
   private myId = ''
   private track: MediaStreamTrack | null = null
   private ice: VoiceIceServer[] = []
+  private video: { track: MediaStreamTrack; stream: MediaStream; encoding: { maxBitrate: number; maxFramerate: number } } | null = null
 
   constructor(private events: TransportEvents) {}
 
@@ -44,6 +47,36 @@ export class MeshTransport implements VoiceTransport {
         // Older connection: it keeps its servers.
       }
     }
+  }
+
+  setVideo(track: MediaStreamTrack | null, encoding: { maxBitrate: number; maxFramerate: number }): void {
+    this.video = track ? { track, stream: new MediaStream([track]), encoding } : null
+    for (const c of this.conns.values()) this.applyVideo(c)
+  }
+
+  /**
+   * The shared screen goes on its own video line. Stopping only takes the picture off it (no
+   * renegotiation), so sharing again later is instant; whether someone is sharing comes from
+   * the room's state, not from the line.
+   */
+  private applyVideo(c: Conn): void {
+    const v = this.video
+    if (!v) {
+      if (c.video) void c.video.replaceTrack(null).catch(() => {})
+      return
+    }
+    if (c.video) {
+      void c.video.replaceTrack(v.track).catch(() => {})
+      const p = c.video.getParameters()
+      if (p.encodings?.length) {
+        p.encodings[0].maxBitrate = v.encoding.maxBitrate
+        p.encodings[0].maxFramerate = v.encoding.maxFramerate
+        void c.video.setParameters(p).catch(() => {})
+      }
+      return
+    }
+    const t = c.pc.addTransceiver(v.track, { direction: 'sendonly', streams: [v.stream], sendEncodings: [{ maxBitrate: v.encoding.maxBitrate, maxFramerate: v.encoding.maxFramerate, priority: 'low', networkPriority: 'low' }] })
+    c.video = t.sender
   }
 
   addPeer(peerId: string): void {
@@ -76,7 +109,8 @@ export class MeshTransport implements VoiceTransport {
       pending: [],
       link: { state: 'connecting', rttMs: null, loss: null, quality: 'unknown' },
       lastPackets: null,
-      restartTimer: null
+      restartTimer: null,
+      video: null
     }
     this.conns.set(peerId, c)
 
@@ -94,9 +128,11 @@ export class MeshTransport implements VoiceTransport {
       pc.addTransceiver('audio', { direction: 'recvonly' })
     }
 
+    if (this.video) this.applyVideo(c)
+
     pc.ontrack = (e) => {
-      const stream = e.streams[0] ?? new MediaStream([e.track])
-      this.events.remoteStream(peerId, stream)
+      if (e.track.kind === 'video') return this.events.remoteVideo(peerId, new MediaStream([e.track]))
+      this.events.remoteStream(peerId, e.streams[0] ?? new MediaStream([e.track]))
     }
     pc.onicecandidate = (e) => {
       if (e.candidate) this.events.signal(peerId, { kind: 'ice', candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } })

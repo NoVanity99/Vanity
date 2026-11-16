@@ -1,21 +1,23 @@
-import { normalizeRoomCode, type VoiceIceServer, type VoicePeer, type VoiceServerMessage, type VoiceUser } from '@shared/voiceProtocol'
+import type { VoicePeer, VoiceSignal, VoiceUpdate, VoiceUser } from '@shared/voiceProtocol'
 import { DEFAULT_VOICE, type PeerVolume, type VoiceSettings } from '@shared/voiceSettings'
 import { AudioEngine, listDevices, type AudioDevices, type VoiceSound } from './audio'
 import { newSessionId, qualityOf, SpeechDetector, type Quality } from './detect'
 import { VoiceError } from './errors'
 import { MeshTransport } from './mesh'
-import { SignalingClient } from './signaling'
 import type { PeerLink, VoiceTransport } from './transport'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'in-room' | 'reconnecting' | 'error'
 
 export interface VoiceMember {
-  /** This visit's id in the room. */
+  /** Their Vanity account id. */
   id: string
   user: VoiceUser
   you: boolean
+  host: boolean
   muted: boolean
   deafened: boolean
+  /** Sharing their screen. */
+  sharing: boolean
   /** False for a few seconds while their connection drops and comes back. */
   connected: boolean
   speaking: boolean
@@ -25,10 +27,27 @@ export interface VoiceMember {
   link: PeerLink | null
 }
 
+export interface VoiceRoomInfo {
+  id: string
+  hostId: string
+  private: boolean
+  locked: boolean
+}
+
+/** How sharp and smooth a shared screen is. More of either uses more upload, for each person watching. */
+export const SHARE_QUALITY = {
+  smooth: { label: '720p · 30 fps', hint: 'Best on slower internet', width: 1280, height: 720, fps: 30, bitrate: 2_500_000 },
+  sharp: { label: '1080p · 30 fps', hint: 'Sharp text and pictures', width: 1920, height: 1080, fps: 30, bitrate: 4_000_000 },
+  fast: { label: '1080p · 60 fps', hint: 'For games and video', width: 1920, height: 1080, fps: 60, bitrate: 6_000_000 }
+} as const
+export type ShareQuality = keyof typeof SHARE_QUALITY
+
 export interface VoiceSnapshot {
   status: VoiceStatus
-  /** The room's invite code. */
-  code: string | null
+  /** The room you're in (or joining). */
+  room: VoiceRoomInfo | null
+  /** You started the room (or it passed to you): you set private and locked. */
+  isHost: boolean
   /** You first, then everyone else in the order they joined. */
   members: VoiceMember[]
   muted: boolean
@@ -41,18 +60,37 @@ export interface VoiceSnapshot {
   error: VoiceError | null
   /** Something worth saying that isn't an error ("Microphone unplugged, switched to…"). */
   notice: string | null
-  /** Round trip in ms: to the people in the room, or to the server when alone. */
+  /** Round trip in ms: to the people in the room, or to the Vanity server when alone. */
   ping: number | null
   quality: Quality
-  /** Reconnect attempt number while reconnecting. */
+  /** Failed check-ins in a row while reconnecting. */
   attempt: number
+  /** What you're sharing, if anything. */
+  sharing: { name: string; quality: ShareQuality } | null
+  /** Your own shared screen, for the small preview. */
+  localVideo: MediaStream | null
+  /** Everyone else's shared-screen pictures, by their id (shown while they're sharing). */
+  videos: Record<string, MediaStream>
+  /** Whose screen you're watching. */
+  watching: string | null
+}
+
+/** What the engine needs from the app: the Vanity server's voice calls. Each throws with words for the screen. */
+export interface VoiceApi {
+  start(opts: { private?: boolean; locked?: boolean }): Promise<VoiceUpdate>
+  join(roomId: string): Promise<VoiceUpdate>
+  leave(): Promise<void>
+  update(after: number): Promise<VoiceUpdate>
+  state(state: { muted: boolean; deafened: boolean; sharing: boolean }): Promise<void>
+  signal(signals: { to: string; data: VoiceSignal }[]): Promise<void>
+  setRoom(patch: { private?: boolean; locked?: boolean }): Promise<VoiceUpdate>
+  invite(userId: string): Promise<void>
+  /** Desktop: the next getDisplayMedia() shares this screen or window. */
+  pickScreen(id: string): Promise<boolean>
 }
 
 export interface VoiceDeps {
-  /** The voice server's address, or '' when none is set. */
-  serverUrl(): string
-  /** A fresh Vanity sign-in token. Throws when signed out. */
-  token(): Promise<string>
+  api: VoiceApi
   settings(): VoiceSettings
   /** Saves someone's volume for you (by their Vanity account id). */
   saveVolume(userId: string, volume: PeerVolume | null): void
@@ -62,24 +100,42 @@ export interface VoiceDeps {
 
 const TICK_MS = 50
 const REMOTE_SPEAKING_DB = -55
+/** Checking in: quickly while connections are being set up, calmly otherwise. */
+const POLL_BUSY_MS = 300
+const POLL_IDLE_MS = 1500
+/** Connection details are gathered this long and sent together. */
+const SIGNAL_FLUSH_MS = 80
 
-type Pending = { kind: 'create' } | { kind: 'join'; code: string }
+type Peer = VoicePeer & { speaking: boolean; link: PeerLink | null; detector: SpeechDetector }
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 /**
- * The voice engine: one per app. It owns the connection to the signaling server, the audio
- * (through AudioEngine) and the connections to other players (through a VoiceTransport), and
- * tells the screens what's going on through `subscribe`. Nothing in here draws anything.
+ * The voice engine: one per app. It keeps you in a room on the Vanity server (checking in every
+ * second or so, which also brings connection details from the others), owns the audio (through
+ * AudioEngine) and the connections to other players (through a VoiceTransport), and tells the
+ * screens what's going on through `subscribe`. Nothing in here draws anything.
  */
 export class VoiceClient {
   private audio: AudioEngine | null = null
-  private signaling: SignalingClient | null = null
   private transport: VoiceTransport | null = null
-  private ice: VoiceIceServer[] = []
+  private ice = ''
+  /** This visit's id, sent with connection details (an app that restarted has a new one). */
   private session = ''
-  private pending: Pending | null = null
+  /** The visit each other person is on, as their connection details say. */
+  private sessions = new Map<string, string>()
+  /** Bumped whenever a call ends, so a check-in loop from an earlier call stops. */
+  private gen = 0
+  private after = 0
+  private lastSignalAt = 0
+  private serverPing: number | null = null
+  private outbox: { to: string; data: VoiceSignal }[] = []
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
+  private stateTimer: ReturnType<typeof setTimeout> | null = null
+  private lastRoomId: string | null = null
   private me: VoiceUser | null = null
   private myId = ''
-  private peers = new Map<string, VoicePeer & { speaking: boolean; link: PeerLink | null; detector: SpeechDetector }>()
+  private peers = new Map<string, Peer>()
   private selfDetector = new SpeechDetector(DEFAULT_VOICE.sensitivityDb)
   private pttDown = false
   private pttUntil = 0
@@ -87,11 +143,13 @@ export class VoiceClient {
   private measureTimer: ReturnType<typeof setInterval> | null = null
   private testing = false
   private gateOpen = false
+  private screenTrack: MediaStreamTrack | null = null
   private levelListeners = new Set<(db: number) => void>()
   private listeners = new Set<(s: VoiceSnapshot) => void>()
   private snap: VoiceSnapshot = {
     status: 'idle',
-    code: null,
+    room: null,
+    isHost: false,
     members: [],
     muted: false,
     deafened: false,
@@ -102,7 +160,11 @@ export class VoiceClient {
     notice: null,
     ping: null,
     quality: 'unknown',
-    attempt: 0
+    attempt: 0,
+    sharing: null,
+    localVideo: null,
+    videos: {},
+    watching: null
   }
   private wasMutedBeforeDeafen = false
 
@@ -134,36 +196,57 @@ export class VoiceClient {
   }
 
   get inRoom(): boolean {
-    return this.snap.status === 'in-room' || this.snap.status === 'reconnecting' || (this.snap.status === 'connecting' && !!this.pending)
+    return this.snap.status === 'in-room' || this.snap.status === 'reconnecting' || this.snap.status === 'connecting'
   }
 
-  async create(): Promise<void> {
-    await this.begin({ kind: 'create' })
+  /** Starts a room your friends can see (private: hidden; locked: seen, but invite only). */
+  async start(opts: { private?: boolean; locked?: boolean } = {}): Promise<void> {
+    await this.begin(null, () => this.deps.api.start(opts))
   }
 
-  async join(input: string): Promise<void> {
-    const code = normalizeRoomCode(input)
-    if (!code) return this.fail(new VoiceError('not-found', "That isn't a room code. Codes are 6 letters and numbers, like K7M2QX."))
-    await this.begin({ kind: 'join', code })
+  /** Joins a friend's room. */
+  async join(roomId: string): Promise<void> {
+    if (this.snap.room?.id === roomId && this.inRoom) return
+    await this.begin(roomId, () => this.deps.api.join(roomId))
   }
 
   leave(): void {
-    const was = this.snap.status === 'in-room'
-    this.signaling?.send({ t: 'leave' })
+    const was = this.snap.status === 'in-room' || this.snap.status === 'reconnecting'
+    if (this.snap.room) void this.deps.api.leave().catch(() => {})
     this.teardown()
     if (was) this.sound('self-leave')
-    this.set({ status: 'idle', code: null, members: [], error: null, notice: null, ping: null, quality: 'unknown', speaking: false, attempt: 0 })
+    this.lastRoomId = null
+    this.set({ status: 'idle', room: null, isHost: false, members: [], error: null, notice: null, ping: null, quality: 'unknown', speaking: false, attempt: 0 })
   }
 
   /** "Try again" after an error, or "Reconnect now" while reconnecting. */
   retry(): void {
-    if (this.snap.status === 'reconnecting') return this.signaling?.retryNow()
-    const code = this.snap.code
-    if (code) void this.join(code)
+    if (this.snap.status === 'reconnecting') {
+      this.lastSignalAt = performance.now()
+      return
+    }
+    if (this.lastRoomId) void this.join(this.lastRoomId)
   }
 
   dismissNotice(): void {
     this.set({ notice: null, error: this.snap.status === 'error' ? this.snap.error : null })
+  }
+
+  /** Private and locked (only the host). */
+  async setRoom(patch: { private?: boolean; locked?: boolean }): Promise<void> {
+    if (!this.snap.room) return
+    // Shown at once; the server's answer settles it.
+    this.set({ room: { ...this.snap.room, ...patch } })
+    try {
+      await this.apply(await this.deps.api.setRoom(patch), false)
+    } catch (err) {
+      this.set({ notice: err instanceof Error ? err.message : 'That could not be changed.' })
+    }
+  }
+
+  /** Lets a friend in (even when the room is private or locked). */
+  async invite(userId: string): Promise<void> {
+    await this.deps.api.invite(userId)
   }
 
   toggleMute(): void {
@@ -178,6 +261,7 @@ export class VoiceClient {
     }
     this.applyOutput()
     this.sendState()
+    this.emitMembers()
   }
 
   toggleDeafen(): void {
@@ -191,6 +275,7 @@ export class VoiceClient {
     }
     this.applyOutput()
     this.sendState()
+    this.emitMembers()
   }
 
   /** Someone's volume for you, 0–2 (0–200%). Saved, so it's the same next time. */
@@ -220,6 +305,52 @@ export class VoiceClient {
     this.pttDown = down
     if (!down) this.pttUntil = performance.now() + this.deps.settings().pttReleaseMs
     this.set({ pushToTalk: down })
+  }
+
+  // ---- screen sharing ----------------------------------------------------------------
+
+  /** Shares a screen or window (picked in Vanity's picker) with everyone in the room. */
+  async startScreenShare(source: { id: string; name: string }, quality: ShareQuality): Promise<void> {
+    if (!this.transport || !this.inRoom) return
+    const q = SHARE_QUALITY[quality]
+    if (!navigator.mediaDevices?.getDisplayMedia) return this.set({ notice: "Screen sharing isn't available on this device. You can still watch other people's screens." })
+    let stream: MediaStream
+    try {
+      if (!(await this.deps.api.pickScreen(source.id))) throw new Error('not picked')
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: q.width }, height: { ideal: q.height }, frameRate: { ideal: q.fps, max: q.fps } }, audio: false })
+    } catch {
+      return this.set({ notice: `"${source.name}" couldn't be shared. It may have closed; pick it again.` })
+    }
+    const track = stream.getVideoTracks()[0]
+    if (!track) return
+    // Games and video want smooth motion; documents and code want sharp detail.
+    track.contentHint = q.fps >= 60 ? 'motion' : 'detail'
+    this.stopScreenTrack()
+    this.screenTrack = track
+    // The window or screen went away, or Windows stopped it.
+    track.onended = () => {
+      if (this.screenTrack === track) this.stopScreenShare()
+    }
+    this.transport.setVideo(track, { maxBitrate: q.bitrate, maxFramerate: q.fps })
+    this.set({ sharing: { name: source.name, quality }, localVideo: new MediaStream([track]) })
+    this.sound('join')
+    this.sendState()
+    this.emitMembers()
+  }
+
+  stopScreenShare(): void {
+    if (!this.screenTrack) return
+    this.stopScreenTrack()
+    this.transport?.setVideo(null, { maxBitrate: 0, maxFramerate: 0 })
+    this.set({ sharing: null, localVideo: null })
+    this.sound('leave')
+    this.sendState()
+    this.emitMembers()
+  }
+
+  /** Whose shared screen to show big (null: nobody's). */
+  watch(peerId: string | null): void {
+    this.set({ watching: peerId && this.peers.get(peerId)?.sharing ? peerId : null })
   }
 
   /** Settings changed: devices, volumes, sensitivity, processing. */
@@ -348,166 +479,215 @@ export class VoiceClient {
     }
   }
 
-  private async begin(action: Pending): Promise<void> {
+  /** Into a room: opens the microphone, asks the server, then keeps checking in. */
+  private async begin(roomId: string | null, ask: () => Promise<VoiceUpdate>): Promise<void> {
     if (this.inRoom) this.leave()
-    const url = this.deps.serverUrl()
-    if (!url) return this.fail(new VoiceError('not-configured', "Voice isn't set up yet: this copy of Vanity doesn't know a voice server. Add one in Settings → Voice."))
     if (typeof RTCPeerConnection === 'undefined') return this.fail(new VoiceError('unsupported', "Voice isn't available in this version of the app."))
-    this.set({ status: 'connecting', error: null, notice: null, code: action.kind === 'join' ? action.code : null, members: [], attempt: 0 })
-    this.pending = action
-    this.session = newSessionId()
+    const gen = ++this.gen
+    this.set({ status: 'connecting', error: null, notice: null, room: roomId ? { id: roomId, hostId: '', private: false, locked: false } : null, isHost: false, members: [], attempt: 0, watching: null, videos: {} })
+    this.lastRoomId = roomId
     await this.ensureAudio()
-    const s = this.deps.settings()
-    this.selfDetector.thresholdDb = s.sensitivityDb
+    this.selfDetector.thresholdDb = this.deps.settings().sensitivityDb
     const micOk = await this.openMic()
     // A fresh call starts unmuted (or muted when there's no microphone to talk with).
     this.set({ muted: !micOk, deafened: false })
-    this.startSignaling(url)
-  }
-
-  private startSignaling(url: string): void {
-    this.signaling?.stop()
-    let everConnected = false
-    this.signaling = new SignalingClient({
-      url,
-      token: () => this.deps.token(),
-      onStatus: (status, attempt) => {
-        if (status === 'reconnecting') {
-          // Never reached the server at all after a few tries: say so, rather than spinning forever.
-          if (!everConnected && attempt >= 3) {
-            this.signaling?.stop()
-            this.teardown()
-            return this.fail(new VoiceError('unreachable', `Can't reach the voice server (${url.replace(/^wss?:\/\//, '')}). Check your internet connection; the server may also be down.`))
-          }
-          if (this.snap.status === 'in-room' || this.snap.status === 'reconnecting') this.set({ status: 'reconnecting', attempt })
+    let u: VoiceUpdate
+    try {
+      u = await ask()
+    } catch (err) {
+      if (gen !== this.gen) return
+      this.teardown()
+      const message = err instanceof Error ? err.message : 'Voice rooms are not reachable right now.'
+      return this.fail(new VoiceError(/sign in/i.test(message) ? 'signed-out' : /full/i.test(message) ? 'full' : /closed|locked|can't join/i.test(message) ? 'not-found' : 'unreachable', message))
+    }
+    if (gen !== this.gen) return
+    if (!u.room) {
+      this.teardown()
+      return this.fail(new VoiceError('not-found', 'That voice room has closed.'))
+    }
+    this.session = newSessionId()
+    this.after = 0
+    this.myId = u.you
+    const make = this.deps.transport ?? ((events) => new MeshTransport(events))
+    this.transport = make({
+      signal: (to, data) => this.queueSignal(to, data),
+      remoteStream: (id, stream) => {
+        this.audio?.addRemote(id, stream)
+        const p = this.peers.get(id)
+        if (p) {
+          const v = this.volumeFor(p.user.id)
+          this.audio?.setRemoteVolume(id, v.muted ? 0 : v.volume)
         }
       },
-      onWelcome: (msg) => {
-        everConnected = true
-        this.me = msg.you
-        this.ice = msg.ice
-        this.transport?.setIceServers(msg.ice)
-        if (this.pending) {
-          const p = this.pending
-          this.signaling?.send(p.kind === 'create' ? { t: 'create', session: this.session } : { t: 'join', code: p.code, session: this.session })
-        } else if (this.snap.code) {
-          // Back after a dropped connection: the same place in the same room.
-          this.signaling?.send({ t: 'join', code: this.snap.code, session: this.session, resume: true })
+      remoteGone: (id) => {
+        this.audio?.removeRemote(id)
+        if (this.snap.videos[id]) {
+          const videos = { ...this.snap.videos }
+          delete videos[id]
+          this.set({ videos })
         }
       },
-      onMessage: (msg) => this.onServer(msg),
-      onFatal: (msg) => {
-        this.teardown()
-        if (msg.code === 'replaced') {
-          this.set({ status: 'idle', code: null, members: [], notice: msg.message, error: null })
-        } else {
-          this.fail(new VoiceError(msg.code === 'auth' ? 'signed-out' : 'version', msg.message))
-        }
+      remoteVideo: (id, stream) => this.set({ videos: { ...this.snap.videos, [id]: stream } }),
+      link: (id, link) => {
+        const p = this.peers.get(id)
+        if (!p) return
+        p.link = link
+        this.emitMembers()
       }
     })
-    this.signaling.start()
+    this.ice = JSON.stringify(u.ice)
+    this.transport.start({ myId: u.you, localTrack: this.audio!.sendTrack, iceServers: u.ice })
+    this.set({ status: 'in-room', error: null, attempt: 0 })
+    await this.apply(u, true)
+    this.sound('self-join')
+    this.sendState(true)
+    this.startTicking()
+    this.startMeasuring()
+    void this.checkIn(gen)
   }
 
-  private onServer(msg: VoiceServerMessage): void {
-    switch (msg.t) {
-      case 'room': {
-        // Back after a drop: either the server kept our place, or (after a server restart) we're back under the same visit id.
-        const resumed = this.myId === msg.you && (msg.resumed || this.peers.size > 0 || this.snap.status === 'reconnecting')
-        this.pending = null
-        this.myId = msg.you
-        if (!this.transport) {
-          const make = this.deps.transport ?? ((events) => new MeshTransport(events))
-          this.transport = make({
-            signal: (to, data) => this.signaling?.send({ t: 'signal', to, data }),
-            remoteStream: (id, stream) => {
-              this.audio?.addRemote(id, stream)
-              const p = this.peers.get(id)
-              if (p) {
-                const v = this.volumeFor(p.user.id)
-                this.audio?.setRemoteVolume(id, v.muted ? 0 : v.volume)
-              }
-            },
-            remoteGone: (id) => this.audio?.removeRemote(id),
-            link: (id, link) => {
-              const p = this.peers.get(id)
-              if (!p) return
-              p.link = link
-              this.emitMembers()
-            }
-          })
-          this.transport.start({ myId: msg.you, localTrack: this.audio!.sendTrack, iceServers: this.ice })
+  /** Checks in until the call ends: quickly while connections are being set up, calmly otherwise. */
+  private async checkIn(gen: number): Promise<void> {
+    let failures = 0
+    while (gen === this.gen) {
+      const busy = performance.now() - this.lastSignalAt < 6000
+      await sleep(failures ? Math.min(8000, 1000 * failures) : busy ? POLL_BUSY_MS : POLL_IDLE_MS)
+      if (gen !== this.gen) return
+      const t0 = performance.now()
+      try {
+        const u = await this.deps.api.update(this.after)
+        if (gen !== this.gen) return
+        this.serverPing = Math.round(performance.now() - t0)
+        if (failures) {
+          failures = 0
+          this.set({ status: 'in-room', attempt: 0 })
         }
-        const ids = new Set(msg.peers.map((p) => p.id))
-        // Anyone who left while we were away.
-        for (const id of [...this.peers.keys()]) {
-          if (!ids.has(id)) {
-            this.peers.delete(id)
-            this.transport.removePeer(id)
-          }
-        }
-        for (const p of msg.peers) {
-          const known = this.peers.get(p.id)
-          this.peers.set(p.id, { ...p, speaking: known?.speaking ?? false, link: known?.link ?? null, detector: known?.detector ?? new SpeechDetector(REMOTE_SPEAKING_DB, 20, 300) })
-          // Fresh connections after coming back: the old ones may be broken.
-          if (resumed) this.transport.resetPeer(p.id)
-          else this.transport.addPeer(p.id)
-        }
-        if (!resumed) this.sound('self-join')
-        this.set({ status: 'in-room', code: msg.code, error: null, attempt: 0 })
-        this.sendState()
-        this.startTicking()
-        this.startMeasuring()
-        this.emitMembers()
-        return
-      }
-      case 'peer-joined': {
-        this.peers.set(msg.peer.id, { ...msg.peer, speaking: false, link: null, detector: new SpeechDetector(REMOTE_SPEAKING_DB, 20, 300) })
-        this.transport?.addPeer(msg.peer.id)
-        this.sound('join')
-        return this.emitMembers()
-      }
-      case 'peer-left': {
-        if (!this.peers.delete(msg.id)) return
-        this.transport?.removePeer(msg.id)
-        this.sound('leave')
-        return this.emitMembers()
-      }
-      case 'peer-state': {
-        const p = this.peers.get(msg.id)
-        if (!p) return
-        const cameBack = !p.connected && msg.connected
-        Object.assign(p, { muted: msg.muted, deafened: msg.deafened, connected: msg.connected })
-        if (cameBack) this.transport?.resetPeer(msg.id)
-        return this.emitMembers()
-      }
-      case 'signal':
-        void this.transport?.handleSignal(msg.from, msg.data)
-        return
-      case 'error': {
-        // Couldn't get into the room (a wrong code, full): stop here.
-        if (this.pending || this.snap.status !== 'in-room') {
+        await this.apply(u, false)
+      } catch (err) {
+        if (gen !== this.gen) return
+        failures++
+        if (err instanceof Error && /sign in/i.test(err.message)) {
           this.teardown()
-          const code = msg.code === 'full' ? 'full' : msg.code === 'not-found' ? 'not-found' : 'server'
-          return this.fail(new VoiceError(code, msg.message))
+          return this.fail(new VoiceError('signed-out', 'You were signed out, so you left the voice room. Sign in again to rejoin.'))
         }
-        return this.set({ notice: msg.message })
+        // A blip is normal; after a few in a row, say so (audio between players may still be fine).
+        if (failures >= 3) this.set({ status: 'reconnecting', attempt: failures })
       }
     }
   }
 
-  private sendState(): void {
-    this.signaling?.send({ t: 'state', muted: this.snap.muted, deafened: this.snap.deafened })
+  /** The room as the server sees it, and connection details from the others. */
+  private async apply(u: VoiceUpdate, first: boolean): Promise<void> {
+    const transport = this.transport
+    if (!transport) return
+    if (!u.room) {
+      if (this.snap.room && this.snap.status !== 'idle') {
+        // Taken out (no check-in for a long while): try to get back in once.
+        const roomId = this.snap.room.id
+        const gen = this.gen
+        try {
+          const again = await this.deps.api.join(roomId)
+          if (gen === this.gen && again.room) return this.apply(again, false)
+        } catch {
+          // Closed, or no longer allowed in.
+        }
+        if (gen !== this.gen) return
+        this.teardown()
+        this.set({ status: 'idle', room: null, isHost: false, members: [], notice: 'You lost your connection for too long and left the voice room.', ping: null, quality: 'unknown' })
+      }
+      return
+    }
+    const ice = JSON.stringify(u.ice)
+    if (ice !== this.ice) {
+      this.ice = ice
+      transport.setIceServers(u.ice)
+    }
+    this.myId = u.you
+    const others = u.room.members.filter((m) => m.id !== u.you)
+    this.me = u.room.members.find((m) => m.id === u.you)?.user ?? this.me
+    const ids = new Set(others.map((m) => m.id))
+    for (const id of [...this.peers.keys()]) {
+      if (ids.has(id)) continue
+      this.peers.delete(id)
+      this.sessions.delete(id)
+      transport.removePeer(id)
+      this.sound('leave')
+      if (this.snap.watching === id) this.set({ watching: null })
+    }
+    for (const m of others) {
+      const known = this.peers.get(m.id)
+      if (known) {
+        Object.assign(known, { user: m.user, muted: m.muted, deafened: m.deafened, sharing: m.sharing, connected: m.connected, joinedAt: m.joinedAt })
+        if (!m.sharing && this.snap.watching === m.id) this.set({ watching: null })
+      } else {
+        this.peers.set(m.id, { ...m, speaking: false, link: null, detector: new SpeechDetector(REMOTE_SPEAKING_DB, 20, 300) })
+        transport.addPeer(m.id)
+        if (!first) this.sound('join')
+      }
+    }
+    for (const s of u.signals) {
+      this.after = Math.max(this.after, s.id)
+      this.lastSignalAt = performance.now()
+      if (!this.peers.has(s.from)) continue
+      const known = this.sessions.get(s.from)
+      if (s.data.session && known !== s.data.session) {
+        if (known && s.data.kind !== 'offer') continue // left over from before their app restarted
+        if (known) transport.resetPeer(s.from) // their app restarted: start over with them
+        this.sessions.set(s.from, s.data.session)
+      }
+      void transport.handleSignal(s.from, s.data)
+    }
+    const r = u.room
+    this.lastRoomId = r.id
+    this.set({ room: { id: r.id, hostId: r.hostId, private: r.private, locked: r.locked }, isHost: r.hostId === u.you })
+    this.emitMembers()
+  }
+
+  private queueSignal(to: string, data: VoiceSignal): void {
+    this.outbox.push({ to, data: { ...data, session: this.session } })
+    this.lastSignalAt = performance.now()
+    if (!this.flushTimer) this.flushTimer = setTimeout(() => void this.flush(), SIGNAL_FLUSH_MS)
+  }
+
+  private async flush(): Promise<void> {
+    this.flushTimer = null
+    const gen = this.gen
+    while (this.outbox.length && gen === this.gen) {
+      const batch = this.outbox.splice(0, 40)
+      try {
+        await this.deps.api.signal(batch)
+      } catch {
+        // Once more after a moment; a lost detail is recovered by the connection retrying.
+        await sleep(500)
+        if (gen === this.gen) await this.deps.api.signal(batch).catch(() => {})
+      }
+    }
+  }
+
+  /** Shares mute, deafen and screen sharing (gathered for a moment, so quick toggles send once). */
+  private sendState(now = false): void {
+    if (this.stateTimer) clearTimeout(this.stateTimer)
+    const send = (): void => {
+      this.stateTimer = null
+      if (!this.inRoom) return
+      void this.deps.api.state({ muted: this.snap.muted, deafened: this.snap.deafened, sharing: !!this.snap.sharing }).catch(() => {})
+    }
+    if (now) send()
+    else this.stateTimer = setTimeout(send, 150)
   }
 
   private emitMembers(override: Record<string, PeerVolume> = {}): void {
     const members: VoiceMember[] = []
+    const hostId = this.snap.room?.hostId ?? ''
     if (this.me && this.myId && this.snap.status !== 'idle') {
       members.push({
         id: this.myId,
         user: this.me,
         you: true,
+        host: hostId === this.myId,
         muted: this.snap.muted,
         deafened: this.snap.deafened,
+        sharing: !!this.snap.sharing,
         connected: this.snap.status !== 'reconnecting',
         speaking: this.snap.speaking,
         volume: 1,
@@ -518,13 +698,13 @@ export class VoiceClient {
     const others = [...this.peers.values()].sort((a, b) => a.joinedAt - b.joinedAt)
     for (const p of others) {
       const v = override[p.user.id] ?? this.volumeFor(p.user.id)
-      members.push({ id: p.id, user: p.user, you: false, muted: p.muted, deafened: p.deafened, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link })
+      members.push({ id: p.id, user: p.user, you: false, host: hostId === p.id, muted: p.muted, deafened: p.deafened, sharing: p.sharing, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link })
     }
     const links = others.map((p) => p.link).filter((l): l is PeerLink => !!l && l.state === 'connected')
     const rtts = links.map((l) => l.rttMs).filter((r): r is number => r !== null)
-    const ping = rtts.length ? Math.round(rtts.reduce((a, b) => a + b, 0) / rtts.length) : (this.signaling?.rtt ?? null)
+    const ping = rtts.length ? Math.round(rtts.reduce((a, b) => a + b, 0) / rtts.length) : this.serverPing
     const order: Quality[] = ['poor', 'ok', 'good', 'unknown']
-    const worst = links.length ? links.map((l) => l.quality).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] : qualityOf(this.signaling?.rtt ?? null, null)
+    const worst = links.length ? links.map((l) => l.quality).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] : qualityOf(this.serverPing, null)
     this.set({ members, ping, quality: worst })
   }
 
@@ -555,7 +735,7 @@ export class VoiceClient {
     this.selfDetector.thresholdDb = s.sensitivityDb
     const loud = this.selfDetector.update(db, now, TICK_MS)
     const pttOn = this.pttDown || now < this.pttUntil
-    const canTalk = this.snap.status === 'in-room' && this.snap.micAvailable && !this.snap.muted && !this.snap.deafened
+    const canTalk = (this.snap.status === 'in-room' || this.snap.status === 'reconnecting') && this.snap.micAvailable && !this.snap.muted && !this.snap.deafened
     const talking = canTalk && (s.inputMode === 'ptt' ? pttOn && db > -95 : loud)
     // The gate follows push-to-talk exactly (so the first word isn't lost), and voice detection otherwise.
     const gate = canTalk && (s.inputMode === 'ptt' ? pttOn : loud)
@@ -575,15 +755,28 @@ export class VoiceClient {
     if (changed) this.emitMembers()
   }
 
+  private stopScreenTrack(): void {
+    if (!this.screenTrack) return
+    this.screenTrack.onended = null
+    this.screenTrack.stop()
+    this.screenTrack = null
+  }
+
   private teardown(): void {
-    this.pending = null
-    this.signaling?.stop()
-    this.signaling = null
+    this.gen++
+    if (this.flushTimer) clearTimeout(this.flushTimer)
+    if (this.stateTimer) clearTimeout(this.stateTimer)
+    this.flushTimer = this.stateTimer = null
+    this.outbox = []
+    this.stopScreenTrack()
     this.transport?.close()
     this.transport = null
     for (const id of this.peers.keys()) this.audio?.removeRemote(id)
     this.peers.clear()
+    this.sessions.clear()
     this.myId = ''
+    this.after = 0
+    this.serverPing = null
     this.gateOpen = false
     this.audio?.setGate(false)
     if (this.measureTimer) clearInterval(this.measureTimer)
@@ -594,5 +787,6 @@ export class VoiceClient {
     }
     this.pttDown = false
     this.pttUntil = 0
+    this.set({ sharing: null, localVideo: null, videos: {}, watching: null })
   }
 }

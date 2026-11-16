@@ -52,6 +52,7 @@ import { tracked } from './sync/track'
 import { createSessionVault, nodeAuthHttp } from './account/desktop'
 import { backendConfig } from '@shared/backend'
 import { PushToTalkHotkey } from './voice/hotkeys'
+import { setupScreenShare } from './voice/screen'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -315,6 +316,7 @@ app.whenReady().then(() => {
 
   // Push-to-talk from anywhere: the key's ups and downs go to the voice engine in the window.
   pushToTalk = new PushToTalkHotkey((down) => broadcast(IPC.voicePushToTalk, down))
+  setupScreenShare()
   pushToTalk.configure(getSettings().voice.inputMode === 'ptt', getSettings().voice.pttKey)
   const live = new LiveService({ db, store, fetchFn, getSettings })
   const details = new DetailsService({ db, store, fetchFn, getSettings, steamAppIdFor: (g) => live.steamAppIdFor(g) })
@@ -323,7 +325,7 @@ app.whenReady().then(() => {
     store,
     fetchFn,
     authHttp: nodeAuthHttp,
-    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL, voiceUrl: import.meta.env.MAIN_VITE_VOICE_URL }),
+    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }),
     vault: createSessionVault(join(app.getPath('userData'), 'session.bin')),
     runningGame: () => tracker?.running() ?? null,
     onChange: (s) => {
@@ -455,7 +457,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ pushToTalk, voiceUrl: backendConfig({ voiceUrl: import.meta.env.MAIN_VITE_VOICE_URL }).voiceUrl, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ pushToTalk, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.

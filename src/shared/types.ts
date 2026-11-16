@@ -1,3 +1,4 @@
+import type { FriendVoice } from './voiceProtocol'
 import type { VoiceSettings } from './voiceSettings'
 import type { InterfaceOptions } from './interfaceOptions'
 import type { ProfileStyle } from './profileStyle'
@@ -422,6 +423,8 @@ export interface Friend extends PublicUser {
   topGame: string | null
   level: number
   xp: number
+  /** Their voice room, when it's one you may see (null when they're not in one). */
+  voice: FriendVoice | null
 }
 
 export interface FriendRequest extends PublicUser {

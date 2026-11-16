@@ -1,4 +1,6 @@
 import type { PushToTalkHotkey } from '../voice/hotkeys'
+import { pickScreen, screenSources } from '../voice/screen'
+import { MAX_SIGNALS_PER_SEND, type VoiceSignal } from '@shared/voiceProtocol'
 import type { ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
@@ -94,11 +96,9 @@ export interface IpcDeps {
   onSettingsChanged?: (settings: Settings) => void
   /** The push-to-talk hotkey (main process). */
   pushToTalk: PushToTalkHotkey
-  /** The voice server built into this copy ('' for none). */
-  voiceUrl: string
 }
 
-export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged, pushToTalk, voiceUrl }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged, pushToTalk }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -369,8 +369,17 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.steamOwnedGames, () => wrap(() => steam.ownedGames()))
   ipcMain.handle(IPC.steamRecentGames, () => wrap(() => steam.recentGames()))
   ipcMain.handle(IPC.steamAchievements, (_e, appId: number) => wrap(() => steam.achievements(Number(appId))))
-  ipcMain.handle(IPC.voiceServerUrl, () => ({ url: getSettings().voice.serverUrl || voiceUrl, builtIn: voiceUrl }))
-  ipcMain.handle(IPC.voiceToken, () => wrap(() => account.token()))
+  const flag = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined)
+  ipcMain.handle(IPC.voiceStart, (_e, o: { private?: boolean; locked?: boolean }) => wrap(() => account.guard((c) => c.voiceStart({ private: flag(o?.private), locked: flag(o?.locked) }))))
+  ipcMain.handle(IPC.voiceJoin, (_e, roomId: string) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))))
+  ipcMain.handle(IPC.voiceLeave, () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)))
+  ipcMain.handle(IPC.voiceUpdate, (_e, after: number) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))))
+  ipcMain.handle(IPC.voiceState, (_e, s: { muted: boolean; deafened: boolean; sharing: boolean }) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: s?.sharing === true })), true as const)))
+  ipcMain.handle(IPC.voiceSignal, (_e, signals: { to: string; data: VoiceSignal }[]) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, MAX_SIGNALS_PER_SEND) : [])), true as const)))
+  ipcMain.handle(IPC.voiceSetRoom, (_e, p: { private?: boolean; locked?: boolean }) => wrap(() => account.guard((c) => c.voiceSetRoom({ private: flag(p?.private), locked: flag(p?.locked) }))))
+  ipcMain.handle(IPC.voiceInvite, (_e, userId: string) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)))
+  ipcMain.handle(IPC.voiceScreenSources, () => screenSources().catch(() => []))
+  ipcMain.handle(IPC.voicePickScreen, (_e, id: string) => pickScreen(id))
   ipcMain.handle(IPC.voiceHotkeyStatus, () => pushToTalk.status())
   ipcMain.handle(IPC.accountState, () => account.state())
   ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))

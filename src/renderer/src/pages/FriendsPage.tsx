@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Clock, Gamepad2, LogIn, MessageCircle, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
+import { AudioLines, Check, Clock, Gamepad2, Lock, LogIn, Radio, MessageCircle, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
@@ -11,6 +11,7 @@ import { useAccount } from '@/state/account'
 import { openChat } from '@/state/chats'
 import { publishFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
+import { useVoice, voice } from '@/state/voice'
 
 const REFRESH_MS = 30_000
 
@@ -48,6 +49,18 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
           {playing && <Gamepad2 className="size-3.5 shrink-0" />}
           <span className="truncate">{statusLine(friend)}</span>
         </span>
+        {friend.voice && (
+          <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-emerald-400" data-in-voice>
+            <AudioLines className="size-3.5 shrink-0" />
+            <span className="truncate">In voice{friend.voice.count > 1 ? ` with ${friend.voice.count - 1} other${friend.voice.count === 2 ? '' : 's'}` : ''}</span>
+            {friend.voice.live && (
+              <span className="flex shrink-0 items-center gap-0.5 rounded bg-accent px-1 text-[9px] font-black uppercase text-white">
+                <Radio className="size-2.5" /> Live
+              </span>
+            )}
+            {friend.voice.locked && <Lock className="size-3 shrink-0 text-muted" />}
+          </span>
+        )}
         {friend.lastMessage && (
           <span className={cn('mt-0.5 flex items-center gap-1.5 truncate text-xs', friend.unread > 0 ? 'font-semibold text-text' : 'text-muted')} data-last-message>
             <MessageCircle className="size-3 shrink-0" />
@@ -68,6 +81,29 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
         {friend.gamesPlayed} game{friend.gamesPlayed === 1 ? '' : 's'}
       </span>
     </button>
+  )
+}
+
+/** Hop into the voice room a friend is in. */
+function JoinVoice({ friend }: { friend: Friend }): React.JSX.Element | null {
+  const v = useVoice()
+  const navigate = useNavigate()
+  const fv = friend.voice
+  if (!fv) return null
+  const here = v.room?.id === fv.roomId && v.status !== 'idle' && v.status !== 'error'
+  return (
+    <Button
+      variant={fv.canJoin && !here ? 'primary' : 'secondary'}
+      className="col-span-full justify-center !bg-emerald-600 enabled:hover:!brightness-110 disabled:!bg-white/10"
+      disabled={(!fv.canJoin && !here) || v.status === 'connecting'}
+      onClick={() => {
+        if (!here) void voice.join(fv.roomId)
+        navigate('/voice')
+      }}
+      data-join-voice
+    >
+      <AudioLines className="size-4" /> {here ? "You're in this voice room" : fv.canJoin ? `Join voice (${fv.count}/6)` : fv.locked ? 'Voice room is locked' : 'Voice room is full'}
+    </Button>
   )
 }
 
@@ -159,6 +195,7 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
       )}
 
       <div className="grid grid-cols-2 gap-2">
+        {friend.voice && <JoinVoice friend={friend} />}
         <Button variant="primary" className="justify-center" onClick={() => openChat(friend)} data-message-friend>
           <MessageCircle className="size-4" /> Message
           {friend.unread > 0 && <span className="ml-1 rounded-full bg-white/25 px-1.5 text-[11px] font-bold tabular-nums">{friend.unread}</span>}

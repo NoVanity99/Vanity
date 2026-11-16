@@ -1,4 +1,5 @@
 import type { ProfileStyle } from './profileStyle'
+import type { VoiceSignal, VoiceUpdate } from './voiceProtocol'
 import type {
   ChatMessage,
   ChatPage,
@@ -60,6 +61,17 @@ export interface MusicState {
 }
 
 /** For calls that can fail in ways the user should see: either data or a readable error. */
+/** A screen or window that can be shared in a voice room. */
+export interface ScreenSource {
+  id: string
+  name: string
+  kind: 'screen' | 'window'
+  /** A small picture of it (data: address), or null. */
+  thumbnail: string | null
+  /** The app's icon, for windows. */
+  icon: string | null
+}
+
 export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
 /** The API the preload script exposes to the renderer as `window.vanity`. */
@@ -196,12 +208,31 @@ export interface VanityApi {
     /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
   }
-  /** Voice chat: the server address, a sign-in token for it, and the push-to-talk key. */
+  /**
+   * Voice rooms, run by the Vanity server (no separate voice server, no codes). Friends see your
+   * room and can join unless it's private or locked. The audio and shared screens go directly
+   * between apps over WebRTC; these calls only arrange that.
+   */
   voice: {
-    /** The voice server to use: the one in Settings → Voice, else the one built into this copy ('' for none). */
-    serverUrl(): Promise<{ url: string; builtIn: string }>
-    /** A fresh Vanity sign-in token, which the voice server checks. */
-    token(): Promise<Result<string>>
+    /** Starts a room (leaving any other). */
+    start(opts: { private?: boolean; locked?: boolean }): Promise<Result<VoiceUpdate>>
+    /** Joins a friend's room (by the id in their friends-list entry). */
+    join(roomId: string): Promise<Result<VoiceUpdate>>
+    leave(): Promise<Result<true>>
+    /** Checking in during a call: the room, and connection details sent to you after `after`. */
+    update(after: number): Promise<Result<VoiceUpdate>>
+    state(state: { muted: boolean; deafened: boolean; sharing: boolean }): Promise<Result<true>>
+    signal(signals: { to: string; data: VoiceSignal }[]): Promise<Result<true>>
+    /** Private and locked (only whoever started the room). */
+    setRoom(patch: { private?: boolean; locked?: boolean }): Promise<Result<VoiceUpdate>>
+    /** Lets a friend in even when the room is private or locked. */
+    invite(userId: string): Promise<Result<true>>
+    /** Whether this device can share its screen (Windows yes; phones can watch only). */
+    canShareScreen(): Promise<boolean>
+    /** Screens and windows that can be shared. */
+    screenSources(): Promise<ScreenSource[]>
+    /** The next getDisplayMedia() call shares this screen or window. */
+    pickScreen(id: string): Promise<boolean>
     /** The push-to-talk key going down and up, from anywhere (a game in front included). */
     onPushToTalk(callback: (down: boolean) => void): () => void
     /** Whether the push-to-talk key works while a game is in front. */
@@ -420,8 +451,16 @@ export const IPC = {
   accountSignOut: 'account:sign-out',
   accountSetUsername: 'account:set-username',
   accountAvailability: 'account:availability',
-  voiceServerUrl: 'voice:server-url',
-  voiceToken: 'voice:token',
+  voiceStart: 'voice:start',
+  voiceJoin: 'voice:join',
+  voiceLeave: 'voice:leave',
+  voiceUpdate: 'voice:update',
+  voiceState: 'voice:state',
+  voiceSignal: 'voice:signal',
+  voiceSetRoom: 'voice:set-room',
+  voiceInvite: 'voice:invite',
+  voiceScreenSources: 'voice:screen-sources',
+  voicePickScreen: 'voice:pick-screen',
   voicePushToTalk: 'voice:push-to-talk',
   voiceHotkeyStatus: 'voice:hotkey-status',
   accountSetProfile: 'account:set-profile',

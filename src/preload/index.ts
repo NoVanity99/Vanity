@@ -149,8 +149,17 @@ const api: VanityApi = {
     achievements: (appId) => ipcRenderer.invoke(IPC.steamAchievements, appId)
   },
   voice: {
-    serverUrl: () => ipcRenderer.invoke(IPC.voiceServerUrl),
-    token: () => ipcRenderer.invoke(IPC.voiceToken),
+    start: (opts) => ipcRenderer.invoke(IPC.voiceStart, opts),
+    join: (roomId) => ipcRenderer.invoke(IPC.voiceJoin, roomId),
+    leave: () => ipcRenderer.invoke(IPC.voiceLeave),
+    update: (after) => ipcRenderer.invoke(IPC.voiceUpdate, after),
+    state: (state) => ipcRenderer.invoke(IPC.voiceState, state),
+    signal: (signals) => ipcRenderer.invoke(IPC.voiceSignal, signals),
+    setRoom: (patch) => ipcRenderer.invoke(IPC.voiceSetRoom, patch),
+    invite: (userId) => ipcRenderer.invoke(IPC.voiceInvite, userId),
+    canShareScreen: async () => true,
+    screenSources: () => ipcRenderer.invoke(IPC.voiceScreenSources),
+    pickScreen: (id) => ipcRenderer.invoke(IPC.voicePickScreen, id),
     onPushToTalk(callback) {
       const listener = (_: Electron.IpcRendererEvent, down: boolean): void => callback(down)
       ipcRenderer.on(IPC.voicePushToTalk, listener)

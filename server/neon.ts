@@ -15,7 +15,13 @@ export default defineConfig({
         // The Steam Web API key: a secret that only this function can read. It is never in the app
         // or in this repository. The Deploy backend workflow passes it from the GitHub secret
         // STEAM_WEB_API_KEY. A deploy without it keeps the value that is already set.
-        STEAM_WEB_API_KEY: { value: process.env.STEAM_WEB_API_KEY, required: false, onUndefined: 'skip' }
+        STEAM_WEB_API_KEY: { value: process.env.STEAM_WEB_API_KEY, required: false, onUndefined: 'skip' },
+        // Optional TURN relay for voice rooms (players on strict networks). TURN_SECRET makes each
+        // player a short-lived login and never leaves this function. Passed from GitHub secrets.
+        TURN_URLS: { value: process.env.TURN_URLS, required: false, onUndefined: 'skip' },
+        TURN_SECRET: { value: process.env.TURN_SECRET, required: false, onUndefined: 'skip' },
+        TURN_USERNAME: { value: process.env.TURN_USERNAME, required: false, onUndefined: 'skip' },
+        TURN_CREDENTIAL: { value: process.env.TURN_CREDENTIAL, required: false, onUndefined: 'skip' }
       }
     }
   }

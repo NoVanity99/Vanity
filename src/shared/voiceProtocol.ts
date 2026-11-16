@@ -1,29 +1,23 @@
-// The messages Vanity and its voice signaling server (server/voice) send each other over a
-// WebSocket, as JSON. The server only introduces people and passes their connection details
-// along; the audio itself goes directly between players (WebRTC, Opus), or through a TURN relay
-// when a network doesn't allow a direct connection.
+// What Vanity and its account server exchange for voice rooms. The server (server/src/voice.ts)
+// keeps who is in which room and passes WebRTC connection details between players; the audio
+// itself goes directly between their apps (Opus over WebRTC), or through a TURN relay when a
+// network doesn't allow a direct connection.
+//
+// There are no codes: a room belongs to whoever started it, and friends see it and can join,
+// unless it is private (hidden; invite only) or locked (seen, but invite only).
 //
 // This file has no imports, so the app, the server and the tests all share it as-is.
-
-/** Bumped when the messages change in a way older copies can't understand. */
-export const VOICE_PROTOCOL = 1
 
 /** People per room. A direct "mesh" (everyone connected to everyone) is good up to about this many. */
 export const MAX_ROOM_SIZE = 6
 
-/** Invite codes: six letters and digits, leaving out ones that are easy to mix up (0/O, 1/I/L). */
-export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-export const ROOM_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/
-
-/** Turns what someone typed ("abc 234", "ABC-234", " abc234 ") into a code, or null if it can't be one. */
-export function normalizeRoomCode(input: string): string | null {
-  const code = input.toUpperCase().replace(/[\s-]/g, '')
-  return ROOM_CODE.test(code) ? code : null
-}
+/** Someone counts as dropped (shown as reconnecting) after this long without checking in. */
+export const VOICE_STALE_MS = 10_000
+/** …and is taken out of the room after this long. */
+export const VOICE_GONE_MS = 45_000
 
 /** Who someone is, as their Vanity account shows them. */
 export interface VoiceUser {
-  /** The Vanity account id (or "guest:…" on a server run without accounts, for testing). */
   id: string
   username: string
   /** Their profile picture (a small data: image), or null. */
@@ -34,15 +28,29 @@ export interface VoiceUser {
   admin: boolean
 }
 
-/** One person in a room. `id` is this visit's id (a new one each time someone joins). */
+/** One person in a room. Their id is their Vanity account id (one voice room per account). */
 export interface VoicePeer {
   id: string
   user: VoiceUser
   muted: boolean
   deafened: boolean
-  /** False for a few seconds while their connection drops and comes back. */
+  /** Sharing their screen. */
+  sharing: boolean
+  /** False while their app hasn't checked in for a few seconds (a dropped connection). */
   connected: boolean
   joinedAt: number
+}
+
+export interface VoiceRoom {
+  id: string
+  /** Whoever started it (or took over when they left). Only they change private and locked. */
+  hostId: string
+  /** Hidden from friends: only people invited can join. */
+  private: boolean
+  /** Friends can see it, but only people invited can join. */
+  locked: boolean
+  /** Everyone in it, you included, in the order they joined. */
+  members: VoicePeer[]
 }
 
 /** STUN finds your public address; TURN relays audio when a direct connection isn't possible. */
@@ -52,50 +60,42 @@ export interface VoiceIceServer {
   credential?: string
 }
 
-/** A WebRTC connection detail passed from one player to another. */
-export type VoiceSignal =
+/**
+ * A WebRTC connection detail passed from one player to another. `session` names the sender's
+ * current visit to the room, so details from before their app restarted can be told apart.
+ */
+export type VoiceSignal = { session?: string } & (
   | { kind: 'offer' | 'answer'; sdp: string }
   | { kind: 'ice'; candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } }
+)
 
-export type VoiceClientMessage =
-  /** First message: who you are. `token` is your Vanity sign-in token. */
-  | { t: 'hello'; v: number; token?: string; guest?: string }
-  /** Make a room. `session` is a random id the app makes for this visit; sending it again resumes after a dropped connection. */
-  | { t: 'create'; session: string }
-  /**
-   * `resume`: coming back after a dropped connection. If the room is gone (the server restarted),
-   * it is made again under the same code, so everyone who comes back finds each other.
-   */
-  | { t: 'join'; code: string; session: string; resume?: boolean }
-  | { t: 'leave' }
-  | { t: 'signal'; to: string; data: VoiceSignal }
-  | { t: 'state'; muted: boolean; deafened: boolean }
-  | { t: 'ping'; at: number }
+/** What the app gets each time it checks in during a call (and after joining or starting a room). */
+export interface VoiceUpdate {
+  /** Your own account id (how you appear in `room.members`). */
+  you: string
+  /** The room you're in, or null if you're not in one (left, or taken out after a long drop). */
+  room: VoiceRoom | null
+  /** Connection details for you, oldest first. Pass the last id back as `after` next time. */
+  signals: { id: number; from: string; data: VoiceSignal }[]
+  ice: VoiceIceServer[]
+}
 
-export type VoiceErrorCode =
-  /** Not signed in, or the sign-in couldn't be checked. */
-  | 'auth'
-  /** No room has that code (it was never made, or everyone left). */
-  | 'not-found'
-  | 'full'
-  | 'bad-request'
-  | 'rate'
-  /** This copy of Vanity is too old (or too new) for the server. */
-  | 'version'
-  /** You joined voice somewhere else (another device or window). */
-  | 'replaced'
-  | 'server'
+/** A friend's voice room, as the friends list shows it (only rooms you're allowed to see). */
+export interface FriendVoice {
+  roomId: string
+  /** People in it. */
+  count: number
+  /** Their first few names, for "In voice with …". */
+  names: string[]
+  locked: boolean
+  /** Someone in it is sharing their screen. */
+  live: boolean
+  /** False when it's locked, or full, and you weren't invited. */
+  canJoin: boolean
+}
 
-export type VoiceServerMessage =
-  | { t: 'welcome'; you: VoiceUser; ice: VoiceIceServer[] }
-  /** You're in a room: everyone else in it, and your own id there. */
-  | { t: 'room'; code: string; you: string; peers: VoicePeer[]; resumed: boolean }
-  | { t: 'peer-joined'; peer: VoicePeer }
-  | { t: 'peer-left'; id: string }
-  | { t: 'peer-state'; id: string; muted: boolean; deafened: boolean; connected: boolean }
-  | { t: 'signal'; from: string; data: VoiceSignal }
-  | { t: 'pong'; at: number }
-  | { t: 'error'; code: VoiceErrorCode; message: string }
+/** Connection details sent in one go (the app gathers them for a moment rather than sending each). */
+export const MAX_SIGNALS_PER_SEND = 40
 
-/** Largest message either side sends (offers and answers are a few kilobytes; a profile picture up to ~60 KB). */
-export const MAX_MESSAGE_BYTES = 256 * 1024
+/** Largest offer or answer accepted (they are a few kilobytes). */
+export const MAX_SDP = 40_000

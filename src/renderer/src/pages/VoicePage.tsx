@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, AudioLines, Check, Copy, HeadphoneOff, Loader2, MicOff, MoreHorizontal, Plus, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, Crown, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
+import type { Friend } from '@shared/types'
 import { MAX_ROOM_SIZE } from '@shared/voiceProtocol'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/Dialog'
 import { UserName } from '@/components/UserName'
 import { QUALITY_WORDS, QualityBars, VoiceButtons } from '@/components/voice/VoiceBits'
+import { ScreenPicker, ScreenStage, StreamVideo } from '@/components/voice/ScreenShare'
 import { cn } from '@/lib/cn'
 import { isAndroid } from '@/lib/platform'
 import { savePref } from '@/lib/storage'
 import { useAccount } from '@/state/account'
 import { useSettings } from '@/state/settings'
-import { useFriends } from '@/state/friends'
+import { refreshFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
-import { useVoice, voice, voiceSettings } from '@/state/voice'
+import { useVoice, voice, VOICE_INVITE_TEXT, voiceSettings } from '@/state/voice'
 import type { VoiceMember } from '@/voice/client'
 
 /** Opens Settings on the Voice tab. */
@@ -22,11 +24,41 @@ export function openVoiceSettings(navigate: (to: string) => void): void {
   navigate('/settings')
 }
 
-/** The text an invite sends in a chat; the chat turns it into a Join button. */
-export const inviteText = (code: string): string => `🎧 Join my voice room in Vanity: ${code}`
+/** Who can find and join a room. */
+type Access = 'open' | 'locked' | 'private'
+const ACCESS: Record<Access, { label: string; hint: string; icon: typeof Eye; flags: { private: boolean; locked: boolean } }> = {
+  open: { label: 'Open', hint: 'Friends see it and can join', icon: Eye, flags: { private: false, locked: false } },
+  locked: { label: 'Locked', hint: 'Friends see it; only people you invite can join', icon: Lock, flags: { private: false, locked: true } },
+  private: { label: 'Private', hint: 'Hidden; only people you invite can join', icon: EyeOff, flags: { private: true, locked: true } }
+}
+const accessOf = (r: { private: boolean; locked: boolean }): Access => (r.private ? 'private' : r.locked ? 'locked' : 'open')
+
+function AccessPicker({ value, onChange, disabled }: { value: Access; onChange: (a: Access) => void; disabled?: boolean }): React.JSX.Element {
+  return (
+    <div className="flex rounded-xl bg-black/30 p-1" role="radiogroup" aria-label="Who can join">
+      {(Object.keys(ACCESS) as Access[]).map((a) => {
+        const Icon = ACCESS[a].icon
+        return (
+          <button
+            key={a}
+            role="radio"
+            aria-checked={value === a}
+            disabled={disabled}
+            title={ACCESS[a].hint}
+            onClick={() => onChange(a)}
+            className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed', value === a ? 'bg-white/15 text-text' : 'text-muted hover:text-text')}
+            data-access={a}
+          >
+            <Icon className="size-3.5" /> {ACCESS[a].label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 /** One person in the room: their picture with the green talking ring, name, and mute/deafen marks. */
-function MemberTile({ m, index, onMenu }: { m: VoiceMember; index: number; onMenu: (m: VoiceMember, x: number, y: number) => void }): React.JSX.Element {
+function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; index: number; onMenu: (m: VoiceMember, x: number, y: number) => void; watching: boolean; onWatch: () => void }): React.JSX.Element {
   const quiet = !m.you && (m.localMuted || m.volume === 0)
   return (
     <li
@@ -54,7 +86,13 @@ function MemberTile({ m, index, onMenu }: { m: VoiceMember; index: number; onMen
           </span>
         )}
       </span>
-      <span className="relative mt-4 max-w-full text-base font-semibold">
+      {m.sharing && (
+        <span className="absolute left-3 top-3 flex items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white" data-live>
+          <Radio className="size-3" /> Live
+        </span>
+      )}
+      <span className="relative mt-4 flex max-w-full items-center gap-1.5 text-base font-semibold">
+        {m.host && <Crown className="size-4 shrink-0 text-amber-300" aria-label="Started the room" />}
         <UserName name={m.user.username} style={m.user.style as never} verified={m.user.verified} admin={m.user.admin} className="justify-center" />
       </span>
       <span className="relative mt-1 flex min-h-5 items-center gap-1.5 text-xs text-muted">
@@ -76,6 +114,15 @@ function MemberTile({ m, index, onMenu }: { m: VoiceMember; index: number; onMen
           </>
         )}
       </span>
+      {m.sharing && !m.you && (
+        <button
+          onClick={onWatch}
+          className={cn('relative mt-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition', watching ? 'bg-white/10 text-muted hover:text-text' : 'bg-accent text-white hover:brightness-110')}
+          data-watch={m.user.username}
+        >
+          <MonitorUp className="size-3.5" /> {watching ? 'Watching' : 'Watch'}
+        </button>
+      )}
       {!m.you && (
         <button
           onClick={(e) => {
@@ -175,12 +222,12 @@ function VolumeMenu({ m, x, y, onClose }: { m: VoiceMember; x: number; y: number
   )
 }
 
-/** Invite a friend: sends them a chat message with the room code, which shows a Join button. */
-function InviteMenu({ code, onClose }: { code: string; onClose: () => void }): React.JSX.Element {
+/** Invite friends: lets them in (even when the room is locked or private) and sends a chat message with a Join button. */
+function InviteMenu({ inRoom, onClose }: { inRoom: Set<string>; onClose: () => void }): React.JSX.Element {
   const friends = useFriends()
   const toast = useToast()
   const [sent, setSent] = useState<Set<string>>(new Set())
-  const list = [...(friends?.friends ?? [])].sort((a, b) => Number(b.status.state !== 'offline') - Number(a.status.state !== 'offline') || a.username.localeCompare(b.username))
+  const list = [...(friends?.friends ?? [])].filter((f) => !inRoom.has(f.id)).sort((a, b) => Number(b.status.state !== 'offline') - Number(a.status.state !== 'offline') || a.username.localeCompare(b.username))
   return (
     <div className="animate-pop-in absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl border border-white/15 bg-surface p-2 shadow-2xl shadow-black/60" data-invite-menu>
       <div className="flex items-center justify-between px-2 py-1.5">
@@ -190,7 +237,7 @@ function InviteMenu({ code, onClose }: { code: string; onClose: () => void }): R
         </button>
       </div>
       {list.length === 0 ? (
-        <p className="px-2 py-3 text-sm text-muted">{friends ? 'No friends yet. Share the code instead.' : 'Sign in to invite friends. You can still share the code.'}</p>
+        <p className="px-2 py-3 text-sm text-muted">{friends?.friends.length ? 'All your friends are already here.' : 'No friends yet. Add some on the Friends page.'}</p>
       ) : (
         <ul className="max-h-72 overflow-y-auto [scrollbar-width:thin]">
           {list.map((f) => (
@@ -198,7 +245,12 @@ function InviteMenu({ code, onClose }: { code: string; onClose: () => void }): R
               <button
                 disabled={sent.has(f.id)}
                 onClick={async () => {
-                  const r = await window.vanity.friends.send(f.id, inviteText(code)).catch(() => null)
+                  try {
+                    await voice.invite(f.id)
+                  } catch (err) {
+                    return toast(err instanceof Error ? err.message : "Couldn't invite them.", 'error')
+                  }
+                  const r = await window.vanity.friends.send(f.id, VOICE_INVITE_TEXT).catch(() => null)
                   if (!r || r.error !== undefined) return toast(r?.error ?? "Couldn't send the invite.", 'error')
                   setSent((s) => new Set(s).add(f.id))
                   toast(`Invite sent to ${f.username}`)
@@ -217,35 +269,92 @@ function InviteMenu({ code, onClose }: { code: string; onClose: () => void }): R
   )
 }
 
+/** Friends' voice rooms you may join, one card per room. */
+function FriendRooms({ busy }: { busy: boolean }): React.JSX.Element {
+  const friends = useFriends()
+  const v = useVoice()
+  useEffect(() => {
+    // Rooms come and go: look again every few seconds while this list is on screen.
+    void refreshFriends()
+    const t = setInterval(() => void refreshFriends(), 8000)
+    return () => clearInterval(t)
+  }, [])
+  const rooms = new Map<string, { voice: NonNullable<Friend['voice']>; friends: Friend[] }>()
+  for (const f of friends?.friends ?? []) {
+    if (!f.voice) continue
+    const r = rooms.get(f.voice.roomId) ?? { voice: f.voice, friends: [] }
+    r.friends.push(f)
+    rooms.set(f.voice.roomId, r)
+  }
+  return (
+    <section className="rounded-3xl border border-border bg-surface p-7" data-friend-rooms>
+      <h2 className="text-xl font-bold">Friends in voice</h2>
+      {rooms.size === 0 ? (
+        <p className="mt-1 text-sm text-muted">{friends === null ? 'Loading…' : "None of your friends are in a voice room right now. When one is, it shows up here and you can jump in."}</p>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {[...rooms.values()].map(({ voice: fv, friends: fs }) => {
+            const joining = busy && v.room?.id === fv.roomId
+            return (
+              <li key={fv.roomId} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3" data-friend-room={fs.map((f) => f.username).join(',')}>
+                <span className="flex -space-x-2">
+                  {fs.slice(0, 3).map((f) => (
+                    <Avatar key={f.id} name={f.username} src={f.avatar} size="sm" className="ring-2 ring-surface" />
+                  ))}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <span className="truncate">{fv.names.join(', ')}</span>
+                    {fv.live && (
+                      <span className="flex shrink-0 items-center gap-1 rounded bg-accent px-1 py-px text-[9px] font-black uppercase tracking-wider text-white">
+                        <Radio className="size-2.5" /> Live
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    {fv.locked && <Lock className="size-3" />}
+                    {fv.count}/{MAX_ROOM_SIZE} people{fv.locked && !fv.canJoin ? ' · Locked' : fv.count >= MAX_ROOM_SIZE ? ' · Full' : ''}
+                  </span>
+                </span>
+                <Button variant={fv.canJoin ? 'primary' : 'secondary'} disabled={!fv.canJoin || busy} onClick={() => void voice.join(fv.roomId)} data-join-room>
+                  {joining ? <Loader2 className="size-4 animate-spin" /> : fv.canJoin ? 'Join' : fv.locked ? <Lock className="size-4" /> : 'Full'}
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 export function VoicePage(): React.JSX.Element {
   const v = useVoice()
   const account = useAccount()
   const navigate = useNavigate()
-  const toast = useToast()
-  const [code, setCode] = useState('')
   const [menu, setMenu] = useState<{ m: VoiceMember; x: number; y: number } | null>(null)
   const [inviting, setInviting] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [hasServer, setHasServer] = useState<boolean | null>(null)
+  const [picking, setPicking] = useState(false)
+  const [startAccess, setStartAccess] = useState<Access>('open')
+  const [canShare, setCanShare] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
   const phone = isAndroid()
   const busy = v.status === 'connecting'
-  const inRoom = v.status === 'in-room' || v.status === 'reconnecting' || (busy && !!v.code)
+  const inRoom = v.status === 'in-room' || v.status === 'reconnecting' || (busy && !!v.room)
   const vs = useSettings()?.voice ?? voiceSettings()
   const ptt = vs.inputMode === 'ptt'
 
   useEffect(() => {
-    void window.vanity.voice.serverUrl().then((r) => setHasServer(!!r.url), () => setHasServer(false))
+    void window.vanity.voice.canShareScreen().then(setCanShare, () => setCanShare(false))
   }, [])
+  useEffect(() => {
+    if (v.sharing) setShowPreview(true)
+  }, [v.sharing])
   // The member the volume menu is for, kept current (their volume changes while it's open).
   const menuMember = menu ? (v.members.find((m) => m.id === menu.m.id) ?? null) : null
-
-  const copy = async (): Promise<void> => {
-    if (!v.code) return
-    await navigator.clipboard.writeText(v.code).catch(() => {})
-    setCopied(true)
-    toast('Room code copied')
-    setTimeout(() => setCopied(false), 1500)
-  }
+  const host = v.members.find((m) => m.host)
+  const watched = v.watching ? v.members.find((m) => m.id === v.watching) : null
+  const watchedStream = v.watching ? v.videos[v.watching] : undefined
 
   const signedOut = account !== null && (!account.signedIn || !account.username)
 
@@ -257,7 +366,7 @@ export function VoicePage(): React.JSX.Element {
             <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
               <AudioLines className="size-7 text-accent" /> Voice
             </h1>
-            <p className="mt-1 text-sm text-muted">Talk with friends while you play. Rooms hold up to {MAX_ROOM_SIZE} people; share the code to bring someone in.</p>
+            <p className="mt-1 text-sm text-muted">Talk with friends while you play. Your friends see your room and can hop in; rooms hold up to {MAX_ROOM_SIZE} people.</p>
           </div>
           <Button onClick={() => openVoiceSettings(navigate)}>
             <Settings2 className="size-4" /> Voice settings
@@ -268,17 +377,13 @@ export function VoicePage(): React.JSX.Element {
           <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm" data-voice-error={v.error.code}>
             {v.error.code === 'unreachable' ? <WifiOff className="size-5 shrink-0 text-accent" /> : <AlertTriangle className="size-5 shrink-0 text-accent" />}
             <span className="min-w-0 flex-1">{v.error.message}</span>
-            {v.error.code === 'not-configured' ? (
-              <Button variant="primary" onClick={() => openVoiceSettings(navigate)}>
-                Open voice settings
-              </Button>
-            ) : v.error.code === 'signed-out' ? (
+            {v.error.code === 'signed-out' ? (
               <Button variant="primary" onClick={() => navigate('/account')}>
                 Sign in
               </Button>
-            ) : v.error.code === 'unreachable' || v.error.code === 'server' ? (
-              <Button onClick={() => (v.code ? voice.retry() : voice.dismissNotice())}>
-                <RefreshCw className="size-4" /> {v.code ? 'Try again' : 'OK'}
+            ) : v.error.code === 'unreachable' ? (
+              <Button onClick={() => (v.room ? voice.retry() : voice.dismissNotice())}>
+                <RefreshCw className="size-4" /> {v.room ? 'Try again' : 'OK'}
               </Button>
             ) : (
               <button onClick={() => voice.dismissNotice()} aria-label="Dismiss" className="rounded p-1 text-muted hover:text-text">
@@ -306,77 +411,49 @@ export function VoicePage(): React.JSX.Element {
               </Button>
             </div>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid items-start gap-6 md:grid-cols-2">
               <section className="relative overflow-clip rounded-3xl border border-border bg-surface p-7">
                 <span aria-hidden className="profile-banner opacity-70" data-banner="aurora" />
                 <div className="relative">
                   <h2 className="text-xl font-bold">Start a room</h2>
-                  <p className="mt-1 text-sm text-muted">Get a code to share with friends. The room lasts while anyone is in it.</p>
-                  <Button variant="primary" className="mt-6 h-12 px-6 text-base" onClick={() => void voice.create()} disabled={busy || hasServer === false} data-voice-create>
-                    {busy && !v.code ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />} {busy && !v.code ? 'Starting…' : 'Start a room'}
+                  <p className="mt-1 text-sm text-muted">No codes needed. It lasts while anyone is in it.</p>
+                  <div className="mt-5">
+                    <AccessPicker value={startAccess} onChange={setStartAccess} disabled={busy} />
+                    <p className="mt-2 text-xs text-muted">{ACCESS[startAccess].hint}.</p>
+                  </div>
+                  <Button variant="primary" className="mt-5 h-12 px-6 text-base" onClick={() => void voice.start(ACCESS[startAccess].flags)} disabled={busy} data-voice-create>
+                    {busy && !v.room ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />} {busy && !v.room ? 'Starting…' : 'Start a room'}
                   </Button>
                 </div>
               </section>
-              <section className="rounded-3xl border border-border bg-surface p-7">
-                <h2 className="text-xl font-bold">Join a room</h2>
-                <p className="mt-1 text-sm text-muted">Type the 6-character code a friend shared.</p>
-                <form
-                  className="mt-6 flex gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    if (code.trim()) void voice.join(code)
-                  }}
-                >
-                  <input
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="K7M2QX"
-                    aria-label="Room code"
-                    maxLength={9}
-                    spellCheck={false}
-                    autoCapitalize="characters"
-                    className="h-12 min-w-0 flex-1 rounded-xl border border-border bg-surface-2 px-4 text-center font-mono text-lg tracking-[0.35em] outline-none transition placeholder:text-muted/50 focus:border-accent focus:ring-4 focus:ring-accent/15"
-                    data-voice-code
-                  />
-                  <Button type="submit" variant="primary" className="h-12 px-5" disabled={busy || !code.trim() || hasServer === false} data-voice-join>
-                    {busy && v.code ? <Loader2 className="size-4 animate-spin" /> : 'Join'}
-                  </Button>
-                </form>
-              </section>
-              {hasServer === false && (
-                <p className="text-sm text-muted md:col-span-2">
-                  Voice needs a voice server address first.{' '}
-                  <button onClick={() => openVoiceSettings(navigate)} className="font-semibold text-accent hover:underline">
-                    Add one in Voice settings
-                  </button>
-                  .
-                </p>
-              )}
+              <FriendRooms busy={busy} />
             </div>
           )
         ) : (
           <>
             <section className="flex flex-wrap items-center gap-4 rounded-3xl border border-border bg-surface p-5" data-voice-room>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted">Room code</p>
-                <div className="mt-1 flex items-center gap-3">
-                  <span className="font-mono text-3xl font-black tracking-[0.25em]" data-voice-room-code>
-                    {v.code ?? '······'}
-                  </span>
-                  {v.code && (
-                    <button onClick={() => void copy()} aria-label="Copy the code" title="Copy the code" className="rounded-lg p-2 text-muted transition hover:bg-white/10 hover:text-text">
-                      {copied ? <Check className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
-                    </button>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted">{v.isHost ? 'Your room' : host ? `${host.user.username}'s room` : 'Voice room'}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                  {v.isHost && v.room ? (
+                    <AccessPicker value={accessOf(v.room)} onChange={(a) => void voice.setRoom(ACCESS[a].flags)} />
+                  ) : (
+                    v.room && (
+                      <span className="flex items-center gap-1.5 text-sm text-muted" data-room-access={accessOf(v.room)}>
+                        {(() => {
+                          const Icon = ACCESS[accessOf(v.room)].icon
+                          return <Icon className="size-4" />
+                        })()}
+                        {ACCESS[accessOf(v.room)].label}: {ACCESS[accessOf(v.room)].hint.toLowerCase()}
+                      </span>
+                    )
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 {v.status === 'reconnecting' ? (
                   <span className="flex items-center gap-2 text-amber-300" data-voice-status="reconnecting">
-                    <Loader2 className="size-4 animate-spin" /> Reconnecting{v.attempt > 1 ? ` (try ${v.attempt})` : ''}…
-                    <button onClick={() => voice.retry()} className="font-semibold underline-offset-4 hover:underline">
-                      Now
-                    </button>
+                    <Loader2 className="size-4 animate-spin" /> Reconnecting…
                   </span>
                 ) : v.status === 'connecting' ? (
                   <span className="flex items-center gap-2 text-muted">
@@ -390,27 +467,55 @@ export function VoicePage(): React.JSX.Element {
                 )}
               </div>
               <div className="relative">
-                <Button onClick={() => setInviting((x) => !x)} disabled={!v.code} data-voice-invite>
+                <Button onClick={() => setInviting((x) => !x)} disabled={v.status !== 'in-room'} data-voice-invite>
                   <UserPlus className="size-4" /> Invite
                 </Button>
-                {inviting && v.code && <InviteMenu code={v.code} onClose={() => setInviting(false)} />}
+                {inviting && <InviteMenu inRoom={new Set(v.members.map((m) => m.id))} onClose={() => setInviting(false)} />}
               </div>
             </section>
 
+            {watched && watchedStream && watched.sharing && <ScreenStage stream={watchedStream} name={watched.user.username} you={false} onClose={() => voice.watch(null)} />}
+
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4" data-voice-members>
               {v.members.map((m, i) => (
-                <MemberTile key={m.id} m={m} index={i} onMenu={(mm, x, y) => setMenu({ m: mm, x, y })} />
+                <MemberTile key={m.id} m={m} index={i} onMenu={(mm, x, y) => setMenu({ m: mm, x, y })} watching={v.watching === m.id} onWatch={() => voice.watch(v.watching === m.id ? null : m.id)} />
               ))}
               {v.members.length === 1 && v.status === 'in-room' && (
                 <li className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
                   <Users className="mb-2 size-6 opacity-50" />
-                  It's just you. Share the code or invite a friend.
+                  It's just you. Friends see this room in their Friends list and here on Voice{v.room?.private ? ' once you invite them' : ''}.
                 </li>
               )}
             </ul>
 
+            {v.localVideo && showPreview && (
+              <div className="fixed bottom-24 right-6 z-30 w-72 overflow-hidden rounded-2xl border border-white/15 shadow-2xl shadow-black/60" data-share-preview>
+                <StreamVideo stream={v.localVideo} className="aspect-video w-full" />
+                <div className="flex items-center gap-2 bg-surface/95 px-3 py-2 text-xs">
+                  <span className="flex items-center gap-1 rounded bg-accent px-1 py-px text-[9px] font-black uppercase tracking-wider text-white">
+                    <Radio className="size-2.5" /> Live
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-muted">{v.sharing?.name}</span>
+                  <button onClick={() => setShowPreview(false)} className="rounded p-1 text-muted hover:text-text" aria-label="Hide the preview" title="Hide the preview">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="sticky bottom-4 mx-auto flex w-fit items-center gap-4 rounded-3xl border border-white/10 bg-surface/90 px-5 py-3 shadow-2xl shadow-black/50 backdrop-blur" data-voice-controls>
               <VoiceButtons size="lg" muted={v.muted} deafened={v.deafened} micAvailable={v.micAvailable} onMute={() => voice.toggleMute()} onDeafen={() => voice.toggleDeafen()} onLeave={() => voice.leave()} />
+              {canShare && !phone && (
+                <button
+                  onClick={() => (v.sharing ? voice.stopScreenShare() : setPicking(true))}
+                  disabled={v.status !== 'in-room'}
+                  className={cn('flex h-12 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition disabled:opacity-40', v.sharing ? 'bg-accent text-white hover:brightness-110' : 'bg-white/10 hover:bg-white/15')}
+                  title={v.sharing ? 'Stop sharing your screen' : 'Share your screen'}
+                  data-share-screen={v.sharing ? 'on' : 'off'}
+                >
+                  {v.sharing ? <MonitorX className="size-5" /> : <MonitorUp className="size-5" />} {v.sharing ? 'Stop sharing' : 'Share screen'}
+                </button>
+              )}
               {ptt && (
                 <button
                   onPointerDown={(e) => {
@@ -436,6 +541,7 @@ export function VoicePage(): React.JSX.Element {
         )}
       </div>
       {menu && menuMember && <VolumeMenu m={menuMember} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
+      {picking && <ScreenPicker onClose={() => setPicking(false)} />}
     </div>
   )
 }

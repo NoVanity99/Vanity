@@ -16,19 +16,13 @@ export const BACKEND = {
    * Sent as the Origin of sign-in requests. Neon Auth only answers origins on its trusted list,
    * and local addresses are on it by default, so no extra setup is needed.
    */
-  origin: 'http://localhost:5173',
-  /**
-   * The voice signaling server (server/voice), once it is hosted somewhere: wss://your-voice-host.
-   * Empty means voice needs an address in Settings → Voice. Public, like the two above.
-   */
-  voiceUrl: ''
+  origin: 'http://localhost:5173'
 } as const
 
 export interface BackendConfig {
   authUrl: string
   apiUrl: string
   origin: string
-  voiceUrl: string
 }
 
 const clean = (url: string | undefined): string => (url ?? '').trim().replace(/\/+$/, '')
@@ -38,7 +32,6 @@ export function backendConfig(override: Partial<BackendConfig> = {}): BackendCon
   return {
     authUrl: clean(override.authUrl) || clean(BACKEND.authUrl),
     apiUrl: clean(override.apiUrl) || clean(BACKEND.apiUrl),
-    origin: clean(override.origin) || BACKEND.origin,
-    voiceUrl: clean(override.voiceUrl) || clean(BACKEND.voiceUrl)
+    origin: clean(override.origin) || BACKEND.origin
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, Headphones, Keyboard, Mic, Play, RotateCcw, Server, Square } from 'lucide-react'
-import { keyLabel, mouseBinding, voiceServerUrl, type VoiceSettings } from '@shared/voiceSettings'
+import { Headphones, Keyboard, Mic, Play, RotateCcw, Square } from 'lucide-react'
+import { keyLabel, mouseBinding, type VoiceSettings } from '@shared/voiceSettings'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { isAndroid } from '@/lib/platform'
@@ -104,9 +104,6 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
   const [devices, setDevices] = useState<AudioDevices | null>(null)
   const [testing, setTesting] = useState(false)
   const [hearMe, setHearMe] = useState(false)
-  const [server, setServer] = useState(settings.serverUrl)
-  const [builtIn, setBuiltIn] = useState('')
-  const [serverCheck, setServerCheck] = useState<{ ok: boolean; text: string } | null>(null)
   const [hotkey, setHotkey] = useState<{ global: boolean; message: string | null } | null>(null)
   // Sliders follow the finger at once and are saved when let go.
   const [draft, setDraft] = useState<Partial<VoiceSettings>>({})
@@ -117,7 +114,6 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
   const refreshDevices = (): void => void voice.devices().then(setDevices, () => {})
   useEffect(() => {
     refreshDevices()
-    void window.vanity.voice.serverUrl().then((r) => setBuiltIn(r.builtIn), () => {})
     void window.vanity.voice.hotkeyStatus().then(setHotkey, () => {})
     const onChange = (): void => refreshDevices()
     navigator.mediaDevices?.addEventListener('devicechange', onChange)
@@ -126,7 +122,6 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
       voice.stopMicTest()
     }
   }, [])
-  useEffect(() => setServer(settings.serverUrl), [settings.serverUrl])
 
   const save = (patch: Partial<VoiceSettings>): void => {
     setDraft({})
@@ -152,57 +147,11 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
     voice.stopMicTest()
   }
 
-  const checkServer = async (url: string): Promise<void> => {
-    setServerCheck(null)
-    const http = url.replace(/^ws/i, 'http')
-    try {
-      const res = await fetch(http, { signal: AbortSignal.timeout(6000) })
-      const body = (await res.json()) as { name?: string }
-      setServerCheck(body.name === 'vanity-voice' ? { ok: true, text: 'Found the voice server.' } : { ok: false, text: "Something answered, but it isn't a Vanity voice server." })
-    } catch {
-      setServerCheck({ ok: false, text: "Couldn't reach it. Check the address, and that the server is running." })
-    }
-  }
-
   const missingNames = devices && devices.inputs.length > 0 && devices.inputs.every((d) => /^Microphone \d+$/.test(d.label))
   const metering = testing || inCall
 
   return (
     <>
-      <Section title="Voice server" description="Voice rooms meet on a small server that introduces players to each other; the audio itself goes directly between you.">
-        <div className="flex flex-wrap gap-2 px-3">
-          <div className="relative min-w-0 flex-1">
-            <Server className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <input
-              value={server}
-              onChange={(e) => setServer(e.target.value)}
-              placeholder={builtIn || 'wss://voice.example.com  or  ws://localhost:8787'}
-              aria-label="Voice server address"
-              spellCheck={false}
-              className={cn(select, 'pl-10')}
-              data-voice-server
-            />
-          </div>
-          <Button
-            onClick={() => {
-              const url = server.trim() ? voiceServerUrl(server) : ''
-              if (url === null) return setServerCheck({ ok: false, text: "That isn't a server address. It looks like wss://voice.example.com or ws://localhost:8787." })
-              save({ serverUrl: url })
-              if (url || builtIn) void checkServer(url || builtIn)
-            }}
-            disabled={server.trim() === settings.serverUrl}
-          >
-            Save
-          </Button>
-        </div>
-        <p className="mt-2 px-3 text-xs text-muted">{settings.serverUrl ? `Using ${settings.serverUrl}.` : builtIn ? `Using this copy's built-in server (${builtIn}). Type another to use that instead.` : 'No voice server yet. Run one (see server/voice in the project) and type its address here.'}</p>
-        {serverCheck && (
-          <p className={cn('mx-3 mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs', serverCheck.ok ? 'bg-emerald-400/10 text-emerald-300' : 'bg-accent/10 text-accent')} data-server-check={serverCheck.ok ? 'ok' : 'fail'}>
-            {serverCheck.ok ? <Check className="size-3.5" /> : <AlertTriangle className="size-3.5" />} {serverCheck.text}
-          </p>
-        )}
-      </Section>
-
       <Section title="Microphone and speakers">
         <div className="grid gap-3 px-3 md:grid-cols-2">
           <label className="block text-sm">

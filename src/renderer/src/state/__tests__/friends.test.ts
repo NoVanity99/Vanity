@@ -10,6 +10,7 @@ const friend = (id: string, state: Friend['status']['state'], game: string | nul
   style: DEFAULT_PROFILE_STYLE,
   verified: false,
   admin: false,
+  voice: null,
   bio: '',
   unread: 0,
   lastMessage: last ? { ...last, at: 1 } : null,
@@ -21,7 +22,7 @@ const friend = (id: string, state: Friend['status']['state'], game: string | nul
   xp: 0
 })
 const list = (...friends: Friend[]): FriendsList => ({ friends, incoming: [], outgoing: [] })
-const was = (...friends: Friend[]) => new Map(friends.map((f) => [f.id, { state: f.status.state, game: f.status.gameName, lastMessage: f.lastMessage?.id ?? 0 }]))
+const was = (...friends: Friend[]) => new Map(friends.map((f) => [f.id, { state: f.status.state, game: f.status.gameName, lastMessage: f.lastMessage?.id ?? 0, voiceRoom: f.voice?.roomId ?? null }]))
 const said = (prev: ReturnType<typeof was>, now: FriendsList, watching: string | null = null): string[] => notesFor(prev, now, watching).map((n) => `${n.friend.id} ${n.action}${n.detail ? `: ${n.detail}` : ''}`)
 
 describe('friend notifications', () => {
@@ -50,5 +51,13 @@ describe('friend notifications', () => {
 
   it('stays quiet about someone who has only just become a friend', () => {
     expect(said(was(friend('max', 'online')), list(friend('max', 'online'), friend('new', 'playing', 'Hades', { id: 9, mine: false, text: 'hi' })))).toEqual([])
+  })
+
+  it('says when a friend goes into a voice room you can join, once', () => {
+    const inVoice = (canJoin = true, names = ['max']): Friend => ({ ...friend('max', 'online'), voice: { roomId: 'r1', count: names.length, names, locked: !canJoin, live: false, canJoin } })
+    expect(said(was(friend('max', 'online')), list(inVoice()))).toEqual(['max started a voice room'])
+    expect(said(was(friend('max', 'online')), list(inVoice(true, ['ann', 'max', 'cal'])))).toEqual(['max joined voice with ann, cal'])
+    expect(said(was(inVoice()), list(inVoice()))).toEqual([])
+    expect(said(was(friend('max', 'online')), list(inVoice(false)))).toEqual([]) // locked: nothing to join
   })
 })

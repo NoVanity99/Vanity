@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Gamepad2, MessageCircle, Wifi, X } from 'lucide-react'
+import { AudioLines, Gamepad2, MessageCircle, Wifi, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { openChat } from '@/state/chats'
 import { onFriendNote, type FriendNote } from '@/state/friends'
 import { useInterface } from '@/state/settings'
+import { voice } from '@/state/voice'
 
 const SHOWN_MS = 7000
 const KINDS = {
   online: { icon: Wifi, tone: 'text-emerald-400', label: 'Online' },
   playing: { icon: Gamepad2, tone: 'text-accent', label: 'Now playing' },
-  message: { icon: MessageCircle, tone: 'text-sky-400', label: 'New message' }
+  message: { icon: MessageCircle, tone: 'text-sky-400', label: 'New message' },
+  voice: { icon: AudioLines, tone: 'text-emerald-400', label: 'In voice' }
 } as const
 
 /**
@@ -27,9 +29,11 @@ export function FriendNotifications(): React.JSX.Element | null {
   const [notes, setNotes] = useState<(FriendNote & { leaving?: boolean })[]>([])
 
   useEffect(() => {
-    const wanted = { online: ui.notifyFriendOnline, playing: ui.notifyFriendPlaying, message: ui.notifyFriendMessage }
+    const wanted = { online: ui.notifyFriendOnline, playing: ui.notifyFriendPlaying, message: ui.notifyFriendMessage, voice: ui.notifyFriendOnline || ui.notifyFriendPlaying }
     return onFriendNote((note) => {
       if (!wanted[note.kind]) return
+      // Already in that room: nothing to say.
+      if (note.kind === 'voice' && note.friend.voice?.roomId === voice.snapshot.room?.id) return
       // At most four at once: the oldest makes room.
       setNotes((list) => [...list.slice(-3), note])
       setTimeout(() => setNotes((list) => list.map((n) => (n.id === note.id ? { ...n, leaving: true } : n))), SHOWN_MS - 250)

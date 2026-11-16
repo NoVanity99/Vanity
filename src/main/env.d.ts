@@ -12,8 +12,6 @@ interface ImportMetaEnv {
   readonly MAIN_VITE_VANITY_API_URL?: string
   /** Development only: use another Neon Auth address / Vanity server than the built-in ones (src/shared/backend.ts). */
   readonly MAIN_VITE_NEON_AUTH_URL?: string
-  /** The voice signaling server for this build (ws:// or wss://). */
-  readonly MAIN_VITE_VOICE_URL?: string
   readonly MAIN_VITE_VANITY_BACKEND_URL?: string
 }
 

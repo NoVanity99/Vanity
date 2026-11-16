@@ -255,33 +255,38 @@ While you're signed in:
 
 ## Voice rooms
 
-Talk with friends while you play: **Voice** in the sidebar. Start a room to get a 6-character code (or invite a friend, which sends the code as a chat message with a Join button), or join with a code. Up to 6 people per room.
+Talk with friends while you play: **Voice** in the sidebar. There are no codes and nothing to set up: voice is built into Vanity's own server.
 
-- **In a room:** everyone's picture with a green ring while they talk. Right-click someone to set their volume (0–200%) or mute them for yourself; that's remembered. Mute, deafen and disconnect, and short sounds when people join or leave.
-- **The voice bar** at the bottom of the sidebar stays while you browse: room, connection quality and ping, and your mic buttons. With the sidebar hidden (or on a phone) a small one floats in the corner.
-- **Settings → Voice:** the voice server address; microphone and speakers (unplugging one switches to the default and back); a mic test with a live level meter; voice activity (default) with a sensitivity slider drawn on that meter, or push-to-talk with any key or mouse side button; noise suppression, echo cancellation and automatic gain; join/leave sounds.
+- **Start a room** and your friends see it: on the Voice page under "Friends in voice", on the Friends page ("In voice", with a Join button), and as a notification. Anyone who is a friend of someone in the room can join. Up to 6 people per room.
+- **Private or locked:** whoever started the room picks **Open** (friends see it and can join), **Locked** (friends see it, but only people you invite can join) or **Private** (hidden; invite only). It can be changed during the call. If they leave, the next person to have joined takes over.
+- **Invite** sends a friend a chat message with a Join button and lets them in even when the room is locked or private.
+- **In a room:** everyone's picture with a green ring while they talk, a crown on whoever started it. Right-click someone to set their volume (0–200%) or mute them for yourself; that's remembered. Mute, deafen and disconnect, and short sounds when people join or leave.
+- **Share your screen (Windows):** pick a whole screen or one window, and the quality (720p 30 fps, 1080p 30 fps or 1080p 60 fps). Everyone in the room sees a LIVE badge on you and can click **Watch** to see it big, or full screen. Phones can watch but not share. Sound from the shared screen isn't sent.
+- **The voice bar** at the bottom of the sidebar stays while you browse: whose room, connection quality and ping, and your mic buttons. With the sidebar hidden (or on a phone) a small one floats in the corner.
+- **Settings → Voice:** microphone and speakers (unplugging one switches to the default and back); a mic test with a live level meter; voice activity (default) with a sensitivity slider drawn on that meter, or push-to-talk with any key or mouse side button; noise suppression, echo cancellation and automatic gain; join/leave sounds.
 - **Push-to-talk works while a game is in front:** a system-wide keyboard and mouse hook (`uiohook-napi`, `src/main/voice/hotkeys.ts`) reports the key going down and up. A game run as administrator needs Vanity run as administrator too. If the hook can't load, the key works while Vanity is in front, and Settings says so.
-- **Errors are plain words:** no microphone (you join and can listen), microphone blocked by Windows (with where to allow it), the server can't be reached, a wrong code, a full room, signed out. Dropped connections reconnect by themselves, back into the same room.
+- **Errors are plain words:** no microphone (you join and can listen), microphone blocked by Windows (with where to allow it), no internet, a room that closed, is full or is locked, signed out. A short drop shows "Reconnecting…" and carries on; after 45 seconds without a connection you're taken out of the room (and Vanity tries once to get you back in).
 - **Phones:** voice works the same, with a "Hold to talk" button for push-to-talk (no global keys).
 
 **How it's built:**
-- **Audio:** WebRTC with Opus, tuned for voice (mono, error correction, silence suppression, at most 64 kbit/s), directly between players: a peer-to-peer "mesh".
+- **Audio and video:** WebRTC, directly between players (a peer-to-peer "mesh"). Voice is Opus tuned for speech (mono, error correction, silence suppression, at most 64 kbit/s, sent first on a busy connection). A shared screen is one more video line on the same connections, at 2.5–6 Mbit/s depending on the quality picked; stopping only takes the picture off it, so sharing again is instant.
+- **Rooms and connection set-up** live on the Vanity server (`server/src/voice.ts`, tables `voice_rooms`, `voice_members`, `voice_invites`, `voice_signals`). During a call the app checks in every 1.5 seconds (every 0.3 seconds while connections are being set up), which keeps your place and brings the connection details the others sent you. No separate voice server and no codes.
 - **The engine** is `src/renderer/src/voice/`, with no screen code in it:
-  - `client.ts` runs a call
-  - `signaling.ts` keeps the server connection (reconnecting by itself)
+  - `client.ts` runs a call (and screen sharing)
   - `audio.ts` is the microphone, talking detection, per-person volume, output device and sounds
   - `mesh.ts` makes the connections
-- **Swapping the mesh later:** the screens only see `VoiceTransport` (`transport.ts`), so the mesh can be replaced by a media server (LiveKit, mediasoup) for bigger rooms without changing them.
-- **The signaling server** is in [`server/voice`](server/voice/README.md): how to run it, put it online, and add a TURN server for strict networks.
-- **Message format:** shared by both sides in `src/shared/voiceProtocol.ts`.
+- **Screen picking (Windows):** `src/main/voice/screen.ts` lists screens and windows with thumbnails for Vanity's own picker; the capture only starts for the one picked.
+- **Swapping the mesh later:** the screens only see `VoiceTransport` (`transport.ts`), so the mesh can be replaced by a media server (LiveKit, mediasoup) for bigger rooms or many viewers without changing them.
+- **Strict networks (TURN):** most home networks connect directly. For the rest, set `TURN_URLS` and `TURN_SECRET` (a coturn shared secret: each player gets their own login that runs out) or `TURN_USERNAME` and `TURN_CREDENTIAL` as GitHub secrets; the deploy passes them to the server, which hands them to the apps. `STUN_URLS` replaces the default public STUN servers. None of these are in the app or the repo.
+- **Message format:** shared by the app and the server in `src/shared/voiceProtocol.ts`.
 - **Voice settings:** `src/shared/voiceSettings.ts`, kept on the device.
 
 **Two copies on one PC** (to try voice with two accounts): `Vanity.exe --profile=friend` starts a second, separate Vanity with its own sign-in and settings.
 
 **Planned next (not built yet):**
 - **An in-game overlay of who's talking:** a see-through, always-on-top window, which works over games in windowed and borderless mode. Exclusive fullscreen would need hooking into the game's graphics, which anti-cheat systems can flag, so that's left out.
-- **Screen sharing:** Electron's screen capture as a video track. For more than two or three people, video needs a media server, which `VoiceTransport` is ready for.
-- **Text chat inside each room:** sent through the voice server, saved on the Vanity server, and drawn like the chat pop-ups.
+- **Sound from a shared screen:** Windows can capture it, but it also captures the voices of the people in the call, who would then hear themselves; that needs filtering first.
+- **Text chat inside each room.**
 
 ## Customize
 

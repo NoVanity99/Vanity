@@ -1,4 +1,5 @@
 import type { SyncRequest, SyncResponse } from '@shared/sync'
+import type { VoiceSignal, VoiceUpdate } from '@shared/voiceProtocol'
 import type { ProfileStyle } from '../../shared/profileStyle'
 import type { ChatMessage, ChatPage, FriendsList, FriendStats, GameFriend, SteamAchievement, SteamGame, SteamLink } from '@shared/types'
 import type { FetchFn } from '../metadata/http'
@@ -105,4 +106,14 @@ export class AccountClient {
   }
   sendMessage = async (id: string, text: string) => (await this.call<{ message: ChatMessage }>('POST', `/friends/${encodeURIComponent(id)}/messages`, { text })).message
   gameFriends = async (key: string) => (await this.call<{ friends: GameFriend[] }>('GET', `/games/${encodeURIComponent(key)}/friends`)).friends
+
+  // Voice rooms (server/src/voice.ts).
+  voiceStart = (opts: { private?: boolean; locked?: boolean }) => this.call<VoiceUpdate>('POST', '/voice/rooms', { private: opts.private === true, locked: opts.locked === true })
+  voiceJoin = (roomId: string) => this.call<VoiceUpdate>('POST', `/voice/rooms/${encodeURIComponent(roomId)}/join`)
+  voiceLeave = () => this.call<void>('POST', '/voice/leave')
+  voiceUpdate = (after: number) => this.call<VoiceUpdate>('GET', `/voice/update?after=${Math.max(0, Math.trunc(after) || 0)}`)
+  voiceState = (s: { muted: boolean; deafened: boolean; sharing: boolean }) => this.call<void>('POST', '/voice/state', s)
+  voiceSignal = (signals: { to: string; data: VoiceSignal }[]) => this.call<void>('POST', '/voice/signal', { signals })
+  voiceSetRoom = (patch: { private?: boolean; locked?: boolean }) => this.call<VoiceUpdate>('PATCH', '/voice/room', patch)
+  voiceInvite = (userId: string) => this.call<void>('POST', '/voice/invite', { userId })
 }

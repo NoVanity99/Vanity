@@ -1,3 +1,4 @@
+import { friendsVoice, iceConfigFromEnv, voiceRoutes, type IceConfig } from './voice'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
@@ -20,6 +21,10 @@ export interface AppOptions {
   syncRateLimit?: number
   /** Max messages one account may send per minute. */
   messageRateLimit?: number
+  /** STUN/TURN for voice rooms (TURN optional). */
+  voiceIce?: IceConfig
+  /** Max voice requests (checking in, connection details) per account per minute. */
+  voiceRateLimit?: number
   /** The Steam Web API key: a server secret, never sent to the app. Empty: Steam routes say "not set up". */
   steamApiKey?: string
   /** Max Steam requests per account per minute. */
@@ -35,7 +40,7 @@ export interface AppOptions {
   updateKey?: string
 }
 
-type Env = { Variables: { userId: string; username: string; email: string | null } }
+export type Env = { Variables: { userId: string; username: string; email: string | null } }
 
 const USERNAME = /^[A-Za-z0-9_]{3,20}$/
 const ONLINE_WINDOW = '3 minutes'
@@ -49,22 +54,22 @@ const MAX_AVATAR_CHARS = 60_000
 const AVATAR = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 /** What everyone may see of an account: its name, picture and official badges. */
-function publicUser(row: { id: string; username: string; avatar?: string | null; style?: unknown }): { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean } {
+export function publicUser(row: { id: string; username: string; avatar?: string | null; style?: unknown }): { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean } {
   return { id: row.id, username: row.username, avatar: row.avatar ?? null, style: readStyle(row.style), ...rolesFor(row.username) }
 }
 
-const fail = (status: 400 | 401 | 403 | 404 | 409 | 429, message: string, code?: string): never => {
+export const fail = (status: 400 | 401 | 403 | 404 | 409 | 429, message: string, code?: string): never => {
   throw new HTTPException(status, { message, cause: code })
 }
 
-function toMs(v: unknown): number | null {
+export function toMs(v: unknown): number | null {
   if (v instanceof Date) return v.getTime()
   if (typeof v === 'string' && v) return Date.parse(v)
   if (typeof v === 'number') return v
   return null
 }
 
-async function body<T>(c: Context): Promise<Partial<T>> {
+export async function body<T>(c: Context): Promise<Partial<T>> {
   try {
     const b = await c.req.json()
     return b && typeof b === 'object' ? (b as Partial<T>) : {}
@@ -104,7 +109,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -479,9 +484,12 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const outgoing = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
       SELECT u.id, u.username, u.avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.addressee_id
       WHERE f.requester_id = ${me} AND f.status = 'pending' ORDER BY f.created_at DESC`
+    // Which friends are in a voice room you may see (and join).
+    const voiceOf = await friendsVoice(sql, me, friends.map((f) => f.id), (now ?? Date.now)())
     return c.json({
       friends: friends.map((f) => ({
         ...publicUser(f),
+        voice: voiceOf.get(f.id) ?? null,
         bio: f.bio ?? '',
         status: status(f),
         totalPlaytimeSeconds: f.total,
@@ -696,6 +704,9 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       friends: rows.map((r) => ({ ...publicUser(r), playtimeSeconds: r.playtime_seconds, lastPlayedAt: toMs(r.last_played_at) }))
     })
   })
+
+  // ---- voice rooms (see voice.ts) ---------------------------------------------
+  app.route('/voice', voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice: voiceIce ?? iceConfigFromEnv({}), rateLimit: voiceRateLimit, now }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))
   app.onError((err, c) => {

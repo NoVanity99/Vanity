@@ -4,14 +4,12 @@ import type { ChatMessage, Friend } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { useNavigate } from 'react-router-dom'
 import { EmojiPicker } from '@/components/EmojiPicker'
-import { voice } from '@/state/voice'
+import { isVoiceInvite, voice } from '@/state/voice'
 import { bigEmoji, replaceEmoticon } from '@/lib/emoji'
-import { refreshFriends, watchChat } from '@/state/friends'
+import { refreshFriends, useFriends, watchChat } from '@/state/friends'
 
 const POLL_MS = 4000
 
-/** The room code in a voice invite ("Join my voice room in Vanity: K7M2QX"), or null. */
-const voiceInvite = (text: string): string | null => /voice room in Vanity: ([ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6})\b/.exec(text)?.[1] ?? null
 const MAX = 2000
 
 const dayOf = (at: number | null): string => (at ? new Date(at).toDateString() : '')
@@ -45,6 +43,8 @@ export function FriendChat({
 }): React.JSX.Element {
   const [emojiOpen, setEmojiOpen] = useState(false)
   const navigate = useNavigate()
+  // The friend's voice room right now, for the Join button under an invite.
+  const theirVoice = useFriends()?.friends.find((f) => f.id === friend.id)?.voice ?? null
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [more, setMore] = useState(false)
   const [seenUpTo, setSeenUpTo] = useState<number | null>(null)
@@ -220,16 +220,18 @@ export function FriendChat({
                       >
                         {m.text}
                         <span className={cn('ml-2 inline-block translate-y-0.5 text-[10px] tabular-nums', m.mine ? 'text-white/70' : 'text-muted')}>{timeOf(m.at)}</span>
-                        {!m.mine && voiceInvite(m.text) && (
+                        {!m.mine && isVoiceInvite(m.text) && (
                           <button
+                            disabled={!theirVoice?.canJoin}
                             onClick={() => {
-                              void voice.join(voiceInvite(m.text)!)
+                              if (!theirVoice) return
+                              void voice.join(theirVoice.roomId)
                               navigate('/voice')
                             }}
                             data-join-invite
-                            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition hover:brightness-110"
+                            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white transition hover:brightness-110 disabled:bg-white/10 disabled:text-muted"
                           >
-                            <AudioLines className="size-4" /> Join voice room
+                            <AudioLines className="size-4" /> {theirVoice?.canJoin ? 'Join voice room' : theirVoice ? 'Room is full or locked' : 'Not in voice anymore'}
                           </button>
                         )}
                       </div>

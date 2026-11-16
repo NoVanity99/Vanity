@@ -1,3 +1,4 @@
+import { iceConfigFromEnv } from './voice'
 import { createApp } from './app'
 import { neonAuthVerifierFromUrl } from './auth'
 import { neonMigrate, neonSql } from './db'
@@ -14,5 +15,5 @@ export function appFromEnv(env: NodeJS.ProcessEnv = process.env, extra: Pick<Par
   // Without it nobody can be signed in, so every account route answers "please sign in".
   // A host that only hands out app updates (the Vercel entry) can run like that.
   if (!jwks) console.warn('[vanity-api] NEON_AUTH_JWKS_URL is not set: account routes are off. On Neon, turn on Neon Auth for the branch (the deploy does this).')
-  return createApp({ sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', ...extra })
+  return createApp({ sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', voiceIce: iceConfigFromEnv(env), ...extra })
 }

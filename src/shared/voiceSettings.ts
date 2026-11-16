@@ -12,8 +12,6 @@ export interface PeerVolume {
 }
 
 export interface VoiceSettings {
-  /** The voice server's address (ws:// or wss://). Empty: the one built into this copy of Vanity, if any. */
-  serverUrl: string
   /** '' means the system default. */
   inputDeviceId: string
   outputDeviceId: string
@@ -39,7 +37,6 @@ export interface VoiceSettings {
 export const SENSITIVITY_RANGE = { min: -100, max: 0 } as const
 
 export const DEFAULT_VOICE: VoiceSettings = {
-  serverUrl: '',
   inputDeviceId: '',
   outputDeviceId: '',
   inputVolume: 1,
@@ -58,20 +55,6 @@ export const DEFAULT_VOICE: VoiceSettings = {
 const num = (v: unknown, min: number, max: number, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback)
 const bool = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback)
 const str = (v: unknown, max = 500): string => (typeof v === 'string' ? v.slice(0, max) : '')
-
-/** A server address that can be used: ws:// or wss://, or https:// / http:// turned into one. Null if it isn't one. */
-export function voiceServerUrl(input: string): string | null {
-  const t = input.trim()
-  if (!t) return null
-  const withScheme = /^[a-z]+:\/\//i.test(t) ? t : `wss://${t}`
-  try {
-    const u = new URL(withScheme.replace(/^http(s?):/i, 'ws$1:'))
-    if (u.protocol !== 'ws:' && u.protocol !== 'wss:') return null
-    return u.toString().replace(/\/$/, '')
-  } catch {
-    return null
-  }
-}
 
 function binding(v: unknown): PttBinding | null {
   if (!v || typeof v !== 'object') return null
@@ -97,7 +80,6 @@ export function normalizeVoice(stored: unknown): VoiceSettings {
     }
   }
   return {
-    serverUrl: voiceServerUrl(str(v.serverUrl)) ?? '',
     inputDeviceId: str(v.inputDeviceId),
     outputDeviceId: str(v.outputDeviceId),
     inputVolume: num(v.inputVolume, 0, 2, d.inputVolume),

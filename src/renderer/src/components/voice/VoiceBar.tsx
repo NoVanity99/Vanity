@@ -13,7 +13,7 @@ import { QUALITY_WORDS, QualityBars, VoiceButtons } from './VoiceBits'
 export function VoiceBar({ floating = false, className }: { floating?: boolean; className?: string }): React.JSX.Element | null {
   const v = useVoice()
   const navigate = useNavigate()
-  const active = v.status === 'in-room' || v.status === 'reconnecting' || (v.status === 'connecting' && !!v.code)
+  const active = v.status === 'in-room' || v.status === 'reconnecting' || (v.status === 'connecting' && !!v.room)
   if (!active && !(v.status === 'connecting')) return null
   const others = v.members.filter((m) => !m.you)
   const talking = others.filter((m) => m.speaking)
@@ -49,7 +49,7 @@ export function VoiceBar({ floating = false, className }: { floating?: boolean; 
         <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted">
           <span className={cn('relative inline-flex size-2 shrink-0 rounded-full', v.speaking ? 'bg-emerald-400 shadow-[0_0_6px_rgb(52_211_153)]' : 'bg-white/20')} aria-label={v.speaking ? 'You are talking' : undefined} />
           <span className="truncate">
-            Room <span className="font-mono font-semibold text-text">{v.code ?? '…'}</span>
+            {v.sharing ? <span className="font-semibold text-accent">Sharing your screen</span> : <span className="font-semibold text-text">{v.isHost ? 'Your room' : `${v.members.find((m) => m.host)?.user.username ?? 'Friend'}'s room`}</span>}
             {' · '}
             {talking.length ? <span className="text-emerald-400">{talking.map((m) => m.user.username).join(', ')} talking</span> : `${others.length} other${others.length === 1 ? '' : 's'}`}
           </span>

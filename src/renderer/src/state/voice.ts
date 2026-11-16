@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_VOICE, type PeerVolume, type VoiceSettings } from '@shared/voiceSettings'
 import { VoiceClient, type VoiceSnapshot } from '@/voice/client'
+import type { Result } from '@shared/ipc'
 import { saveSettings } from './settings'
 
 /**
@@ -9,18 +10,33 @@ import { saveSettings } from './settings'
  */
 
 let settings: VoiceSettings = DEFAULT_VOICE
-let serverUrl = ''
+
+/** The chat message an invite sends; the chat shows a Join button under it. */
+export const VOICE_INVITE_TEXT = '🎧 Join me in voice on Vanity'
+export const isVoiceInvite = (text: string): boolean => text.includes('Join me in voice on Vanity')
+
+/** The answer, or an error with the server's words. */
+async function data<T>(p: Promise<Result<T>>): Promise<T> {
+  const r = await p
+  if (r.error !== undefined) throw new Error(r.error)
+  return r.data
+}
 
 /** Per-person volumes are saved a moment after the slider stops, not on every step. */
 let volumeTimer: ReturnType<typeof setTimeout> | null = null
 let pendingVolumes: Record<string, PeerVolume | null> = {}
 
 export const voice = new VoiceClient({
-  serverUrl: () => serverUrl,
-  token: async () => {
-    const r = await window.vanity.voice.token()
-    if (r.error !== undefined) throw new Error(r.error)
-    return r.data
+  api: {
+    start: (opts) => data(window.vanity.voice.start(opts)),
+    join: (roomId) => data(window.vanity.voice.join(roomId)),
+    leave: async () => void (await data(window.vanity.voice.leave())),
+    update: (after) => data(window.vanity.voice.update(after)),
+    state: async (s) => void (await data(window.vanity.voice.state(s))),
+    signal: async (signals) => void (await data(window.vanity.voice.signal(signals))),
+    setRoom: (patch) => data(window.vanity.voice.setRoom(patch)),
+    invite: async (userId) => void (await data(window.vanity.voice.invite(userId))),
+    pickScreen: (id) => window.vanity.voice.pickScreen(id)
   },
   settings: () => settings,
   saveVolume: (userId, volume) => {
@@ -37,7 +53,7 @@ export const voice = new VoiceClient({
   }
 })
 
-/** Keeps the engine's copy of the settings and server address current. Called by the app shell. */
+/** Keeps the engine's copy of the settings current. Called by the app shell. */
 export function syncVoiceSettings(next: VoiceSettings | undefined): void {
   if (!next) return
   // A volume still being saved wins over the older copy coming back.
@@ -47,7 +63,6 @@ export function syncVoiceSettings(next: VoiceSettings | undefined): void {
     else delete userVolumes[id]
   }
   settings = { ...next, userVolumes }
-  void window.vanity.voice.serverUrl().then((r) => (serverUrl = r.url), () => {})
   void voice.applySettings()
 }
 
@@ -92,6 +107,10 @@ let pttWired = false
 export function wirePushToTalk(): void {
   if (pttWired) return
   pttWired = true
+  // Closing Vanity mid-call: leave properly, so friends don't see you there for the next minute.
+  window.addEventListener('beforeunload', () => {
+    if (voice.inRoom) voice.leave()
+  })
   window.vanity.voice.onPushToTalk((down) => voice.pushToTalk(down))
   let global = false
   void window.vanity.voice.hotkeyStatus().then((s) => (global = s.global), () => {})

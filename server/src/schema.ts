@@ -47,6 +47,46 @@ CREATE TABLE IF NOT EXISTS vanity.messages (
 CREATE INDEX IF NOT EXISTS messages_conversation ON vanity.messages (least(sender_id, recipient_id), greatest(sender_id, recipient_id), id DESC);
 CREATE INDEX IF NOT EXISTS messages_unread ON vanity.messages (recipient_id, sender_id) WHERE read_at IS NULL;
 
+-- Voice rooms. No codes: a room belongs to whoever started it (host_id), and friends of the
+-- people in it can see and join it, unless it is private (hidden) or locked (seen, closed);
+-- invited people can always join. Rooms close when the last person leaves.
+CREATE TABLE IF NOT EXISTS vanity.voice_rooms (
+  id          text PRIMARY KEY,
+  host_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  private     boolean NOT NULL DEFAULT false,
+  locked      boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Who is in which room: one room per account. last_seen is when their app last checked in.
+CREATE TABLE IF NOT EXISTS vanity.voice_members (
+  user_id    text PRIMARY KEY REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  room_id    text NOT NULL REFERENCES vanity.voice_rooms (id) ON DELETE CASCADE,
+  muted      boolean NOT NULL DEFAULT false,
+  deafened   boolean NOT NULL DEFAULT false,
+  -- Sharing their screen (the picture itself goes directly between apps, like the audio).
+  sharing    boolean NOT NULL DEFAULT false,
+  joined_at  timestamptz NOT NULL DEFAULT now(),
+  last_seen  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE vanity.voice_members ADD COLUMN IF NOT EXISTS sharing boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS voice_members_room ON vanity.voice_members (room_id);
+CREATE TABLE IF NOT EXISTS vanity.voice_invites (
+  room_id     text NOT NULL REFERENCES vanity.voice_rooms (id) ON DELETE CASCADE,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (room_id, user_id)
+);
+-- WebRTC connection details on their way from one player to another (gone once fetched, or after 2 minutes).
+CREATE TABLE IF NOT EXISTS vanity.voice_signals (
+  id          bigserial PRIMARY KEY,
+  room_id     text NOT NULL REFERENCES vanity.voice_rooms (id) ON DELETE CASCADE,
+  from_id     text NOT NULL,
+  to_id       text NOT NULL,
+  data        jsonb NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS voice_signals_to ON vanity.voice_signals (to_id, id);
+
 -- What each user is doing right now. The app sends a heartbeat about once a minute.
 -- signed_off is true after the user signs out or closes Vanity. updated_at is then "last seen".
 CREATE TABLE IF NOT EXISTS vanity.presence (

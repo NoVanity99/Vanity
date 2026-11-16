@@ -15,7 +15,7 @@ const version = (JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'ut
  */
 const MOBILE_CSP =
   "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob: https: content:; media-src 'self' blob: https://localhost content:; connect-src 'self' https: wss: ws: http: http://localhost:* http://127.0.0.1:*; font-src 'self' data:"
+  "img-src 'self' data: blob: https: content:; media-src 'self' blob: https://localhost content:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:"
 
 function mobileHtml(): Plugin {
   return {

@@ -17,6 +17,8 @@ export interface TransportEvents {
   /** Someone's audio arrived (or arrived again after a reconnect). */
   remoteStream(peerId: string, stream: MediaStream): void
   remoteGone(peerId: string): void
+  /** Someone's shared-screen picture can be shown (it stays the same while they stop and start sharing). */
+  remoteVideo(peerId: string, stream: MediaStream): void
   link(peerId: string, link: PeerLink): void
 }
 
@@ -37,6 +39,8 @@ export interface VoiceTransport {
   /** Their connection is broken (they reconnected to the server): start it again from scratch. */
   resetPeer(peerId: string): void
   handleSignal(from: string, data: VoiceSignal): void
+  /** Shares a screen with everyone (null stops). */
+  setVideo(track: MediaStreamTrack | null, encoding: { maxBitrate: number; maxFramerate: number }): void
   /** New TURN logins after a reconnect to the server. */
   setIceServers(servers: VoiceIceServer[]): void
   /** Ask each connection how it's doing (called every couple of seconds). */
