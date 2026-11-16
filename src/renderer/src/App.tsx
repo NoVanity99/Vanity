@@ -13,6 +13,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { SessionRecap } from './components/SessionRecap'
 import { VibeCheck } from './components/VibeCheck'
 import { FriendNotifications } from './components/FriendNotifications'
+import { ChatDock } from './components/ChatDock'
 import { useAccount } from './state/account'
 import { useFriendsRefresh } from './state/friends'
 import { GamepadLayer } from './gamepad/GamepadLayer'
@@ -157,6 +158,7 @@ function Shell(): React.JSX.Element {
       <SessionRecap />
       <VibeCheck />
       <FriendNotifications />
+      <ChatDock />
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

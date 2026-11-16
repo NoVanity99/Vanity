@@ -8,6 +8,7 @@ import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { useAccount } from '@/state/account'
+import { openChat } from '@/state/chats'
 import { publishFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
 
@@ -158,7 +159,7 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="primary" className="justify-center" onClick={() => navigate(`/friends/${friend.id}?chat=1`)} data-message-friend>
+        <Button variant="primary" className="justify-center" onClick={() => openChat(friend)} data-message-friend>
           <MessageCircle className="size-4" /> Message
           {friend.unread > 0 && <span className="ml-1 rounded-full bg-white/25 px-1.5 text-[11px] font-bold tabular-nums">{friend.unread}</span>}
         </Button>

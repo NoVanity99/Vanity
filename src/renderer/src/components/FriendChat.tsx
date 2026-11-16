@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowUp, CheckCheck, Loader2, MessageCircle, SendHorizontal } from 'lucide-react'
+import { ArrowUp, CheckCheck, Loader2, MessageCircle, SendHorizontal, Smile } from 'lucide-react'
 import type { ChatMessage, Friend } from '@shared/types'
 import { cn } from '@/lib/cn'
-import { refreshFriends, setOpenChat } from '@/state/friends'
+import { EmojiPicker } from '@/components/EmojiPicker'
+import { bigEmoji, replaceEmoticon } from '@/lib/emoji'
+import { refreshFriends, watchChat } from '@/state/friends'
 
 const POLL_MS = 4000
 const MAX = 2000
@@ -24,7 +26,19 @@ const timeOf = (at: number | null): string => (at ? new Date(at).toLocaleTimeStr
  * history is here on every device: the newest page loads first and "Earlier messages"
  * pages back. New messages arrive by themselves every few seconds while it is open.
  */
-export function FriendChat({ friend, className, autoFocus = false }: { friend: Pick<Friend, 'id' | 'username'>; className?: string; autoFocus?: boolean }): React.JSX.Element {
+export function FriendChat({
+  friend,
+  className,
+  autoFocus = false,
+  header
+}: {
+  friend: Pick<Friend, 'id' | 'username'>
+  className?: string
+  autoFocus?: boolean
+  /** Replaces the plain title bar (the pop-up has its own, with minimize and close). */
+  header?: React.ReactNode
+}): React.JSX.Element {
+  const [emojiOpen, setEmojiOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [more, setMore] = useState(false)
   const [seenUpTo, setSeenUpTo] = useState<number | null>(null)
@@ -81,11 +95,11 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
     }
     void first()
     const timer = setInterval(() => void poll(), POLL_MS)
-    setOpenChat(friend.id)
+    const unwatch = watchChat(friend.id)
     return () => {
       cancelled = true
       clearInterval(timer)
-      setOpenChat(null)
+      unwatch()
     }
   }, [friend.id, merge]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -136,9 +150,11 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
 
   return (
     <section className={cn('flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface', className)} data-friend-chat>
-      <h2 className="flex shrink-0 items-center gap-2 border-b border-border px-5 py-3.5 text-sm font-semibold uppercase tracking-widest text-muted">
-        <MessageCircle className="size-4" /> Chat with {friend.username}
-      </h2>
+      {header ?? (
+        <h2 className="flex shrink-0 items-center gap-2 border-b border-border px-5 py-3.5 text-sm font-semibold uppercase tracking-widest text-muted">
+          <MessageCircle className="size-4" /> Chat with {friend.username}
+        </h2>
+      )}
 
       <div
         ref={box}
@@ -182,16 +198,24 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
                     </p>
                   )}
                   <div className={cn('flex', m.mine ? 'justify-end' : 'justify-start', joined ? 'mt-0.5' : 'mt-2')} data-message={m.mine ? 'mine' : 'theirs'}>
-                    <div
-                      title={m.at ? new Date(m.at).toLocaleString() : undefined}
-                      className={cn(
-                        'max-w-[78%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
-                        m.mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-surface-2 text-text'
-                      )}
-                    >
-                      {m.text}
-                      <span className={cn('ml-2 inline-block translate-y-0.5 text-[10px] tabular-nums', m.mine ? 'text-white/70' : 'text-muted')}>{timeOf(m.at)}</span>
-                    </div>
+                    {bigEmoji(m.text) ? (
+                      // Just emoji: shown big, without a bubble.
+                      <div title={m.at ? new Date(m.at).toLocaleString() : undefined} className={cn('flex items-end gap-2', m.mine && 'flex-row-reverse')} data-big-emoji>
+                        <span className="text-4xl leading-tight">{m.text.trim()}</span>
+                        <span className="pb-1 text-[10px] tabular-nums text-muted">{timeOf(m.at)}</span>
+                      </div>
+                    ) : (
+                      <div
+                        title={m.at ? new Date(m.at).toLocaleString() : undefined}
+                        className={cn(
+                          'max-w-[78%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
+                          m.mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-surface-2 text-text'
+                        )}
+                      >
+                        {m.text}
+                        <span className={cn('ml-2 inline-block translate-y-0.5 text-[10px] tabular-nums', m.mine ? 'text-white/70' : 'text-muted')}>{timeOf(m.at)}</span>
+                      </div>
+                    )}
                   </div>
                   {m.mine && lastMine?.id === m.id && seenUpTo !== null && seenUpTo >= m.id && (
                     <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted" data-seen>
@@ -211,7 +235,7 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
         </p>
       )}
       <form
-        className="flex shrink-0 items-end gap-2 border-t border-border p-3"
+        className="relative flex shrink-0 items-end gap-2 border-t border-border p-3"
         onSubmit={(e) => {
           e.preventDefault()
           void send()
@@ -220,7 +244,14 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
         <textarea
           ref={input}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            // A typed face like :) becomes its emoji once a space follows it.
+            const el = e.target
+            const swapped = replaceEmoticon(el.value, el.selectionStart ?? el.value.length)
+            if (!swapped) return setText(el.value)
+            setText(swapped.text)
+            requestAnimationFrame(() => el.setSelectionRange(swapped.cursor, swapped.cursor))
+          }}
           onKeyDown={(e) => {
             // Enter sends; Shift+Enter makes a new line.
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -233,6 +264,35 @@ export function FriendChat({ friend, className, autoFocus = false }: { friend: P
           aria-label={`Message ${friend.username}`}
           className="min-h-10 flex-1 resize-none rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-sm outline-none transition placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15"
         />
+        <button
+          type="button"
+          data-emoji-toggle
+          onClick={() => setEmojiOpen((v) => !v)}
+          aria-label="Emoji"
+          aria-expanded={emojiOpen}
+          title="Emoji"
+          className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl border border-border transition hover:border-white/25 hover:text-text', emojiOpen ? 'bg-accent/15 text-text' : 'text-muted')}
+        >
+          <Smile className="size-5" />
+        </button>
+        {emojiOpen && (
+          <EmojiPicker
+            className="absolute bottom-full right-2 z-20 mb-2"
+            onClose={() => setEmojiOpen(false)}
+            onPick={(e) => {
+              // At the cursor, or the end.
+              const el = input.current
+              const at = el ? el.selectionStart : text.length
+              const end = el ? el.selectionEnd : text.length
+              const next = text.slice(0, at) + e + text.slice(end)
+              setText(next)
+              requestAnimationFrame(() => {
+                el?.focus()
+                el?.setSelectionRange(at + e.length, at + e.length)
+              })
+            }}
+          />
+        )}
         {length > MAX - 200 && <span className={cn('pb-2.5 text-[11px] tabular-nums', length > MAX ? 'font-semibold text-accent' : 'text-muted')}>{MAX - length}</span>}
         <button
           type="submit"

@@ -4,6 +4,7 @@ import { Gamepad2, MessageCircle, Wifi, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
+import { openChat } from '@/state/chats'
 import { onFriendNote, type FriendNote } from '@/state/friends'
 import { useInterface } from '@/state/settings'
 
@@ -59,7 +60,9 @@ export function FriendNotifications(): React.JSX.Element | null {
             <button
               onClick={() => {
                 close(note.id)
-                navigate(note.to)
+                // A message opens its chat pop-up; anything else, the friend's page.
+                if (note.kind === 'message') openChat(note.friend)
+                else navigate(note.to)
               }}
               className="relative flex w-full items-center gap-3 p-3.5 pr-10 text-left"
               title={note.kind === 'message' ? 'Open the chat' : `Open ${note.friend.username}'s profile`}

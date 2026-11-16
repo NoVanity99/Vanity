@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Award, CalendarDays, Clock, ExternalLink, Flame, Gamepad2, Heart, MessageCircle, Rocket, Star, Trophy, UserCheck, Users } from 'lucide-react'
 import { BADGES, levelFor } from '@shared/progress'
 import { PLAY_STATUS_LABELS, type Friend, type FriendGameStat, type FriendStats, type PlayStatus } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/Dialog'
-import { FriendChat } from '@/components/FriendChat'
 import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { useAccount } from '@/state/account'
+import { openChat } from '@/state/chats'
 import { useLibrary } from '@/state/library'
 import { statusLine } from './FriendsPage'
 import { BADGE_ICONS } from './ProfilePage'
@@ -68,7 +68,6 @@ export function FriendProfilePage(): React.JSX.Element {
   const [stats, setStats] = useState<FriendStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [covers, setCovers] = useState<Record<string, string | null>>({})
-  const chat = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!account?.username) return
@@ -121,10 +120,10 @@ export function FriendProfilePage(): React.JSX.Element {
   }, [wantedKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const coverOf = (name: string): string | null => mediaUrl(mine.get(plain(name))?.coverPath ?? null) ?? covers[name] ?? null
 
-  // Coming from a message notification or the Message button: go straight to the chat.
+  // An old "open the chat" link (?chat=1): opens the chat pop-up.
   const toChat = params.get('chat') === '1'
   useEffect(() => {
-    if (toChat && friend) chat.current?.scrollIntoView({ block: 'center' })
+    if (toChat && friend) openChat(friend)
   }, [toChat, friend?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const back = (
@@ -269,7 +268,7 @@ export function FriendProfilePage(): React.JSX.Element {
                 {statusLine(friend)}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="primary" onClick={() => chat.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} data-open-chat>
+                <Button variant="primary" onClick={() => openChat(friend)} data-open-chat>
                   <MessageCircle className="size-4" /> Message
                 </Button>
                 {stats?.steam && (
@@ -341,10 +340,6 @@ export function FriendProfilePage(): React.JSX.Element {
           </div>
 
           <div className="space-y-6">
-            <div ref={chat}>
-              <FriendChat friend={friend} className="h-[30rem]" autoFocus={toChat} />
-            </div>
-
             <section className="rounded-2xl border border-border bg-surface p-5" data-friend-facts>
               <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-muted">
                 <CalendarDays className="size-4" /> About {friend.username}

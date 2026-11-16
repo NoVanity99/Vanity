@@ -3,6 +3,15 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.21.0 (2026-11-16)
+- Changed: **chats are pop-ups.** Message (on the Friends tab or a friend's page), or clicking a message notification, opens the chat in a pop-up at the bottom right of the window. It stays open while you move around Vanity, and comes back after a restart. Up to three can be open side by side.
+  - **Minimize** (or click the pop-up's title) folds it into a small bar that shows how many new messages are waiting; click the bar to open it again.
+  - **Close** removes the pop-up only: the conversation is kept for good, and opening the chat again shows all of it.
+  - The pop-up's title shows your friend's banner, picture, name and what they're doing, with a button to open their profile.
+  - On a phone the chat fills the width above the bottom bar.
+- New: **emoji in chats.** A smiley button next to the message box opens an emoji picker (eight groups, plus the ones you used last). Typed faces turn into emoji when you add a space after them, for example :) 🙂, :D 😄, ;) 😉, :( 🙁, :P 😛, <3 ❤️. A message that is just one to three emoji is shown big.
+- The small messages in the corner now sit above the chat pop-ups instead of behind them.
+
 ## 0.20.0 (2026-11-16)
 - New: **messages between friends.** Every friend's page has a chat box, and the Friends tab has a Message button. Type and press Enter (Shift+Enter for a new line). Messages are kept on Vanity's server for good, so the whole chat is there on every device: the newest messages load first and "Earlier messages" pages back to the very first one. New messages arrive by themselves every few seconds while the chat is open, and "Seen" shows under your last message once your friend has read it. Only friends can message each other, and nobody else can read a chat.
 - New: **notifications for friends**, as a card in the top-right corner with their banner, picture and name: when a friend **comes online**, when they **start a game** (with the game's name), and when they **send you a message** (with the message). Click a card to open their page or the chat. When Vanity isn't the window in front, a Windows notification is shown too. Each of the three can be turned off in Settings → Customize → Friend notifications.

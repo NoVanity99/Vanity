@@ -28,15 +28,22 @@ const noteListeners = new Set<(note: FriendNote) => void>()
 /** What each friend was doing the last time we looked. Null until the first look, which announces nothing. */
 let before: Map<string, { state: Friend['status']['state']; game: string | null; lastMessage: number }> | null = null
 let noteId = 1
-/** The friend whose chat is open on screen: their messages don't need announcing while you're looking at them. */
-let openChat: string | null = null
+/** Friends whose chat is open on screen: their messages don't need announcing while you're looking at them. */
+const watching = new Map<string, number>()
 
-export function setOpenChat(friendId: string | null): void {
-  openChat = friendId
+/** A chat on screen calls this; the returned function says it is gone again. */
+export function watchChat(friendId: string): () => void {
+  watching.set(friendId, (watching.get(friendId) ?? 0) + 1)
+  return () => {
+    const n = (watching.get(friendId) ?? 1) - 1
+    if (n > 0) watching.set(friendId, n)
+    else watching.delete(friendId)
+  }
 }
 
 /** What changed between two looks at the friends list, as notifications. Exported for tests. */
-export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, watching: string | null): Omit<FriendNote, 'id'>[] {
+export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, watched: string | null | ReadonlySet<string>): Omit<FriendNote, 'id'>[] {
+  const isWatched = (id: string): boolean => (typeof watched === 'string' ? watched === id : !!watched?.has(id))
   const notes: Omit<FriendNote, 'id'>[] = []
   for (const friend of list.friends) {
     const was = prev.get(friend.id)
@@ -49,8 +56,8 @@ export function notesFor(prev: NonNullable<typeof before>, list: FriendsList, wa
       notes.push({ kind: 'online', friend, action: 'is online', detail: null, to: `/friends/${friend.id}` })
     }
     const last = friend.lastMessage
-    if (last && !last.mine && last.id > was.lastMessage && watching !== friend.id) {
-      notes.push({ kind: 'message', friend, action: 'sent you a message', detail: last.text, to: `/friends/${friend.id}?chat=1` })
+    if (last && !last.mine && last.id > was.lastMessage && !isWatched(friend.id)) {
+      notes.push({ kind: 'message', friend, action: 'sent you a message', detail: last.text, to: `/friends/${friend.id}` })
     }
   }
   return notes
@@ -62,8 +69,8 @@ const snapshot = (list: FriendsList): NonNullable<typeof before> =>
 /** Takes a freshly fetched list (from the background refresh, or a page that just loaded one). */
 export function publishFriends(list: FriendsList | null): void {
   if (list && before) {
-    const watching = openChat && document.hasFocus() ? openChat : null
-    for (const note of notesFor(before, list, watching)) {
+    const looking = document.hasFocus() ? new Set(watching.keys()) : null
+    for (const note of notesFor(before, list, looking)) {
       const full = { ...note, id: noteId++ }
       for (const l of noteListeners) l(full)
     }
