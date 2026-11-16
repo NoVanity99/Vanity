@@ -4,6 +4,7 @@ import { AudioEngine, listDevices, type AudioDevices, type VoiceSound } from './
 import { newSessionId, qualityOf, SpeechDetector, type Quality } from './detect'
 import { VoiceError } from './errors'
 import { MeshTransport } from './mesh'
+import type { ScreenAudioStart } from '@shared/ipc'
 import type { PeerLink, VoiceTransport } from './transport'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'in-room' | 'reconnecting' | 'error'
@@ -65,8 +66,10 @@ export interface VoiceSnapshot {
   quality: Quality
   /** Failed check-ins in a row while reconnecting. */
   attempt: number
-  /** What you're sharing, if anything. */
-  sharing: { name: string; quality: ShareQuality } | null
+  /** What you're sharing, if anything, and whether its sound goes too. */
+  sharing: { name: string; quality: ShareQuality; sound: boolean } | null
+  /** How loud a shared screen's sound is for you (0–2). It plays only while you watch that screen. */
+  streamVolume: number
   /** Your own shared screen, for the small preview. */
   localVideo: MediaStream | null
   /** Everyone else's shared-screen pictures, by their id (shown while they're sharing). */
@@ -87,6 +90,11 @@ export interface VoiceApi {
   invite(userId: string): Promise<void>
   /** Desktop: the next getDisplayMedia() shares this screen or window. */
   pickScreen(id: string): Promise<boolean>
+  /** Desktop (Windows): the sound of a shared screen or window. */
+  startScreenAudio(sourceId: string): Promise<ScreenAudioStart>
+  stopScreenAudio(): Promise<void>
+  onScreenAudio(callback: (pcm: Uint8Array) => void): () => void
+  onScreenAudioEnded(callback: () => void): () => void
 }
 
 export interface VoiceDeps {
@@ -101,10 +109,10 @@ export interface VoiceDeps {
 const TICK_MS = 50
 const REMOTE_SPEAKING_DB = -55
 /** Checking in: quickly while connections are being set up, calmly otherwise. */
-const POLL_BUSY_MS = 300
-const POLL_IDLE_MS = 1500
+const POLL_BUSY_MS = 250
+const POLL_IDLE_MS = 1000
 /** Connection details are gathered this long and sent together. */
-const SIGNAL_FLUSH_MS = 80
+const SIGNAL_FLUSH_MS = 25
 
 type Peer = VoicePeer & { speaking: boolean; link: PeerLink | null; detector: SpeechDetector }
 
@@ -144,6 +152,8 @@ export class VoiceClient {
   private testing = false
   private gateOpen = false
   private screenTrack: MediaStreamTrack | null = null
+  /** Stops listening to the shared sound coming from Windows. */
+  private screenAudioOff: (() => void) | null = null
   private levelListeners = new Set<(db: number) => void>()
   private listeners = new Set<(s: VoiceSnapshot) => void>()
   private snap: VoiceSnapshot = {
@@ -162,6 +172,7 @@ export class VoiceClient {
     quality: 'unknown',
     attempt: 0,
     sharing: null,
+    streamVolume: 1,
     localVideo: null,
     videos: {},
     watching: null
@@ -309,8 +320,12 @@ export class VoiceClient {
 
   // ---- screen sharing ----------------------------------------------------------------
 
-  /** Shares a screen or window (picked in Vanity's picker) with everyone in the room. */
-  async startScreenShare(source: { id: string; name: string }, quality: ShareQuality): Promise<void> {
+  /**
+   * Shares a screen or window (picked in Vanity's picker) with everyone in the room, and its
+   * sound when `withSound` (Windows): for a screen, everything you hear except Vanity (so nobody
+   * hears themselves back); for a window, only that program's sound.
+   */
+  async startScreenShare(source: { id: string; name: string }, quality: ShareQuality, withSound = false): Promise<void> {
     if (!this.transport || !this.inRoom) return
     const q = SHARE_QUALITY[quality]
     if (!navigator.mediaDevices?.getDisplayMedia) return this.set({ notice: "Screen sharing isn't available on this device. You can still watch other people's screens." })
@@ -331,26 +346,86 @@ export class VoiceClient {
     track.onended = () => {
       if (this.screenTrack === track) this.stopScreenShare()
     }
-    this.transport.setVideo(track, { maxBitrate: q.bitrate, maxFramerate: q.fps })
-    this.set({ sharing: { name: source.name, quality }, localVideo: new MediaStream([track]) })
+    const sound = withSound ? await this.startSound(source.id) : null
+    if (this.screenTrack !== track) return // stopped meanwhile
+    this.transport?.setVideo(track, { maxBitrate: q.bitrate, maxFramerate: q.fps, motion: q.fps >= 60 }, sound)
+    this.set({ sharing: { name: source.name, quality, sound: !!sound }, localVideo: new MediaStream([track]) })
     this.sound('join')
     this.sendState()
     this.emitMembers()
   }
 
+  /** The shared screen's sound, from Windows, as a track (null when it can't be shared, with a notice saying why). */
+  private async startSound(sourceId: string): Promise<MediaStreamTrack | null> {
+    if (!this.audio) return null
+    const r = await this.deps.api.startScreenAudio(sourceId).catch(() => ({ ok: false as const, reason: 'failed' as const, message: "Sound couldn't be shared." }))
+    if (!r.ok) {
+      this.set({ notice: `${r.message} Your screen is shared without sound.` })
+      return null
+    }
+    try {
+      const track = await this.audio.startPcm()
+      const offData = this.deps.api.onScreenAudio((pcm) => this.audio?.pushPcm(pcm))
+      const offEnded = this.deps.api.onScreenAudioEnded(() => {
+        if (!this.snap.sharing?.sound) return
+        this.stopSound()
+        this.transport?.setVideo(this.screenTrack, this.encodingNow(), null)
+        this.set({ sharing: { ...this.snap.sharing, sound: false }, notice: "The shared window's sound stopped. The picture is still shared." })
+      })
+      this.screenAudioOff = () => {
+        offData()
+        offEnded()
+      }
+      return track
+    } catch {
+      void this.deps.api.stopScreenAudio().catch(() => {})
+      this.set({ notice: "Sound couldn't be shared. Your screen is shared without sound." })
+      return null
+    }
+  }
+
+  private stopSound(): void {
+    this.screenAudioOff?.()
+    this.screenAudioOff = null
+    this.audio?.stopPcm()
+    void this.deps.api.stopScreenAudio().catch(() => {})
+  }
+
+  private encodingNow(): { maxBitrate: number; maxFramerate: number; motion: boolean } {
+    const q = SHARE_QUALITY[this.snap.sharing?.quality ?? 'sharp']
+    return { maxBitrate: q.bitrate, maxFramerate: q.fps, motion: q.fps >= 60 }
+  }
+
   stopScreenShare(): void {
     if (!this.screenTrack) return
     this.stopScreenTrack()
-    this.transport?.setVideo(null, { maxBitrate: 0, maxFramerate: 0 })
+    this.transport?.setVideo(null, this.encodingNow(), null)
     this.set({ sharing: null, localVideo: null })
     this.sound('leave')
     this.sendState()
     this.emitMembers()
   }
 
+  /** How loud someone's shared-screen sound is arriving, in dB (−100 when silent or none). */
+  streamLevelDb(peerId: string): number {
+    return this.audio?.remoteLevelDb(`${peerId}#screen`) ?? -100
+  }
+
+  /** How loud shared screens' sound is for you (0–2). */
+  setStreamVolume(v: number): void {
+    this.set({ streamVolume: Math.min(2, Math.max(0, v)) })
+    this.applyStreamVolumes()
+  }
+
+  /** A shared screen's sound plays only for the screen you're watching. */
+  private applyStreamVolumes(): void {
+    for (const id of this.peers.keys()) this.audio?.setRemoteVolume(`${id}#screen`, this.snap.watching === id ? this.snap.streamVolume : 0)
+  }
+
   /** Whose shared screen to show big (null: nobody's). */
   watch(peerId: string | null): void {
     this.set({ watching: peerId && this.peers.get(peerId)?.sharing ? peerId : null })
+    this.applyStreamVolumes()
   }
 
   /** Settings changed: devices, volumes, sensitivity, processing. */
@@ -521,6 +596,7 @@ export class VoiceClient {
       },
       remoteGone: (id) => {
         this.audio?.removeRemote(id)
+        this.audio?.removeRemote(`${id}#screen`)
         if (this.snap.videos[id]) {
           const videos = { ...this.snap.videos }
           delete videos[id]
@@ -528,6 +604,10 @@ export class VoiceClient {
         }
       },
       remoteVideo: (id, stream) => this.set({ videos: { ...this.snap.videos, [id]: stream } }),
+      remoteScreenAudio: (id, stream) => {
+        this.audio?.addRemote(`${id}#screen`, stream)
+        this.audio?.setRemoteVolume(`${id}#screen`, this.snap.watching === id ? this.snap.streamVolume : 0)
+      },
       link: (id, link) => {
         const p = this.peers.get(id)
         if (!p) return
@@ -550,7 +630,8 @@ export class VoiceClient {
   private async checkIn(gen: number): Promise<void> {
     let failures = 0
     while (gen === this.gen) {
-      const busy = performance.now() - this.lastSignalAt < 6000
+      const settingUp = [...this.peers.values()].some((p) => p.connected && p.link?.state !== 'connected')
+      const busy = settingUp || performance.now() - this.lastSignalAt < 6000
       await sleep(failures ? Math.min(8000, 1000 * failures) : busy ? POLL_BUSY_MS : POLL_IDLE_MS)
       if (gen !== this.gen) return
       const t0 = performance.now()
@@ -637,6 +718,7 @@ export class VoiceClient {
       }
       void transport.handleSignal(s.from, s.data)
     }
+    this.applyStreamVolumes()
     const r = u.room
     this.lastRoomId = r.id
     this.set({ room: { id: r.id, hostId: r.hostId, private: r.private, locked: r.locked }, isHost: r.hostId === u.you })
@@ -756,6 +838,7 @@ export class VoiceClient {
   }
 
   private stopScreenTrack(): void {
+    if (this.screenAudioOff || this.snap.sharing?.sound) this.stopSound()
     if (!this.screenTrack) return
     this.screenTrack.onended = null
     this.screenTrack.stop()

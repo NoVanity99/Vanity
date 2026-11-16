@@ -78,4 +78,19 @@ describe('voice settings', () => {
     expect(mouseBinding(3)).toEqual({ kind: 'mouse', button: 4, label: 'Mouse 4 (back)' })
     expect(mouseBinding(0)).toBeNull() // left click is never push-to-talk
   })
+
+  it('tunes voice as mono speech and screen sound as stereo music', () => {
+    const section = (mid: number): string => `m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:${mid}\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1\r\n`
+    const sdp = `v=0\r\n${section(0)}m=video 9 UDP/TLS/RTP/SAVPF 96\r\na=mid:1\r\na=rtpmap:96 H264/90000\r\n${section(2)}`
+    const out = tuneOpus(sdp)
+    const fmtps = [...out.matchAll(/a=fmtp:111 (.*)/g)].map((m) => m[1])
+    expect(fmtps[0]).toContain('stereo=0')
+    expect(fmtps[0]).toContain('usedtx=1')
+    expect(fmtps[0]).toContain('maxaveragebitrate=64000')
+    expect(fmtps[1]).toContain('stereo=1')
+    expect(fmtps[1]).toContain('usedtx=0')
+    expect(fmtps[1]).toContain('maxaveragebitrate=128000')
+    expect(out).toContain('a=rtpmap:96 H264/90000')
+  })
 })
+

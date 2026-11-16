@@ -52,17 +52,16 @@ export class SpeechDetector {
   }
 }
 
-/**
- * Tunes the Opus audio codec in a connection description (SDP) for voice: one channel,
- * forward error correction (so a lost packet is rebuilt from the next), discontinuous
- * transmission (almost nothing is sent during silence), and up to 64 kbit/s.
- */
-export function tuneOpus(sdp: string): string {
-  const pt = /^a=rtpmap:(\d+) opus\/48000\/2/im.exec(sdp)?.[1]
-  if (!pt) return sdp
-  const wanted: Record<string, string> = { minptime: '10', useinbandfec: '1', usedtx: '1', stereo: '0', 'sprop-stereo': '0', maxaveragebitrate: '64000' }
+const VOICE_OPUS: Record<string, string> = { minptime: '10', useinbandfec: '1', usedtx: '1', stereo: '0', 'sprop-stereo': '0', maxaveragebitrate: '64000' }
+/** Shared-screen sound: music and games, so stereo, more bits, and no silence skipping. */
+const SCREEN_OPUS: Record<string, string> = { minptime: '10', useinbandfec: '1', usedtx: '0', stereo: '1', 'sprop-stereo': '1', maxaveragebitrate: '128000' }
+
+/** Sets Opus options on one audio section of a connection description. */
+function tuneSection(section: string, wanted: Record<string, string>): string {
+  const pt = /^a=rtpmap:(\d+) opus\/48000\/2/im.exec(section)?.[1]
+  if (!pt) return section
   const fmtp = new RegExp(`^a=fmtp:${pt} (.*)$`, 'im')
-  const existing = fmtp.exec(sdp)
+  const existing = fmtp.exec(section)
   if (existing) {
     const params = new Map(
       existing[1]
@@ -75,13 +74,31 @@ export function tuneOpus(sdp: string): string {
         })
     )
     for (const [k, v] of Object.entries(wanted)) params.set(k, v)
-    return sdp.replace(fmtp, `a=fmtp:${pt} ${[...params].map(([k, v]) => `${k}=${v}`).join(';')}`)
+    return section.replace(fmtp, `a=fmtp:${pt} ${[...params].map(([k, v]) => `${k}=${v}`).join(';')}`)
   }
   // No fmtp line yet: add one right after the rtpmap.
   const line = `a=fmtp:${pt} ${Object.entries(wanted)
     .map(([k, v]) => `${k}=${v}`)
     .join(';')}`
-  return sdp.replace(new RegExp(`(^a=rtpmap:${pt} opus/48000/2\\r?\\n)`, 'im'), `$1${line}\r\n`)
+  return section.replace(new RegExp(`(^a=rtpmap:${pt} opus/48000/2\\r?\\n)`, 'im'), `$1${line}\r\n`)
+}
+
+/**
+ * Tunes the Opus audio codec in a connection description (SDP). The first audio line is voice:
+ * one channel, forward error correction (a lost packet is rebuilt from the next), almost
+ * nothing sent during silence, up to 64 kbit/s. Any later audio line is a shared screen's
+ * sound: stereo, up to 128 kbit/s, always sent.
+ */
+export function tuneOpus(sdp: string): string {
+  let audioSeen = 0
+  return sdp
+    .split(/(?=^m=)/m)
+    .map((section) => {
+      if (!section.startsWith('m=audio')) return section
+      audioSeen++
+      return tuneSection(section, audioSeen === 1 ? VOICE_OPUS : SCREEN_OPUS)
+    })
+    .join('')
 }
 
 export type Quality = 'good' | 'ok' | 'poor' | 'unknown'

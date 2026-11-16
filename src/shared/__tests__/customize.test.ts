@@ -30,6 +30,14 @@ describe('customize options', () => {
   })
 })
 
+describe('launcher status bar', () => {
+  it('is off unless turned on, even for people who had the old setting on', () => {
+    expect(normalizeInterface({}).launcherStatusBar).toBe(false)
+    expect(normalizeInterface({ launcherStatus: true }).launcherStatusBar).toBe(false)
+    expect(normalizeInterface({ launcherStatusBar: true }).launcherStatusBar).toBe(true)
+  })
+})
+
 describe('profile looks', () => {
   it('are complete, with only known values', () => {
     expect(normalizeProfileStyle(undefined)).toEqual(DEFAULT_PROFILE_STYLE)

@@ -1,6 +1,14 @@
 import type { VoiceIceServer, VoiceSignal } from '@shared/voiceProtocol'
 import type { Quality } from './detect'
 
+/** How a shared screen is sent. */
+export interface VideoEncoding {
+  maxBitrate: number
+  maxFramerate: number
+  /** Games: keep it smooth (drop sharpness first). Text: keep it sharp (drop frames first). */
+  motion: boolean
+}
+
 /** How a connection to one person is doing. */
 export interface PeerLink {
   state: 'connecting' | 'connected' | 'reconnecting' | 'failed'
@@ -19,6 +27,8 @@ export interface TransportEvents {
   remoteGone(peerId: string): void
   /** Someone's shared-screen picture can be shown (it stays the same while they stop and start sharing). */
   remoteVideo(peerId: string, stream: MediaStream): void
+  /** The sound of someone's shared screen (stays the same while they stop and start sharing). */
+  remoteScreenAudio(peerId: string, stream: MediaStream): void
   link(peerId: string, link: PeerLink): void
 }
 
@@ -39,8 +49,8 @@ export interface VoiceTransport {
   /** Their connection is broken (they reconnected to the server): start it again from scratch. */
   resetPeer(peerId: string): void
   handleSignal(from: string, data: VoiceSignal): void
-  /** Shares a screen with everyone (null stops). */
-  setVideo(track: MediaStreamTrack | null, encoding: { maxBitrate: number; maxFramerate: number }): void
+  /** Shares a screen, and optionally its sound, with everyone (null stops). */
+  setVideo(track: MediaStreamTrack | null, encoding: VideoEncoding, audio?: MediaStreamTrack | null): void
   /** New TURN logins after a reconnect to the server. */
   setIceServers(servers: VoiceIceServer[]): void
   /** Ask each connection how it's doing (called every couple of seconds). */

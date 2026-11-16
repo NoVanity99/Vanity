@@ -92,6 +92,16 @@ jobs:
       - name: Fetch the Epic downloader
         run: node scripts/fetch-legendary.mjs
 
+      # The screen-share sound helper (native/audio-capture), built from source with Visual Studio's
+      # compiler into resources/bin, so it ships inside the installer. The step fails if it isn't made.
+      - name: Build the screen-share sound helper
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          New-Item -ItemType Directory -Force resources\bin | Out-Null
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" && cl /nologo /O2 /EHsc /MT /W3 /DUNICODE /D_UNICODE native\audio-capture\vanity-audio.cpp /Fe:resources\bin\vanity-audio.exe /Fo:$env:RUNNER_TEMP\ ole32.lib mmdevapi.lib user32.lib"
+          if (!(Test-Path resources\bin\vanity-audio.exe)) { throw "vanity-audio.exe was not built" }
+
       - name: Build
         run: npm run build
         env:

@@ -1,6 +1,6 @@
 import type { VoiceIceServer, VoiceSignal } from '@shared/voiceProtocol'
 import { qualityOf, tuneOpus } from './detect'
-import type { PeerLink, TransportEvents, VoiceTransport } from './transport'
+import type { PeerLink, TransportEvents, VideoEncoding, VoiceTransport } from './transport'
 
 interface Conn {
   pc: RTCPeerConnection
@@ -14,8 +14,11 @@ interface Conn {
   /** For packet loss between two measurements. */
   lastPackets: { received: number; lost: number } | null
   restartTimer: ReturnType<typeof setTimeout> | null
-  /** Sends the shared screen, once one has been shared. */
+  /** Send the shared screen and its sound, once one has been shared. */
   video: RTCRtpSender | null
+  screenAudio: RTCRtpSender | null
+  /** Their shared screen's stream id: audio on it is screen sound, not their voice. */
+  screenIds: Set<string>
 }
 
 /**
@@ -28,7 +31,9 @@ export class MeshTransport implements VoiceTransport {
   private myId = ''
   private track: MediaStreamTrack | null = null
   private ice: VoiceIceServer[] = []
-  private video: { track: MediaStreamTrack; stream: MediaStream; encoding: { maxBitrate: number; maxFramerate: number } } | null = null
+  private video: { track: MediaStreamTrack; audio: MediaStreamTrack | null; encoding: VideoEncoding } | null = null
+  /** One stream id for everything you share, kept for the whole call, so the others can tell screen sound from voice. */
+  private screenStream = new MediaStream()
 
   constructor(private events: TransportEvents) {}
 
@@ -49,34 +54,39 @@ export class MeshTransport implements VoiceTransport {
     }
   }
 
-  setVideo(track: MediaStreamTrack | null, encoding: { maxBitrate: number; maxFramerate: number }): void {
-    this.video = track ? { track, stream: new MediaStream([track]), encoding } : null
+  setVideo(track: MediaStreamTrack | null, encoding: VideoEncoding, audio: MediaStreamTrack | null = null): void {
+    this.video = track ? { track, audio, encoding } : null
     for (const c of this.conns.values()) this.applyVideo(c)
   }
 
   /**
-   * The shared screen goes on its own video line. Stopping only takes the picture off it (no
-   * renegotiation), so sharing again later is instant; whether someone is sharing comes from
-   * the room's state, not from the line.
+   * The shared screen goes on its own video line, and its sound on its own audio line (added
+   * together, the first time). Stopping only takes them off the lines (no renegotiation), so
+   * sharing again later is instant; whether someone is sharing comes from the room's state.
    */
   private applyVideo(c: Conn): void {
     const v = this.video
     if (!v) {
       if (c.video) void c.video.replaceTrack(null).catch(() => {})
+      if (c.screenAudio) void c.screenAudio.replaceTrack(null).catch(() => {})
       return
     }
-    if (c.video) {
+    if (!c.video) {
+      const t = c.pc.addTransceiver(v.track, {
+        direction: 'sendonly',
+        streams: [this.screenStream],
+        sendEncodings: [{ maxBitrate: v.encoding.maxBitrate, maxFramerate: v.encoding.maxFramerate, priority: 'low', networkPriority: 'low' }]
+      })
+      preferFastVideoCodecs(t)
+      c.video = t.sender
+      // Its sound, on a line of its own (empty until there's sound to send).
+      const a = c.pc.addTransceiver(v.audio ?? 'audio', { direction: 'sendonly', streams: [this.screenStream], sendEncodings: [{ maxBitrate: 128_000, priority: 'medium', networkPriority: 'medium' }] })
+      c.screenAudio = a.sender
+    } else {
       void c.video.replaceTrack(v.track).catch(() => {})
-      const p = c.video.getParameters()
-      if (p.encodings?.length) {
-        p.encodings[0].maxBitrate = v.encoding.maxBitrate
-        p.encodings[0].maxFramerate = v.encoding.maxFramerate
-        void c.video.setParameters(p).catch(() => {})
-      }
-      return
+      void c.screenAudio?.replaceTrack(v.audio).catch(() => {})
     }
-    const t = c.pc.addTransceiver(v.track, { direction: 'sendonly', streams: [v.stream], sendEncodings: [{ maxBitrate: v.encoding.maxBitrate, maxFramerate: v.encoding.maxFramerate, priority: 'low', networkPriority: 'low' }] })
-    c.video = t.sender
+    tuneVideoSender(c.video, v.encoding)
   }
 
   addPeer(peerId: string): void {
@@ -100,7 +110,8 @@ export class MeshTransport implements VoiceTransport {
   }
 
   private create(peerId: string): Conn {
-    const pc = new RTCPeerConnection({ iceServers: this.ice, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' })
+    // A few network candidates gathered up front, so connecting starts sooner.
+    const pc = new RTCPeerConnection({ iceServers: this.ice, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require', iceCandidatePoolSize: 2 })
     const c: Conn = {
       pc,
       polite: this.myId > peerId,
@@ -110,7 +121,9 @@ export class MeshTransport implements VoiceTransport {
       link: { state: 'connecting', rttMs: null, loss: null, quality: 'unknown' },
       lastPackets: null,
       restartTimer: null,
-      video: null
+      video: null,
+      screenAudio: null,
+      screenIds: new Set()
     }
     this.conns.set(peerId, c)
 
@@ -131,8 +144,16 @@ export class MeshTransport implements VoiceTransport {
     if (this.video) this.applyVideo(c)
 
     pc.ontrack = (e) => {
-      if (e.track.kind === 'video') return this.events.remoteVideo(peerId, new MediaStream([e.track]))
-      this.events.remoteStream(peerId, e.streams[0] ?? new MediaStream([e.track]))
+      const stream = e.streams[0]
+      // Shown and played as soon as it arrives: no extra buffering beyond what the network needs.
+      lowLatency(e.receiver)
+      if (e.track.kind === 'video') {
+        if (stream) c.screenIds.add(stream.id)
+        return this.events.remoteVideo(peerId, new MediaStream([e.track]))
+      }
+      // The video line comes first, so its stream is already known when the sound arrives.
+      if (stream && (c.screenIds.has(stream.id) || stream.getVideoTracks().length > 0)) return this.events.remoteScreenAudio(peerId, new MediaStream([e.track]))
+      this.events.remoteStream(peerId, stream ?? new MediaStream([e.track]))
     }
     pc.onicecandidate = (e) => {
       if (e.candidate) this.events.signal(peerId, { kind: 'ice', candidate: { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } })
@@ -243,5 +264,45 @@ export class MeshTransport implements VoiceTransport {
 
   close(): void {
     for (const id of [...this.conns.keys()]) this.removePeer(id)
+  }
+}
+
+/**
+ * Prefers H.264 for shared screens: Windows PCs (and phones) encode and decode it on the graphics
+ * card, which is faster and lighter than the alternatives, so less delay and fewer dropped frames.
+ * VP8 stays as the fallback for anything that can't do H.264.
+ */
+function preferFastVideoCodecs(t: RTCRtpTransceiver): void {
+  try {
+    const caps = RTCRtpSender.getCapabilities?.('video')?.codecs
+    if (!caps?.length || !t.setCodecPreferences) return
+    const rank = (c: { mimeType: string }): number => (/h264/i.test(c.mimeType) ? 0 : /vp8/i.test(c.mimeType) ? 1 : /vp9|av1/i.test(c.mimeType) ? 2 : 3)
+    t.setCodecPreferences([...caps].sort((a, b) => rank(a) - rank(b)))
+  } catch {
+    // Keep the browser's own order.
+  }
+}
+
+/** Bitrate, frame rate, and what to give up first when the connection is busy. */
+function tuneVideoSender(sender: RTCRtpSender, e: VideoEncoding): void {
+  try {
+    const p = sender.getParameters()
+    if (p.encodings?.length) {
+      p.encodings[0].maxBitrate = e.maxBitrate
+      p.encodings[0].maxFramerate = e.maxFramerate
+    }
+    ;(p as RTCRtpSendParameters & { degradationPreference?: string }).degradationPreference = e.motion ? 'maintain-framerate' : 'maintain-resolution'
+    void sender.setParameters(p).catch(() => {})
+  } catch {
+    // Not negotiated yet: the values given when the line was added apply.
+  }
+}
+
+/** Asks for the smallest playback delay the network allows (Chromium's jitter buffer target). */
+function lowLatency(receiver: RTCRtpReceiver): void {
+  try {
+    ;(receiver as RTCRtpReceiver & { jitterBufferTarget?: number | null }).jitterBufferTarget = 0
+  } catch {
+    // Not supported here.
   }
 }

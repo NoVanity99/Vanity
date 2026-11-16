@@ -66,8 +66,11 @@ export interface InterfaceOptions {
   /** How wide the sidebar is, in pixels (drag its edge), and whether it is tucked away. Computers only. */
   sidebarWidth: number
   sidebarCollapsed: boolean
-  /** Top bar. */
-  launcherStatus: boolean
+  /**
+   * Top bar: the dots showing whether Steam, Epic and the others are up. Off unless turned on.
+   * (Stored under a new name in 0.24.0, so it starts off for everyone, including people who had it on.)
+   */
+  launcherStatusBar: boolean
   musicPlayer: boolean
   clock: (typeof CLOCK_STYLES)[number]['id']
   /** Library. */
@@ -98,7 +101,7 @@ export const DEFAULT_INTERFACE: InterfaceOptions = {
   sidebarCounts: true,
   sidebarWidth: SIDEBAR_WIDTH.normal,
   sidebarCollapsed: false,
-  launcherStatus: true,
+  launcherStatusBar: false,
   musicPlayer: true,
   clock: 'off',
   jumpBackIn: true,
@@ -133,7 +136,7 @@ export function normalizeInterface(stored: unknown): InterfaceOptions {
     sidebarCounts: flag('sidebarCounts'),
     sidebarWidth: clampSidebarWidth(v.sidebarWidth),
     sidebarCollapsed: flag('sidebarCollapsed'),
-    launcherStatus: flag('launcherStatus'),
+    launcherStatusBar: flag('launcherStatusBar'),
     musicPlayer: flag('musicPlayer'),
     clock: oneOf(v.clock, CLOCK_STYLES, d.clock),
     jumpBackIn: flag('jumpBackIn'),

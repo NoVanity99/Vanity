@@ -160,6 +160,21 @@ const api: VanityApi = {
     canShareScreen: async () => true,
     screenSources: () => ipcRenderer.invoke(IPC.voiceScreenSources),
     pickScreen: (id) => ipcRenderer.invoke(IPC.voicePickScreen, id),
+    canShareScreenAudio: () => ipcRenderer.invoke(IPC.voiceCanShareScreenAudio),
+    canPopOut: async () => true,
+    setPopOutOnTop: (windowName, on) => ipcRenderer.invoke(IPC.voicePopOutOnTop, windowName, on),
+    startScreenAudio: (sourceId) => ipcRenderer.invoke(IPC.voiceStartScreenAudio, sourceId),
+    stopScreenAudio: () => ipcRenderer.invoke(IPC.voiceStopScreenAudio),
+    onScreenAudio: (callback) => {
+      const listener = (_e: unknown, pcm: Uint8Array): void => callback(pcm)
+      ipcRenderer.on(IPC.voiceScreenAudioData, listener)
+      return () => ipcRenderer.removeListener(IPC.voiceScreenAudioData, listener)
+    },
+    onScreenAudioEnded: (callback) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(IPC.voiceScreenAudioEnded, listener)
+      return () => ipcRenderer.removeListener(IPC.voiceScreenAudioEnded, listener)
+    },
     onPushToTalk(callback) {
       const listener = (_: Electron.IpcRendererEvent, down: boolean): void => callback(down)
       ipcRenderer.on(IPC.voicePushToTalk, listener)

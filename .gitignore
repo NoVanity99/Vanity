@@ -29,3 +29,4 @@ server/.neon
 # The Epic downloader is fetched at build time (scripts/fetch-legendary.mjs), not committed
 resources/bin/legendary.exe
 resources/bin/legendary
+resources/bin/vanity-audio.exe

@@ -36,7 +36,11 @@ export const voice = new VoiceClient({
     signal: async (signals) => void (await data(window.vanity.voice.signal(signals))),
     setRoom: (patch) => data(window.vanity.voice.setRoom(patch)),
     invite: async (userId) => void (await data(window.vanity.voice.invite(userId))),
-    pickScreen: (id) => window.vanity.voice.pickScreen(id)
+    pickScreen: (id) => window.vanity.voice.pickScreen(id),
+    startScreenAudio: (sourceId) => window.vanity.voice.startScreenAudio(sourceId),
+    stopScreenAudio: () => window.vanity.voice.stopScreenAudio(),
+    onScreenAudio: (cb) => window.vanity.voice.onScreenAudio(cb),
+    onScreenAudioEnded: (cb) => window.vanity.voice.onScreenAudioEnded(cb)
   },
   settings: () => settings,
   saveVolume: (userId, volume) => {

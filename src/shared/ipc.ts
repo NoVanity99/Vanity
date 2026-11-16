@@ -72,6 +72,9 @@ export interface ScreenSource {
   icon: string | null
 }
 
+/** Starting the sound of a screen share. */
+export type ScreenAudioStart = { ok: true } | { ok: false; reason: 'unavailable' | 'unsupported' | 'own-window' | 'failed'; message: string }
+
 export type Result<T> = { data: T; error?: undefined } | { data?: undefined; error: string }
 
 /** The API the preload script exposes to the renderer as `window.vanity`. */
@@ -233,6 +236,19 @@ export interface VanityApi {
     screenSources(): Promise<ScreenSource[]>
     /** The next getDisplayMedia() call shares this screen or window. */
     pickScreen(id: string): Promise<boolean>
+    /** Whether the sound of a shared screen can be sent too (Windows). */
+    canShareScreenAudio(): Promise<boolean>
+    /** Starts capturing the sound for a shared screen (all sound but Vanity's) or window (that program's). */
+    startScreenAudio(sourceId: string): Promise<ScreenAudioStart>
+    stopScreenAudio(): Promise<void>
+    /** The captured sound as it arrives: 16-bit stereo PCM at 48 kHz. */
+    onScreenAudio(callback: (pcm: Uint8Array) => void): () => void
+    /** The capture stopped by itself (the shared window closed). */
+    onScreenAudioEnded(callback: () => void): () => void
+    /** Whether shared screens can be popped out into their own window (computers yes, phones no). */
+    canPopOut(): Promise<boolean>
+    /** Keeps a popped-out stream window above other windows. */
+    setPopOutOnTop(windowName: string, on: boolean): Promise<boolean>
     /** The push-to-talk key going down and up, from anywhere (a game in front included). */
     onPushToTalk(callback: (down: boolean) => void): () => void
     /** Whether the push-to-talk key works while a game is in front. */
@@ -461,6 +477,12 @@ export const IPC = {
   voiceInvite: 'voice:invite',
   voiceScreenSources: 'voice:screen-sources',
   voicePickScreen: 'voice:pick-screen',
+  voiceCanShareScreenAudio: 'voice:can-share-screen-audio',
+  voiceStartScreenAudio: 'voice:start-screen-audio',
+  voiceStopScreenAudio: 'voice:stop-screen-audio',
+  voiceScreenAudioData: 'voice:screen-audio-data',
+  voiceScreenAudioEnded: 'voice:screen-audio-ended',
+  voicePopOutOnTop: 'voice:pop-out-on-top',
   voicePushToTalk: 'voice:push-to-talk',
   voiceHotkeyStatus: 'voice:hotkey-status',
   accountSetProfile: 'account:set-profile',

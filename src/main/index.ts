@@ -53,6 +53,8 @@ import { createSessionVault, nodeAuthHttp } from './account/desktop'
 import { backendConfig } from '@shared/backend'
 import { PushToTalkHotkey } from './voice/hotkeys'
 import { setupScreenShare } from './voice/screen'
+import { stopScreenAudio } from './voice/screenAudio'
+import { closeStreamWindows, streamWindowOptions, trackStreamWindow } from './voice/streamWindows'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -185,11 +187,17 @@ function createWindow(): void {
   })
 
   // Open external links in the default browser rather than inside the app.
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // A friend's shared screen, popped out into its own window (the voice page fills it in).
+    if (url === 'about:blank' && /^vanity-stream-[\w-]{1,80}$/.test(frameName)) {
+      return { action: 'allow', overrideBrowserWindowOptions: streamWindowOptions(win) }
+    }
     // Only web links (news, trailers, store pages); never file: or other schemes.
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  win.webContents.on('did-create-window', (popup, details) => trackStreamWindow(popup, details.frameName))
+  win.on('closed', () => closeStreamWindows())
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -506,6 +514,7 @@ app.on('before-quit', (event) => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   pushToTalk?.stop()
+  stopScreenAudio()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
   gameWindows?.closeAll()

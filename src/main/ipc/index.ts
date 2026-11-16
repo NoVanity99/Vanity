@@ -1,5 +1,7 @@
 import type { PushToTalkHotkey } from '../voice/hotkeys'
 import { pickScreen, screenSources } from '../voice/screen'
+import { canShareScreenAudio, startScreenAudio, stopScreenAudio } from '../voice/screenAudio'
+import { setStreamWindowOnTop } from '../voice/streamWindows'
 import { MAX_SIGNALS_PER_SEND, type VoiceSignal } from '@shared/voiceProtocol'
 import { DEFAULT_PROFILE_STYLE, type ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
@@ -380,6 +382,10 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.voiceInvite, (_e, userId: string) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)))
   ipcMain.handle(IPC.voiceScreenSources, () => screenSources().catch(() => []))
   ipcMain.handle(IPC.voicePickScreen, (_e, id: string) => pickScreen(id))
+  ipcMain.handle(IPC.voiceCanShareScreenAudio, () => canShareScreenAudio())
+  ipcMain.handle(IPC.voiceStartScreenAudio, (e, sourceId: string) => startScreenAudio(text(sourceId, 100), e.sender))
+  ipcMain.handle(IPC.voiceStopScreenAudio, () => stopScreenAudio())
+  ipcMain.handle(IPC.voicePopOutOnTop, (_e, name: string, on: boolean) => setStreamWindowOnTop(text(name, 100), on === true))
   ipcMain.handle(IPC.voiceHotkeyStatus, () => pushToTalk.status())
   ipcMain.handle(IPC.accountState, () => account.state())
   ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))

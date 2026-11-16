@@ -110,7 +110,7 @@ resources/           App icon and build resources
 - **Themes:** Settings → Appearance has 15 colour skins, defined in `src/shared/themes.ts`. Add one there and it appears in Settings.
 - **Fonts:** Settings → Appearance has 25 fonts in four groups (Clean, Friendly, Gaming, Stylish). Some pair a heading font with a body font, such as Poster (Bebas Neue + Montserrat) or Retro (Press Start 2P + Inter). They're all bundled from Fontsource, so they work offline.
   - To add one: `npm install @fontsource-variable/<name>`, import it in `src/renderer/src/main.tsx`, and add an entry in `src/shared/fonts.ts`. A test checks that every font listed there is bundled.
-- **Launcher status:** the strip at the top of every page shows whether each store's services are reachable: green when online, red when not. They're checked every 5 minutes; click one to check again. Steam uses its Web API, Epic its public status page, and the others whether their store site answers (`src/main/status/checks.ts`).
+- **Launcher status** (off by default; turn it on in Settings → Customize): a strip at the top of every page showing whether each store's services are reachable: green when online, red when not. They're checked every 5 minutes; click one to check again. Steam uses its Web API, Epic its public status page, and the others whether their store site answers (`src/main/status/checks.ts`).
 - Vanity remembers its window size and position, and opening it again brings the existing window to the front. Animations follow Windows' "Animation effects" setting (reduced motion).
 
 ## API keys
@@ -261,7 +261,9 @@ Talk with friends while you play: **Voice** in the sidebar. There are no codes a
 - **Private or locked:** whoever started the room picks **Open** (friends see it and can join), **Locked** (friends see it, but only people you invite can join) or **Private** (hidden; invite only). It can be changed during the call. If they leave, the next person to have joined takes over.
 - **Invite** sends a friend a chat message with a Join button and lets them in even when the room is locked or private.
 - **In a room:** everyone's picture with a green ring while they talk, a crown on whoever started it. Right-click someone to set their volume (0–200%) or mute them for yourself; that's remembered. Mute, deafen and disconnect, and short sounds when people join or leave.
-- **Share your screen (Windows):** pick a whole screen or one window, and the quality (720p 30 fps, 1080p 30 fps or 1080p 60 fps). Everyone in the room sees a LIVE badge on you and can click **Watch** to see it big, or full screen. Phones can watch but not share. Sound from the shared screen isn't sent.
+- **Share your screen (Windows):** pick a whole screen or one window, and the quality (720p 30 fps, 1080p 30 fps or 1080p 60 fps). Everyone in the room sees a LIVE badge on you and can click **Watch** to see it big, or full screen. Phones can watch but not share.
+- **Share sound with it (Windows 10 2004+ / 11):** a window sends only its program's sound; a whole screen sends everything you hear except Vanity, so nobody hears themselves back. Viewers hear it only while watching, with their own volume.
+- **Pop out:** a shared screen can open in its own window, to move to another monitor, make full screen or keep on top, and keep watching while using the rest of Vanity.
 - **The voice bar** at the bottom of the sidebar stays while you browse: whose room, connection quality and ping, and your mic buttons. With the sidebar hidden (or on a phone) a small one floats in the corner.
 - **Settings → Voice:** microphone and speakers (unplugging one switches to the default and back); a mic test with a live level meter; voice activity (default) with a sensitivity slider drawn on that meter, or push-to-talk with any key or mouse side button; noise suppression, echo cancellation and automatic gain; join/leave sounds.
 - **Push-to-talk works while a game is in front:** a system-wide keyboard and mouse hook (`uiohook-napi`, `src/main/voice/hotkeys.ts`) reports the key going down and up. A game run as administrator needs Vanity run as administrator too. If the hook can't load, the key works while Vanity is in front, and Settings says so.
@@ -283,9 +285,12 @@ Talk with friends while you play: **Voice** in the sidebar. There are no codes a
 
 **Two copies on one PC** (to try voice with two accounts): `Vanity.exe --profile=friend` starts a second, separate Vanity with its own sign-in and settings.
 
+- **Shared sound:** `native/audio-capture/vanity-audio.cpp`, a small Windows program built by the release workflow (Visual Studio's compiler) into `resources/bin`. It uses Windows' per-program audio capture: "everything but Vanity's process tree" for a screen, "only this window's program" for a window, and writes raw 16-bit stereo PCM, which `src/main/voice/screenAudio.ts` passes to the window. There `public/voice-pcm-worklet.js` plays it into a WebRTC track, keeping only 20–100 ms in hand so it stays in step with the picture. It travels on its own audio line, tuned for stereo music (128 kbit/s); the first audio line is always voice. Set `VANITY_FAKE_SCREEN_AUDIO=1` to send a test tone instead (for automated tests without Windows).
+- **Pop-out windows:** `src/renderer/src/voice/popout.ts` opens a blank window (`vanity-stream-…`, allowed and tracked by `src/main/voice/streamWindows.ts`) and puts the live picture straight into it, so there's no second copy of the video.
+- **Low delay:** connection set-up checks in every 0.25 s and sends details every 25 ms; two network routes are gathered up front; shared screens prefer H.264 (hardware encoding), set to keep frame rate (games) or sharpness (text); receivers ask for the smallest playout delay.
+
 **Planned next (not built yet):**
 - **An in-game overlay of who's talking:** a see-through, always-on-top window, which works over games in windowed and borderless mode. Exclusive fullscreen would need hooking into the game's graphics, which anti-cheat systems can flag, so that's left out.
-- **Sound from a shared screen:** Windows can capture it, but it also captures the voices of the people in the call, who would then hear themselves; that needs filtering first.
 - **Text chat inside each room.**
 
 ## Customize

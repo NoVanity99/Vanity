@@ -3,6 +3,21 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.24.0 (2026-11-16)
+- New: **share sound with your screen (Windows).** Turn on **Share sound** in the screen picker.
+  - Sharing a **window** (a game, a video) sends only that program's sound.
+  - Sharing a **whole screen** sends everything you hear **except Vanity**, so nobody in the call hears their own voice coming back.
+  - Viewers hear it only while they watch your screen, with their own **stream volume** slider and mute, and a small meter that lights up when sound is coming through.
+  - Needs Windows 10 (version 2004 or newer) or Windows 11. If sound can't be shared, your screen is still shared and Vanity says why.
+- New: **pop out a shared screen.** **Pop out** opens the stream in its own window: move it anywhere, even another monitor, make it **full screen** (button, double-click or F), or **keep it on top**. It keeps playing, with sound, while you use the rest of Vanity. **Bring it back** puts it on the Voice page again.
+- Faster and smoother voice and video:
+  - Connections are set up sooner: Vanity checks in more often while connecting, sends connection details faster, and gathers network routes up front.
+  - Shared screens prefer H.264, which most PCs and phones encode and decode on the graphics card: less delay and fewer dropped frames. Games (60 fps) keep motion smooth; text and pictures stay sharp.
+  - Pictures and sound play as soon as they arrive, with no extra waiting.
+  - Shared sound is sent in stereo at high quality; voice stays tuned for speech.
+- Changed: the **launcher status** dots (Steam, Epic, EA…) at the top are **off by default**. Turn them back on in Settings → Customize → Launcher status.
+- Changed: removed the "No codes needed" line under **Start a room**, and the "Updates from GitHub Releases" line under **Check now** in Settings.
+
 ## 0.23.0 (2026-11-16)
 - Changed: **voice rooms need no codes and no voice server.** Voice is now built into Vanity itself.
   - **Start a room** and your friends see it: on the Voice page under **Friends in voice**, on the Friends page (**In voice**, with a **Join voice** button), and as a notification. Friends of anyone in the room can join.

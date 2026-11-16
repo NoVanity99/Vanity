@@ -123,7 +123,7 @@ function Shell(): React.JSX.Element {
               <PanelLeftOpen className="size-4" />
             </button>
           )}
-          {ui.launcherStatus && (
+          {ui.launcherStatusBar && (
             <div className="max-md:hidden">
               <LauncherStatusBar />
             </div>

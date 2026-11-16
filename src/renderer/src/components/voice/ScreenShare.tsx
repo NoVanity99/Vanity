@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { AppWindow, Loader2, Maximize2, Minimize2, Monitor, Radio, RefreshCw, X } from 'lucide-react'
+import { AppWindow, ExternalLink, Loader2, Maximize2, Minimize2, Monitor, Radio, RefreshCw, Volume2, VolumeX, X } from 'lucide-react'
 import type { ScreenSource } from '@shared/ipc'
 import { Button, Dialog } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { loadPref, savePref } from '@/lib/storage'
-import { voice } from '@/state/voice'
+import { useVoice, voice } from '@/state/voice'
+import { popOut } from '@/voice/popout'
 import { SHARE_QUALITY, type ShareQuality } from '@/voice/client'
 
 /** A live picture (a shared screen). */
@@ -29,6 +30,11 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
     return q in SHARE_QUALITY ? (q as ShareQuality) : 'sharp'
   })
   const [starting, setStarting] = useState(false)
+  const [canSound, setCanSound] = useState(false)
+  const [sound, setSound] = useState(() => loadPref<boolean>('share-sound', true))
+  useEffect(() => {
+    void window.vanity.voice.canShareScreenAudio().then(setCanSound, () => setCanSound(false))
+  }, [])
 
   const alive = useRef(true)
   useEffect(
@@ -59,7 +65,8 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
     if (!picked) return
     setStarting(true)
     savePref('share-quality', quality)
-    await voice.startScreenShare(picked, quality)
+    savePref('share-sound', sound)
+    await voice.startScreenShare(picked, quality, canSound && sound)
     setStarting(false)
     onClose()
   }
@@ -142,13 +149,38 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
           </button>
         ))}
       </div>
-      <p className="mt-3 text-xs text-muted">Higher quality uses more upload for each person watching. Sound from the screen isn't shared.</p>
+      {canSound ? (
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-2.5 transition hover:border-white/20" data-share-sound>
+          <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-accent)]" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Share sound</span>
+            <span className="block text-xs text-muted">
+              {tab === 'window' ? "Only that window's program is heard (a game, a video)." : 'Everything you hear except Vanity, so nobody in the call hears themselves back.'}
+            </span>
+          </span>
+        </label>
+      ) : (
+        <p className="mt-3 text-xs text-muted">Sharing sound works in Vanity for Windows.</p>
+      )}
+      <p className="mt-3 text-xs text-muted">Higher quality uses more upload for each person watching.</p>
     </Dialog>
   )
 }
 
 /** The big picture of someone's shared screen, with full screen and close. */
-export function ScreenStage({ stream, name, you, onClose }: { stream: MediaStream; name: string; you: boolean; onClose: () => void }): React.JSX.Element {
+export function ScreenStage({ stream, name, you, peerId, onClose }: { stream: MediaStream; name: string; you: boolean; peerId?: string; onClose: () => void }): React.JSX.Element {
+  const v = useVoice()
+  const [canPop, setCanPop] = useState(false)
+  // Whether sound is coming through (a little meter next to the volume).
+  const [level, setLevel] = useState(-100)
+  useEffect(() => {
+    if (you || !peerId) return
+    const t = setInterval(() => setLevel(voice.streamLevelDb(peerId)), 150)
+    return () => clearInterval(t)
+  }, [you, peerId])
+  useEffect(() => {
+    void window.vanity.voice.canPopOut().then(setCanPop, () => setCanPop(false))
+  }, [])
   const box = useRef<HTMLDivElement>(null)
   const [full, setFull] = useState(false)
   useEffect(() => {
@@ -169,6 +201,29 @@ export function ScreenStage({ stream, name, you, onClose }: { stream: MediaStrea
         </span>
         <span className="truncate text-sm font-semibold text-white">{you ? 'Your screen' : `${name}'s screen`}</span>
         <span className="ml-auto flex items-center gap-1">
+          {!you && (
+            <span className="mr-1 flex items-center gap-1.5" title="Stream sound (only for you)">
+              <button onClick={() => voice.setStreamVolume(v.streamVolume > 0 ? 0 : 1)} className="rounded-lg p-2 text-white/80 transition hover:bg-white/15 hover:text-white" aria-label={v.streamVolume > 0 ? 'Mute stream sound' : 'Unmute stream sound'} data-stream-mute>
+                {v.streamVolume > 0 ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              </button>
+              <span className="flex h-3 items-end gap-[2px]" aria-hidden data-stream-level={level > -60 ? 'sound' : 'quiet'}>
+                {[-55, -40, -25].map((t) => (
+                  <span key={t} className={cn('w-[3px] rounded-sm transition-colors', level > t ? 'bg-emerald-400' : 'bg-white/25')} style={{ height: `${t === -55 ? 4 : t === -40 ? 8 : 12}px` }} />
+                ))}
+              </span>
+              <input type="range" min={0} max={200} step={5} value={Math.round(v.streamVolume * 100)} onChange={(e) => voice.setStreamVolume(Number(e.target.value) / 100)} aria-label="Stream volume" className="w-24 accent-[var(--color-accent)]" data-stream-volume />
+            </span>
+          )}
+          {!you && canPop && peerId && (
+            <button
+              onClick={() => popOut(peerId, name, stream)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/15 hover:text-white"
+              title="Open in its own window: move it anywhere, even another monitor, and keep watching while you use Vanity"
+              data-pop-out
+            >
+              <ExternalLink className="size-4" /> Pop out
+            </button>
+          )}
           <button onClick={toggleFull} className="rounded-lg p-2 text-white/80 transition hover:bg-white/15 hover:text-white" aria-label={full ? 'Exit full screen' : 'Full screen'} title={full ? 'Exit full screen' : 'Full screen'}>
             {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </button>

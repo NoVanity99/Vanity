@@ -85,7 +85,7 @@ export function CustomizeSettings({ options, onChange }: { options: InterfaceOpt
       </Section>
 
       <Section title="Top bar" description="The strip along the top of the window.">
-        {!android && flag('launcherStatus', 'Launcher status', 'The dots showing whether Steam, Epic and the others are up.')}
+        {!android && flag('launcherStatusBar', 'Launcher status', 'The dots showing whether Steam, Epic and the others are up.')}
         {flag('musicPlayer', 'Music player')}
         <Choice label="Clock" value={options.clock} options={CLOCK_STYLES} onPick={(clock) => set({ clock })} />
       </Section>

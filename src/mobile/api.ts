@@ -412,6 +412,14 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       canShareScreen: async () => false,
       screenSources: async () => [],
       pickScreen: async () => false,
+      canShareScreenAudio: async () => false,
+      // A phone's web view has no separate windows: shared screens show on the voice page.
+      canPopOut: async () => false,
+      setPopOutOnTop: async () => false,
+      startScreenAudio: async () => ({ ok: false, reason: 'unavailable', message: 'Phones can watch shared screens but not share.' }),
+      stopScreenAudio: async () => {},
+      onScreenAudio: () => () => {},
+      onScreenAudioEnded: () => () => {},
       // Phones have no global keys: the voice page has an on-screen hold-to-talk button instead.
       onPushToTalk: () => () => {},
       hotkeyStatus: async () => ({ global: false, message: 'Push-to-talk keys are for Windows. On a phone, hold the talk button on the voice screen.' })

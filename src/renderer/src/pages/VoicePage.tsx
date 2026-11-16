@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, AudioLines, Check, Crown, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, Crown, ExternalLink, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
 import type { ProfileStyle } from '@shared/profileStyle'
 import type { Friend } from '@shared/types'
 import { MAX_ROOM_SIZE } from '@shared/voiceProtocol'
@@ -17,6 +17,7 @@ import { useSettings } from '@/state/settings'
 import { refreshFriends, useFriends } from '@/state/friends'
 import { useToast } from '@/state/toasts'
 import { useVoice, voice, VOICE_INVITE_TEXT, voiceSettings } from '@/state/voice'
+import { closePopOut, onPopOutsChange, poppedOut } from '@/voice/popout'
 import type { VoiceMember } from '@/voice/client'
 
 /** Opens Settings on the Voice tab. */
@@ -340,6 +341,8 @@ export function VoicePage(): React.JSX.Element {
   const [startAccess, setStartAccess] = useState<Access>('open')
   const [canShare, setCanShare] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
+  const [popped, setPopped] = useState(poppedOut)
+  useEffect(() => onPopOutsChange(() => setPopped(poppedOut())), [])
   const phone = isAndroid()
   const busy = v.status === 'connecting'
   const inRoom = v.status === 'in-room' || v.status === 'reconnecting' || (busy && !!v.room)
@@ -418,7 +421,6 @@ export function VoicePage(): React.JSX.Element {
                 <span aria-hidden className="profile-banner opacity-70" data-banner="aurora" />
                 <div className="relative">
                   <h2 className="text-xl font-bold">Start a room</h2>
-                  <p className="mt-1 text-sm text-muted">No codes needed. It lasts while anyone is in it.</p>
                   <div className="mt-5">
                     <AccessPicker value={startAccess} onChange={setStartAccess} disabled={busy} />
                     <p className="mt-2 text-xs text-muted">{ACCESS[startAccess].hint}.</p>
@@ -476,7 +478,21 @@ export function VoicePage(): React.JSX.Element {
               </div>
             </section>
 
-            {watched && watchedStream && watched.sharing && <ScreenStage stream={watchedStream} name={watched.user.username} you={false} onClose={() => voice.watch(null)} />}
+            {watched && watchedStream && watched.sharing && !popped.has(watched.id) && <ScreenStage stream={watchedStream} peerId={watched.id} name={watched.user.username} you={false} onClose={() => voice.watch(null)} />}
+            {[...popped].map((id) => {
+              const m = v.members.find((x) => x.id === id)
+              return (
+                m && (
+                  <div key={id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-surface px-4 py-3 text-sm" data-popped-out={m.user.username}>
+                    <ExternalLink className="size-4 shrink-0 text-accent" />
+                    <span className="min-w-0 flex-1 truncate">
+                      Watching <span className="font-semibold">{m.user.username}</span>'s screen in its own window.
+                    </span>
+                    <Button onClick={() => closePopOut(id)}>Bring it back</Button>
+                  </div>
+                )
+              )
+            })}
 
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4" data-voice-members>
               {v.members.map((m, i) => (

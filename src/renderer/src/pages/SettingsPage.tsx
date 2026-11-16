@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
-import { ArrowDownToLine, AudioLines, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, AudioLines, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
@@ -163,17 +163,6 @@ function UpdatesSection({
                     : ''}
         </span>
       </div>
-      {update.mode !== 'unsupported' && update.source && (
-        <p className="mt-4 flex items-center gap-2 text-xs text-muted">
-          <GitBranch className="size-3.5" />
-          {update.mode === 'vercel' || update.mode === 'release'
-            ? 'Updates from'
-            : update.mode === 'git'
-              ? 'Updates with git from'
-              : 'Downloads updates from'}{' '}
-          <code className="rounded bg-white/5 px-1.5 py-0.5">{update.source}</code>
-        </p>
-      )}
       {update.mode === 'vercel' && (
         <div className="mt-5">
           <SecretField

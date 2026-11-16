@@ -34,6 +34,9 @@ export class AudioEngine {
   private sendDest: MediaStreamAudioDestinationNode
   private mic: { stream: MediaStream; source: MediaStreamAudioSourceNode; constraints: MicConstraints } | null = null
   private remotes = new Map<string, RemoteAudio>()
+  /** The sound of your shared screen, from Windows, on its way to the others. */
+  private pcm: { node: AudioWorkletNode; dest: MediaStreamAudioDestinationNode } | null = null
+  private workletLoaded: Promise<void> | null = null
   private buf = new Float32Array(1024)
   private outputDevice = ''
   /** Called when the microphone stops by itself (unplugged, or taken by Windows). */
@@ -60,6 +63,37 @@ export class AudioEngine {
     this.gate.connect(this.sendDest)
     this.inputGain.connect(this.monitor)
     this.monitor.connect(this.master)
+  }
+
+  /**
+   * Starts the track that carries your shared screen's sound (stereo). Feed it with `pushPcm`.
+   * The player (public/voice-pcm-worklet.js) keeps only 20–100 ms in hand, so it stays in step.
+   */
+  async startPcm(): Promise<MediaStreamTrack> {
+    this.stopPcm()
+    this.workletLoaded ??= this.ctx.audioWorklet.addModule(new URL('voice-pcm-worklet.js', document.baseURI).href)
+    await this.workletLoaded
+    await this.resume()
+    const node = new AudioWorkletNode(this.ctx, 'vanity-pcm-player', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] })
+    const dest = this.ctx.createMediaStreamDestination()
+    dest.channelCount = 2
+    node.connect(dest)
+    this.pcm = { node, dest }
+    return dest.stream.getAudioTracks()[0]
+  }
+
+  /** 16-bit stereo PCM at 48 kHz, as it arrives. */
+  pushPcm(pcm: Uint8Array): void {
+    if (!this.pcm) return
+    const copy = pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + pcm.byteLength) as ArrayBuffer
+    this.pcm.node.port.postMessage(copy, [copy])
+  }
+
+  stopPcm(): void {
+    if (!this.pcm) return
+    this.pcm.node.disconnect()
+    this.pcm.dest.stream.getTracks().forEach((t) => t.stop())
+    this.pcm = null
   }
 
   /** The audio sent to everyone in the room. */
