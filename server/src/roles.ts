@@ -8,7 +8,7 @@
 // the person and for their friends.
 
 /** The blue check: this account is officially who it says it is. */
-export const VERIFIED_USERNAMES = ['SBCVanity', 'Max', 'chefdal']
+export const VERIFIED_USERNAMES = ['SBCVanity', 'Max', 'chefdal', 'deggy']
 
 /** The gold crown: this account runs Vanity. */
 export const ADMIN_USERNAMES = ['SBCVanity', 'chefdal']
