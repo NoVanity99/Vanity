@@ -25,8 +25,8 @@ export interface TransportEvents {
   /** Someone's audio arrived (or arrived again after a reconnect). */
   remoteStream(peerId: string, stream: MediaStream): void
   remoteGone(peerId: string): void
-  /** Someone's shared-screen picture can be shown (it stays the same while they stop and start sharing). */
-  remoteVideo(peerId: string, stream: MediaStream): void
+  /** One of someone's video streams arrived (a shared screen or a camera: their room state says which, by `streamId`). */
+  remoteVideo(peerId: string, stream: MediaStream, streamId: string): void
   /** The sound of someone's shared screen (stays the same while they stop and start sharing). */
   remoteScreenAudio(peerId: string, stream: MediaStream): void
   link(peerId: string, link: PeerLink): void
@@ -51,6 +51,10 @@ export interface VoiceTransport {
   handleSignal(from: string, data: VoiceSignal): void
   /** Shares a screen, and optionally its sound, with everyone (null stops). */
   setVideo(track: MediaStreamTrack | null, encoding: VideoEncoding, audio?: MediaStreamTrack | null): void
+  /** Sends your camera to everyone (null stops). */
+  setCamera(track: MediaStreamTrack | null): void
+  /** The stream ids your screen and camera go out on (told to the others through the room). */
+  streamIds(): { screen: string; camera: string }
   /** New TURN logins after a reconnect to the server. */
   setIceServers(servers: VoiceIceServer[]): void
   /** Ask each connection how it's doing (called every couple of seconds). */

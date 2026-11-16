@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS vanity.voice_members (
   last_seen  timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE vanity.voice_members ADD COLUMN IF NOT EXISTS sharing boolean NOT NULL DEFAULT false;
+-- Camera on, and which stream ids carry the screen and the camera (JSON).
+ALTER TABLE vanity.voice_members ADD COLUMN IF NOT EXISTS camera boolean NOT NULL DEFAULT false;
+ALTER TABLE vanity.voice_members ADD COLUMN IF NOT EXISTS streams text NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS voice_members_room ON vanity.voice_members (room_id);
 CREATE TABLE IF NOT EXISTS vanity.voice_invites (
   room_id     text NOT NULL REFERENCES vanity.voice_rooms (id) ON DELETE CASCADE,

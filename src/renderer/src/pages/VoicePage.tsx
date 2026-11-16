@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, AudioLines, Check, Crown, ExternalLink, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, Crown, ExternalLink, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Video, VideoOff, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
 import type { ProfileStyle } from '@shared/profileStyle'
 import type { Friend } from '@shared/types'
 import { MAX_ROOM_SIZE } from '@shared/voiceProtocol'
@@ -59,8 +59,28 @@ function AccessPicker({ value, onChange, disabled }: { value: Access; onChange: 
   )
 }
 
+/** Muted and deafened, each shown (both when both). */
+function MuteMarks({ m, className }: { m: VoiceMember; className?: string }): React.JSX.Element | null {
+  if (!m.muted && !m.deafened) return null
+  const mark = 'flex size-7 items-center justify-center rounded-full bg-surface text-accent ring-2 ring-surface'
+  return (
+    <span className={cn('flex gap-1', className)} data-mute-marks>
+      {m.muted && (
+        <span className={mark} title="Muted">
+          <MicOff className="size-3.5" />
+        </span>
+      )}
+      {m.deafened && (
+        <span className={mark} title="Deafened">
+          <HeadphoneOff className="size-3.5" />
+        </span>
+      )}
+    </span>
+  )
+}
+
 /** One person in the room: their picture with the green talking ring, name, and mute/deafen marks. */
-function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; index: number; onMenu: (m: VoiceMember, x: number, y: number) => void; watching: boolean; onWatch: () => void }): React.JSX.Element {
+function MemberTile({ m, index, onMenu, watching, onWatch, camera }: { m: VoiceMember; index: number; onMenu: (m: VoiceMember, x: number, y: number) => void; watching: boolean; onWatch: () => void; camera?: MediaStream | null }): React.JSX.Element {
   const quiet = !m.you && (m.localMuted || m.volume === 0)
   const look = m.user.style as Partial<ProfileStyle> | null
   return (
@@ -80,15 +100,19 @@ function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; i
       )}
     >
       <span aria-hidden className="profile-banner opacity-60" data-banner={look?.banner ?? 'default'} data-fx={look?.effect ?? 'none'} />
-      <span className="relative inline-flex" data-speaking={m.speaking}>
-        <Avatar name={m.user.username} src={m.user.avatar} frame={look?.frame} aura={look?.aura} size="xl" />
-        <span aria-hidden className="voice-ring" />
-        {(m.muted || m.deafened) && (
-          <span className="absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full bg-surface text-accent ring-2 ring-surface" title={m.deafened ? 'Deafened' : 'Muted'}>
-            {m.deafened ? <HeadphoneOff className="size-3.5" /> : <MicOff className="size-3.5" />}
-          </span>
-        )}
-      </span>
+      {camera ? (
+        // Their camera, with the talking ring as a glowing border.
+        <span className={cn('relative block aspect-video w-full overflow-hidden rounded-2xl bg-black ring-2 transition', m.speaking ? 'ring-emerald-400 shadow-[0_0_18px_rgb(52_211_153/0.5)]' : 'ring-white/10')} data-speaking={m.speaking} data-camera={m.user.username}>
+          <StreamVideo stream={camera} contain={false} className={cn('size-full', m.you && '-scale-x-100')} />
+          <MuteMarks m={m} className="absolute bottom-2 right-2" />
+        </span>
+      ) : (
+        <span className="relative inline-flex" data-speaking={m.speaking}>
+          <Avatar name={m.user.username} src={m.user.avatar} frame={look?.frame} aura={look?.aura} size="xl" />
+          <span aria-hidden className="voice-ring" />
+          <MuteMarks m={m} className="absolute -bottom-1 -right-1" />
+        </span>
+      )}
       {m.sharing && (
         <span className="absolute left-3 top-3 flex items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white" data-live>
           <Radio className="size-3" /> Live
@@ -496,7 +520,7 @@ export function VoicePage(): React.JSX.Element {
 
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4" data-voice-members>
               {v.members.map((m, i) => (
-                <MemberTile key={m.id} m={m} index={i} onMenu={(mm, x, y) => setMenu({ m: mm, x, y })} watching={v.watching === m.id} onWatch={() => voice.watch(v.watching === m.id ? null : m.id)} />
+                <MemberTile key={m.id} m={m} index={i} camera={m.you ? v.localCamera : m.camera ? v.cameras[m.id] : null} onMenu={(mm, x, y) => setMenu({ m: mm, x, y })} watching={v.watching === m.id} onWatch={() => voice.watch(v.watching === m.id ? null : m.id)} />
               ))}
               {v.members.length === 1 && v.status === 'in-room' && (
                 <li className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
@@ -523,6 +547,15 @@ export function VoicePage(): React.JSX.Element {
 
             <div className="sticky bottom-4 mx-auto flex w-fit items-center gap-4 rounded-3xl border border-white/10 bg-surface/90 px-5 py-3 shadow-2xl shadow-black/50 backdrop-blur" data-voice-controls>
               <VoiceButtons size="lg" muted={v.muted} deafened={v.deafened} micAvailable={v.micAvailable} onMute={() => voice.toggleMute()} onDeafen={() => voice.toggleDeafen()} onLeave={() => voice.leave()} />
+              <button
+                onClick={() => (v.localCamera ? voice.stopCamera() : void voice.startCamera())}
+                disabled={v.status !== 'in-room'}
+                className={cn('flex h-12 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition disabled:opacity-40', v.localCamera ? 'bg-accent text-white hover:brightness-110' : 'bg-white/10 hover:bg-white/15')}
+                title={v.localCamera ? 'Turn your camera off' : 'Turn your camera on for everyone'}
+                data-camera-toggle={v.localCamera ? 'on' : 'off'}
+              >
+                {v.localCamera ? <VideoOff className="size-5" /> : <Video className="size-5" />} {phone ? '' : v.localCamera ? 'Camera off' : 'Camera'}
+              </button>
               {canShare && !phone && (
                 <button
                   onClick={() => (v.sharing ? voice.stopScreenShare() : setPicking(true))}

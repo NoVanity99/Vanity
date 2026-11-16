@@ -28,6 +28,12 @@ export interface VoiceUser {
   admin: boolean
 }
 
+/** The WebRTC stream ids someone's shared screen and camera travel on. */
+export interface VoiceStreams {
+  screen?: string
+  camera?: string
+}
+
 /** One person in a room. Their id is their Vanity account id (one voice room per account). */
 export interface VoicePeer {
   id: string
@@ -36,6 +42,10 @@ export interface VoicePeer {
   deafened: boolean
   /** Sharing their screen. */
   sharing: boolean
+  /** Their camera is on. */
+  camera: boolean
+  /** Which of their video streams is which (WebRTC stream ids), so a camera isn't shown as a screen. */
+  streams: VoiceStreams
   /** False while their app hasn't checked in for a few seconds (a dropped connection). */
   connected: boolean
   joinedAt: number

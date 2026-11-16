@@ -14,6 +14,8 @@ export interface PeerVolume {
 export interface VoiceSettings {
   /** '' means the system default. */
   inputDeviceId: string
+  /** The camera for voice rooms ('' for the default one). */
+  cameraDeviceId: string
   outputDeviceId: string
   /** Microphone and overall output volume, 0 to 2. */
   inputVolume: number
@@ -38,6 +40,7 @@ export const SENSITIVITY_RANGE = { min: -100, max: 0 } as const
 
 export const DEFAULT_VOICE: VoiceSettings = {
   inputDeviceId: '',
+  cameraDeviceId: '',
   outputDeviceId: '',
   inputVolume: 1,
   outputVolume: 1,
@@ -81,6 +84,7 @@ export function normalizeVoice(stored: unknown): VoiceSettings {
   }
   return {
     inputDeviceId: str(v.inputDeviceId),
+    cameraDeviceId: str(v.cameraDeviceId),
     outputDeviceId: str(v.outputDeviceId),
     inputVolume: num(v.inputVolume, 0, 2, d.inputVolume),
     outputVolume: num(v.outputVolume, 0, 2, d.outputVolume),

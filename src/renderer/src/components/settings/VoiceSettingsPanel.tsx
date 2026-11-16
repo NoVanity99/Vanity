@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Headphones, Keyboard, Mic, Play, RotateCcw, Square } from 'lucide-react'
+import { Headphones, Keyboard, Mic, Play, RotateCcw, Square, Video } from 'lucide-react'
 import { keyLabel, mouseBinding, type VoiceSettings } from '@shared/voiceSettings'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
@@ -180,6 +180,19 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
                 </option>
               ))}
               {s.outputDeviceId && devices && !devices.outputs.some((d) => d.id === s.outputDeviceId) && <option value={s.outputDeviceId}>Unplugged device (default is used)</option>}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1.5 flex items-center gap-2 text-muted">
+              <Video className="size-4" /> Camera
+            </span>
+            <select value={s.cameraDeviceId} onChange={(e) => save({ cameraDeviceId: e.target.value })} className={select} data-camera-device>
+              <option value="">{devices && devices.cameras.length === 0 ? 'No camera found' : 'Default camera'}</option>
+              {devices?.cameras.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

@@ -66,6 +66,21 @@ export const VOICE_STALE_MS = 10_000
 export const VOICE_GONE_MS = 45_000
 export const MAX_SIGNALS_PER_SEND = 40
 export const MAX_SDP = 40_000
+/** Stream ids are short tokens (WebRTC makes them); anything else is dropped. */
+function readStreams(v: unknown): { screen?: string; camera?: string } {
+  let o: unknown = v
+  if (typeof v === 'string') {
+    try {
+      o = JSON.parse(v)
+    } catch {
+      o = null
+    }
+  }
+  const r = (o && typeof o === 'object' ? o : {}) as Record<string, unknown>
+  const ok = (x: unknown): x is string => typeof x === 'string' && /^[\w{}-]{1,64}$/.test(x)
+  return { ...(ok(r.screen) ? { screen: r.screen } : {}), ...(ok(r.camera) ? { camera: r.camera } : {}) }
+}
+
 const MAX_CANDIDATE = 2_000
 
 function validSignal(d: unknown): d is VoiceSignal {
@@ -80,7 +95,7 @@ function validSignal(d: unknown): d is VoiceSignal {
   return false
 }
 
-type MemberRow = { user_id: string; username: string; avatar: string | null; style: unknown; muted: boolean; deafened: boolean; sharing: boolean; joined_at: unknown; last_seen: unknown }
+type MemberRow = { user_id: string; username: string; avatar: string | null; style: unknown; muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: string | null; joined_at: unknown; last_seen: unknown }
 
 /**
  * Voice rooms, on the Vanity server. No codes: a room belongs to whoever started it and is seen
@@ -113,7 +128,7 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
     const [r] = await sql<{ id: string; host_id: string; private: boolean; locked: boolean }>`SELECT id, host_id, private, locked FROM vanity.voice_rooms WHERE id = ${roomId}`
     if (!r) return null
     const rows = await sql<MemberRow>`
-      SELECT m.user_id, p.username, p.avatar, p.style, m.muted, m.deafened, m.sharing, m.joined_at, m.last_seen
+      SELECT m.user_id, p.username, p.avatar, p.style, m.muted, m.deafened, m.sharing, m.camera, m.streams, m.joined_at, m.last_seen
       FROM vanity.voice_members m JOIN vanity.profiles p ON p.id = m.user_id
       WHERE m.room_id = ${roomId} ORDER BY m.joined_at, m.user_id`
     const t = now()
@@ -123,6 +138,8 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
       muted: m.muted,
       deafened: m.deafened,
       sharing: m.sharing,
+      camera: m.camera,
+      streams: readStreams(m.streams),
       connected: t - (toMs(m.last_seen) ?? 0) < VOICE_STALE_MS,
       joinedAt: toMs(m.joined_at) ?? 0
     }))
@@ -196,7 +213,7 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
       if ((n?.n ?? 0) >= MAX_ROOM_SIZE) fail(409, `That voice room is full (${MAX_ROOM_SIZE} people).`, 'voice_full')
       await leave(me)
       await sql`INSERT INTO vanity.voice_members (user_id, room_id, last_seen) VALUES (${me}, ${id}, to_timestamp(${now() / 1000}))
-        ON CONFLICT (user_id) DO UPDATE SET room_id = excluded.room_id, muted = false, deafened = false, sharing = false, joined_at = now(), last_seen = excluded.last_seen`
+        ON CONFLICT (user_id) DO UPDATE SET room_id = excluded.room_id, muted = false, deafened = false, sharing = false, camera = false, streams = '{}', joined_at = now(), last_seen = excluded.last_seen`
       // An invitation is used up once used.
       await sql`DELETE FROM vanity.voice_invites WHERE room_id = ${id} AND user_id = ${me}`
     } else {
@@ -221,8 +238,8 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
   })
 
   app.post('/state', async (c) => {
-    const b = await body<{ muted: boolean; deafened: boolean; sharing: boolean }>(c)
-    await sql`UPDATE vanity.voice_members SET muted = ${b.muted === true}, deafened = ${b.deafened === true}, sharing = ${b.sharing === true}, last_seen = to_timestamp(${now() / 1000}) WHERE user_id = ${c.get('userId')}`
+    const b = await body<{ muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: unknown }>(c)
+    await sql`UPDATE vanity.voice_members SET muted = ${b.muted === true}, deafened = ${b.deafened === true}, sharing = ${b.sharing === true}, camera = ${b.camera === true}, streams = ${JSON.stringify(readStreams(b.streams))}, last_seen = to_timestamp(${now() / 1000}) WHERE user_id = ${c.get('userId')}`
     return c.body(null, 204)
   })
 

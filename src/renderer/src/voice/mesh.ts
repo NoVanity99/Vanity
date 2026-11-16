@@ -17,6 +17,7 @@ interface Conn {
   /** Send the shared screen and its sound, once one has been shared. */
   video: RTCRtpSender | null
   screenAudio: RTCRtpSender | null
+  camera: RTCRtpSender | null
   /** Their shared screen's stream id: audio on it is screen sound, not their voice. */
   screenIds: Set<string>
 }
@@ -34,6 +35,9 @@ export class MeshTransport implements VoiceTransport {
   private video: { track: MediaStreamTrack; audio: MediaStreamTrack | null; encoding: VideoEncoding } | null = null
   /** One stream id for everything you share, kept for the whole call, so the others can tell screen sound from voice. */
   private screenStream = new MediaStream()
+  /** Your camera (on its own line and stream, so it's never mistaken for the screen). */
+  private cameraTrack: MediaStreamTrack | null = null
+  private cameraStream = new MediaStream()
 
   constructor(private events: TransportEvents) {}
 
@@ -89,6 +93,31 @@ export class MeshTransport implements VoiceTransport {
     tuneVideoSender(c.video, v.encoding)
   }
 
+  streamIds(): { screen: string; camera: string } {
+    return { screen: this.screenStream.id, camera: this.cameraStream.id }
+  }
+
+  setCamera(track: MediaStreamTrack | null): void {
+    this.cameraTrack = track
+    for (const c of this.conns.values()) this.applyCamera(c)
+  }
+
+  /** Like the screen: added once, then only the picture changes (instant on and off). */
+  private applyCamera(c: Conn): void {
+    const track = this.cameraTrack
+    if (!track) {
+      if (c.camera) void c.camera.replaceTrack(null).catch(() => {})
+      return
+    }
+    if (c.camera) {
+      void c.camera.replaceTrack(track).catch(() => {})
+      return
+    }
+    const t = c.pc.addTransceiver(track, { direction: 'sendonly', streams: [this.cameraStream], sendEncodings: [{ maxBitrate: 1_200_000, maxFramerate: 30, priority: 'medium', networkPriority: 'medium' }] })
+    preferFastVideoCodecs(t)
+    c.camera = t.sender
+  }
+
   addPeer(peerId: string): void {
     if (this.conns.has(peerId) || peerId === this.myId) return
     this.create(peerId)
@@ -123,6 +152,7 @@ export class MeshTransport implements VoiceTransport {
       restartTimer: null,
       video: null,
       screenAudio: null,
+      camera: null,
       screenIds: new Set()
     }
     this.conns.set(peerId, c)
@@ -142,6 +172,7 @@ export class MeshTransport implements VoiceTransport {
     }
 
     if (this.video) this.applyVideo(c)
+    if (this.cameraTrack) this.applyCamera(c)
 
     pc.ontrack = (e) => {
       const stream = e.streams[0]
@@ -149,7 +180,7 @@ export class MeshTransport implements VoiceTransport {
       lowLatency(e.receiver)
       if (e.track.kind === 'video') {
         if (stream) c.screenIds.add(stream.id)
-        return this.events.remoteVideo(peerId, new MediaStream([e.track]))
+        return this.events.remoteVideo(peerId, new MediaStream([e.track]), stream?.id ?? e.track.id)
       }
       // The video line comes first, so its stream is already known when the sound arrives.
       if (stream && (c.screenIds.has(stream.id) || stream.getVideoTracks().length > 0)) return this.events.remoteScreenAudio(peerId, new MediaStream([e.track]))

@@ -131,7 +131,7 @@ export class AccountClient {
   voiceJoin = (roomId: string) => this.call<VoiceUpdate>('POST', `/voice/rooms/${encodeURIComponent(roomId)}/join`)
   voiceLeave = () => this.call<void>('POST', '/voice/leave')
   voiceUpdate = (after: number) => this.call<VoiceUpdate>('GET', `/voice/update?after=${Math.max(0, Math.trunc(after) || 0)}`)
-  voiceState = (s: { muted: boolean; deafened: boolean; sharing: boolean }) => this.call<void>('POST', '/voice/state', s)
+  voiceState = (s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }) => this.call<void>('POST', '/voice/state', s)
   voiceSignal = (signals: { to: string; data: VoiceSignal }[]) => this.call<void>('POST', '/voice/signal', { signals })
   voiceSetRoom = (patch: { private?: boolean; locked?: boolean }) => this.call<VoiceUpdate>('PATCH', '/voice/room', patch)
   voiceInvite = (userId: string) => this.call<void>('POST', '/voice/invite', { userId })

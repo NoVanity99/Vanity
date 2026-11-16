@@ -275,6 +275,7 @@ export class AudioEngine {
 export interface AudioDevices {
   inputs: { id: string; label: string }[]
   outputs: { id: string; label: string }[]
+  cameras: { id: string; label: string }[]
   /** False when picking a speaker isn't possible here (some phones). */
   canPickOutput: boolean
 }
@@ -285,5 +286,5 @@ export async function listDevices(): Promise<AudioDevices> {
     all
       .filter((d) => d.kind === kind && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
       .map((d, i) => ({ id: d.deviceId, label: d.label || `${word} ${i + 1}` }))
-  return { inputs: named('audioinput', 'Microphone'), outputs: named('audiooutput', 'Speakers'), canPickOutput: 'setSinkId' in AudioContext.prototype }
+  return { inputs: named('audioinput', 'Microphone'), outputs: named('audiooutput', 'Speakers'), cameras: named('videoinput', 'Camera'), canPickOutput: 'setSinkId' in AudioContext.prototype }
 }

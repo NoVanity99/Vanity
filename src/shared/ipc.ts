@@ -254,7 +254,7 @@ export interface VanityApi {
     leave(): Promise<Result<true>>
     /** Checking in during a call: the room, and connection details sent to you after `after`. */
     update(after: number): Promise<Result<VoiceUpdate>>
-    state(state: { muted: boolean; deafened: boolean; sharing: boolean }): Promise<Result<true>>
+    state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }): Promise<Result<true>>
     signal(signals: { to: string; data: VoiceSignal }[]): Promise<Result<true>>
     /** Private and locked (only whoever started the room). */
     setRoom(patch: { private?: boolean; locked?: boolean }): Promise<Result<VoiceUpdate>>

@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.27.0 (2026-11-16)
+- New: **cameras in voice rooms.** The **Camera** button turns your camera on for everyone in the room; your video fills your tile (with the green ring glowing around it while you talk). It works alongside screen sharing: the screen in the big view, cameras in the tiles. Pick which camera in Settings → Voice. Works on phones too (Android asks for camera permission the first time).
+- Fixed: when someone is muted **and** deafened, both marks now show, not just one.
+
 ## 0.26.0 (2026-11-16)
 - New: **group chats.** On the Friends page, **New group chat** picks friends (and a name). It opens in the same pop-ups as your other chats, with everyone's picture and name. Anyone in it can rename it and add their friends; whoever made it can remove people. Up to 20 people.
 - New: **GIFs in every chat.** The **GIF** button next to emoji searches GIFs (trending ones show first), or sends a GIF from your PC or phone (up to 3 MB).

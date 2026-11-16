@@ -19,6 +19,8 @@ export interface VoiceMember {
   deafened: boolean
   /** Sharing their screen. */
   sharing: boolean
+  /** Their camera is on. */
+  camera: boolean
   /** False for a few seconds while their connection drops and comes back. */
   connected: boolean
   speaking: boolean
@@ -74,6 +76,10 @@ export interface VoiceSnapshot {
   localVideo: MediaStream | null
   /** Everyone else's shared-screen pictures, by their id (shown while they're sharing). */
   videos: Record<string, MediaStream>
+  /** Your own camera, while it's on. */
+  localCamera: MediaStream | null
+  /** Everyone else's cameras, by their id (while they're on). */
+  cameras: Record<string, MediaStream>
   /** Whose screen you're watching. */
   watching: string | null
 }
@@ -84,7 +90,7 @@ export interface VoiceApi {
   join(roomId: string): Promise<VoiceUpdate>
   leave(): Promise<void>
   update(after: number): Promise<VoiceUpdate>
-  state(state: { muted: boolean; deafened: boolean; sharing: boolean }): Promise<void>
+  state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }): Promise<void>
   signal(signals: { to: string; data: VoiceSignal }[]): Promise<void>
   setRoom(patch: { private?: boolean; locked?: boolean }): Promise<VoiceUpdate>
   invite(userId: string): Promise<void>
@@ -152,6 +158,9 @@ export class VoiceClient {
   private testing = false
   private gateOpen = false
   private screenTrack: MediaStreamTrack | null = null
+  private cameraTrack: MediaStreamTrack | null = null
+  /** Every video stream from each person, by stream id; their room state says which is the screen and which the camera. */
+  private remoteVideos = new Map<string, Map<string, MediaStream>>()
   /** Stops listening to the shared sound coming from Windows. */
   private screenAudioOff: (() => void) | null = null
   private levelListeners = new Set<(db: number) => void>()
@@ -175,6 +184,8 @@ export class VoiceClient {
     streamVolume: 1,
     localVideo: null,
     videos: {},
+    localCamera: null,
+    cameras: {},
     watching: null
   }
   private wasMutedBeforeDeafen = false
@@ -422,6 +433,72 @@ export class VoiceClient {
     for (const id of this.peers.keys()) this.audio?.setRemoteVolume(`${id}#screen`, this.snap.watching === id ? this.snap.streamVolume : 0)
   }
 
+  // ---- camera ----------------------------------------------------------------------
+
+  /** Turns your camera on for everyone in the room. */
+  async startCamera(): Promise<void> {
+    if (!this.transport || !this.inRoom || this.cameraTrack) return
+    if (!navigator.mediaDevices?.getUserMedia) return this.set({ notice: "A camera can't be used on this device." })
+    const id = this.deps.settings().cameraDeviceId
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: id ? { ideal: id } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }, audio: false })
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : ''
+      return this.set({
+        notice:
+          name === 'NotAllowedError' || name === 'SecurityError'
+            ? "Vanity isn't allowed to use your camera. Allow it in your device's privacy settings (Windows: Settings → Privacy & security → Camera)."
+            : name === 'NotFoundError' || name === 'OverconstrainedError'
+              ? 'No camera was found.'
+              : 'Your camera couldn\'t be started. Another app may be using it.'
+      })
+    }
+    const track = stream.getVideoTracks()[0]
+    if (!track || !this.transport) return stream.getTracks().forEach((t) => t.stop())
+    track.contentHint = 'motion'
+    track.onended = () => {
+      if (this.cameraTrack === track) this.stopCamera()
+    }
+    this.cameraTrack = track
+    this.transport.setCamera(track)
+    this.set({ localCamera: new MediaStream([track]) })
+    this.sendState()
+    this.emitMembers()
+  }
+
+  stopCamera(): void {
+    if (!this.cameraTrack) return
+    this.stopCameraTrack()
+    this.transport?.setCamera(null)
+    this.set({ localCamera: null })
+    this.sendState()
+    this.emitMembers()
+  }
+
+  private stopCameraTrack(): void {
+    if (!this.cameraTrack) return
+    this.cameraTrack.onended = null
+    this.cameraTrack.stop()
+    this.cameraTrack = null
+  }
+
+  /** Splits everyone's videos into shared screens and cameras, by what their room state says. */
+  private sortVideos(): void {
+    const videos: Record<string, MediaStream> = {}
+    const cameras: Record<string, MediaStream> = {}
+    for (const [id, streams] of this.remoteVideos) {
+      const p = this.peers.get(id)
+      if (!p) continue
+      const camera = p.streams?.camera ? streams.get(p.streams.camera) : undefined
+      const screen = p.streams?.screen ? streams.get(p.streams.screen) : [...streams.entries()].find(([sid]) => sid !== p.streams?.camera)?.[1]
+      if (screen) videos[id] = screen
+      if (camera && p.camera) cameras[id] = camera
+    }
+    const same = (a: Record<string, MediaStream>, b: Record<string, MediaStream>): boolean => Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([k, v]) => b[k] === v)
+    if (!same(videos, this.snap.videos) || !same(cameras, this.snap.cameras)) this.set({ videos, cameras })
+  }
+
   /** Whose shared screen to show big (null: nobody's). */
   watch(peerId: string | null): void {
     this.set({ watching: peerId && this.peers.get(peerId)?.sharing ? peerId : null })
@@ -559,7 +636,7 @@ export class VoiceClient {
     if (this.inRoom) this.leave()
     if (typeof RTCPeerConnection === 'undefined') return this.fail(new VoiceError('unsupported', "Voice isn't available in this version of the app."))
     const gen = ++this.gen
-    this.set({ status: 'connecting', error: null, notice: null, room: roomId ? { id: roomId, hostId: '', private: false, locked: false } : null, isHost: false, members: [], attempt: 0, watching: null, videos: {} })
+    this.set({ status: 'connecting', error: null, notice: null, room: roomId ? { id: roomId, hostId: '', private: false, locked: false } : null, isHost: false, members: [], attempt: 0, watching: null, videos: {}, cameras: {} })
     this.lastRoomId = roomId
     await this.ensureAudio()
     this.selfDetector.thresholdDb = this.deps.settings().sensitivityDb
@@ -597,13 +674,15 @@ export class VoiceClient {
       remoteGone: (id) => {
         this.audio?.removeRemote(id)
         this.audio?.removeRemote(`${id}#screen`)
-        if (this.snap.videos[id]) {
-          const videos = { ...this.snap.videos }
-          delete videos[id]
-          this.set({ videos })
-        }
+        this.remoteVideos.delete(id)
+        this.sortVideos()
       },
-      remoteVideo: (id, stream) => this.set({ videos: { ...this.snap.videos, [id]: stream } }),
+      remoteVideo: (id, stream, streamId) => {
+        const mine = this.remoteVideos.get(id) ?? new Map<string, MediaStream>()
+        mine.set(streamId, stream)
+        this.remoteVideos.set(id, mine)
+        this.sortVideos()
+      },
       remoteScreenAudio: (id, stream) => {
         this.audio?.addRemote(`${id}#screen`, stream)
         this.audio?.setRemoteVolume(`${id}#screen`, this.snap.watching === id ? this.snap.streamVolume : 0)
@@ -698,7 +777,7 @@ export class VoiceClient {
     for (const m of others) {
       const known = this.peers.get(m.id)
       if (known) {
-        Object.assign(known, { user: m.user, muted: m.muted, deafened: m.deafened, sharing: m.sharing, connected: m.connected, joinedAt: m.joinedAt })
+        Object.assign(known, { user: m.user, muted: m.muted, deafened: m.deafened, sharing: m.sharing, camera: m.camera, streams: m.streams, connected: m.connected, joinedAt: m.joinedAt })
         if (!m.sharing && this.snap.watching === m.id) this.set({ watching: null })
       } else {
         this.peers.set(m.id, { ...m, speaking: false, link: null, detector: new SpeechDetector(REMOTE_SPEAKING_DB, 20, 300) })
@@ -719,6 +798,7 @@ export class VoiceClient {
       void transport.handleSignal(s.from, s.data)
     }
     this.applyStreamVolumes()
+    this.sortVideos()
     const r = u.room
     this.lastRoomId = r.id
     this.set({ room: { id: r.id, hostId: r.hostId, private: r.private, locked: r.locked }, isHost: r.hostId === u.you })
@@ -752,7 +832,7 @@ export class VoiceClient {
     const send = (): void => {
       this.stateTimer = null
       if (!this.inRoom) return
-      void this.deps.api.state({ muted: this.snap.muted, deafened: this.snap.deafened, sharing: !!this.snap.sharing }).catch(() => {})
+      void this.deps.api.state({ muted: this.snap.muted, deafened: this.snap.deafened, sharing: !!this.snap.sharing, camera: !!this.cameraTrack, streams: this.transport?.streamIds() ?? {} }).catch(() => {})
     }
     if (now) send()
     else this.stateTimer = setTimeout(send, 150)
@@ -770,6 +850,7 @@ export class VoiceClient {
         muted: this.snap.muted,
         deafened: this.snap.deafened,
         sharing: !!this.snap.sharing,
+        camera: !!this.cameraTrack,
         connected: this.snap.status !== 'reconnecting',
         speaking: this.snap.speaking,
         volume: 1,
@@ -780,7 +861,7 @@ export class VoiceClient {
     const others = [...this.peers.values()].sort((a, b) => a.joinedAt - b.joinedAt)
     for (const p of others) {
       const v = override[p.user.id] ?? this.volumeFor(p.user.id)
-      members.push({ id: p.id, user: p.user, you: false, host: hostId === p.id, muted: p.muted, deafened: p.deafened, sharing: p.sharing, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link })
+      members.push({ id: p.id, user: p.user, you: false, host: hostId === p.id, muted: p.muted, deafened: p.deafened, sharing: p.sharing, camera: p.camera, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link })
     }
     const links = others.map((p) => p.link).filter((l): l is PeerLink => !!l && l.state === 'connected')
     const rtts = links.map((l) => l.rttMs).filter((r): r is number => r !== null)
@@ -870,6 +951,8 @@ export class VoiceClient {
     }
     this.pttDown = false
     this.pttUntil = 0
-    this.set({ sharing: null, localVideo: null, videos: {}, watching: null })
+    this.stopCameraTrack()
+    this.remoteVideos.clear()
+    this.set({ sharing: null, localVideo: null, videos: {}, cameras: {}, localCamera: null, watching: null })
   }
 }

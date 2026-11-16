@@ -55,6 +55,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Voice rooms: the microphone (asked for the first time you join one) and the call audio mode. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- The camera in voice rooms (asked for the first time it's turned on). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Playtime: the user switches this on under Settings > Usage access. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />

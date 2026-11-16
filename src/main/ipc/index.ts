@@ -388,7 +388,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.voiceJoin, (_e, roomId: string) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))))
   ipcMain.handle(IPC.voiceLeave, () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)))
   ipcMain.handle(IPC.voiceUpdate, (_e, after: number) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))))
-  ipcMain.handle(IPC.voiceState, (_e, s: { muted: boolean; deafened: boolean; sharing: boolean }) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: s?.sharing === true })), true as const)))
+  ipcMain.handle(IPC.voiceState, (_e, s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: s?.sharing === true, camera: s?.camera === true, streams: { screen: text(s?.streams?.screen, 64) || undefined, camera: text(s?.streams?.camera, 64) || undefined } })), true as const)))
   ipcMain.handle(IPC.voiceSignal, (_e, signals: { to: string; data: VoiceSignal }[]) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, MAX_SIGNALS_PER_SEND) : [])), true as const)))
   ipcMain.handle(IPC.voiceSetRoom, (_e, p: { private?: boolean; locked?: boolean }) => wrap(() => account.guard((c) => c.voiceSetRoom({ private: flag(p?.private), locked: flag(p?.locked) }))))
   ipcMain.handle(IPC.voiceInvite, (_e, userId: string) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)))

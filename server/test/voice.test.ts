@@ -153,9 +153,10 @@ describe('voice rooms', () => {
     await befriend(ann, ben)
     const roomId = (await call('POST', '/voice/rooms', ann.token, {})).json.room.id
     await call('POST', `/voice/rooms/${roomId}/join`, ben.token)
-    await call('POST', '/voice/state', ben.token, { muted: true, deafened: true, sharing: true })
+    await call('POST', '/voice/state', ben.token, { muted: true, deafened: true, sharing: true, camera: true, streams: { screen: '{abc-123}', camera: 'cam-1', evil: 'x', other: '<script>' } })
     const ben1 = (await call('GET', '/voice/update', ann.token)).json.room.members[1]
-    expect(ben1).toMatchObject({ muted: true, deafened: true, sharing: true, connected: true })
+    expect(ben1).toMatchObject({ muted: true, deafened: true, sharing: true, camera: true, streams: { screen: '{abc-123}', camera: 'cam-1' }, connected: true })
+    expect(Object.keys(ben1.streams)).toEqual(['screen', 'camera'])
     expect(await voiceOf(ann, ben.id)).toMatchObject({ live: true })
     clock += 15_000 // Ben's app stops checking in
     expect((await call('GET', '/voice/update', ann.token)).json.room.members[1]).toMatchObject({ connected: false })

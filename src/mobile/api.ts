@@ -414,7 +414,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       join: (roomId) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))),
       leave: () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)),
       update: (after) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))),
-      state: (s) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: false })), true as const)),
+      state: (s) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: false, camera: s?.camera === true, streams: { camera: text(s?.streams?.camera, 64) || undefined } })), true as const)),
       signal: (signals) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, 40) : [])), true as const)),
       setRoom: (p) => wrap(() => account.guard((c) => c.voiceSetRoom({ ...(typeof p?.private === 'boolean' ? { private: p.private } : {}), ...(typeof p?.locked === 'boolean' ? { locked: p.locked } : {}) }))),
       invite: (userId) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)),
