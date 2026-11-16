@@ -20,8 +20,7 @@ import {
   Star,
   UserCircle2,
   Users,
-  type LucideIcon
-} from 'lucide-react'
+  type LucideIcon, AudioLines } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { formatPlaytime } from '@/lib/format'
@@ -134,6 +133,7 @@ function Palette({ onClose }: { onClose: () => void }): React.JSX.Element {
       { id: 'p-stats', group: 'Go to', label: 'Stats', icon: BarChart3, run: go('/stats') },
       { id: 'p-wrapped', group: 'Go to', label: 'Vanity Wrapped', sub: 'Your year in games', icon: Sparkles, run: go('/wrapped') },
       { id: 'p-big', group: 'Go to', label: 'Big Picture mode', sub: 'Full screen, for the couch', icon: Tv, run: go('/big') },
+      { id: 'p-voice', group: 'Go to', label: 'Voice', sub: 'Voice rooms with friends', icon: AudioLines, run: go('/voice') },
       { id: 'p-settings', group: 'Go to', label: 'Settings', icon: Settings, run: go('/settings') },
       { id: 'p-account', group: 'Go to', label: 'Account', icon: UserCircle2, run: go('/account') },
       ...collections.map((c): Item => ({ id: `c-${c.id}`, group: 'Go to', label: c.name, sub: 'Collection', icon: Layers, run: go(`/collection/${c.id}`) }))

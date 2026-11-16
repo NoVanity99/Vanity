@@ -148,6 +148,16 @@ const api: VanityApi = {
     recentGames: () => ipcRenderer.invoke(IPC.steamRecentGames),
     achievements: (appId) => ipcRenderer.invoke(IPC.steamAchievements, appId)
   },
+  voice: {
+    serverUrl: () => ipcRenderer.invoke(IPC.voiceServerUrl),
+    token: () => ipcRenderer.invoke(IPC.voiceToken),
+    onPushToTalk(callback) {
+      const listener = (_: Electron.IpcRendererEvent, down: boolean): void => callback(down)
+      ipcRenderer.on(IPC.voicePushToTalk, listener)
+      return () => ipcRenderer.removeListener(IPC.voicePushToTalk, listener)
+    },
+    hotkeyStatus: () => ipcRenderer.invoke(IPC.voiceHotkeyStatus)
+  },
   account: {
     state: () => ipcRenderer.invoke(IPC.accountState),
     onChange(callback) {

@@ -1,3 +1,4 @@
+import { DEFAULT_VOICE } from '@shared/voiceSettings'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -34,7 +35,8 @@ const baseSettings: Settings = {
   discordClientId: '',
   updateKey: '',
   breakReminderMinutes: 0,
-  interface: DEFAULT_INTERFACE
+  interface: DEFAULT_INTERFACE,
+  voice: DEFAULT_VOICE
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

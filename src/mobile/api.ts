@@ -399,6 +399,16 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       recentGames: () => wrap(() => steamService.recentGames()),
       achievements: (appId) => wrap(() => steamService.achievements(Number(appId)))
     },
+    voice: {
+      serverUrl: async () => {
+        const builtIn = backendConfig().voiceUrl
+        return { url: getSettings().voice.serverUrl || builtIn, builtIn }
+      },
+      token: () => wrap(() => account.token()),
+      // Phones have no global keys: the voice page has an on-screen hold-to-talk button instead.
+      onPushToTalk: () => () => {},
+      hotkeyStatus: async () => ({ global: false, message: 'Push-to-talk keys are for Windows. On a phone, hold the talk button on the voice screen.' })
+    },
     account: {
       state: async () => account.state(),
       onChange: (cb) => accountChanged.on(cb),

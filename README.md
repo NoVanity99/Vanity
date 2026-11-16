@@ -253,6 +253,36 @@ While you're signed in:
 - **Stats:** your playtime syncs after each session and every 15 minutes.
 - **Quitting:** you're marked offline when you quit.
 
+## Voice rooms
+
+Talk with friends while you play: **Voice** in the sidebar. Start a room to get a 6-character code (or invite a friend, which sends the code as a chat message with a Join button), or join with a code. Up to 6 people per room.
+
+- **In a room:** everyone's picture with a green ring while they talk. Right-click someone to set their volume (0–200%) or mute them for yourself; that's remembered. Mute, deafen and disconnect, and short sounds when people join or leave.
+- **The voice bar** at the bottom of the sidebar stays while you browse: room, connection quality and ping, and your mic buttons. With the sidebar hidden (or on a phone) a small one floats in the corner.
+- **Settings → Voice:** the voice server address; microphone and speakers (unplugging one switches to the default and back); a mic test with a live level meter; voice activity (default) with a sensitivity slider drawn on that meter, or push-to-talk with any key or mouse side button; noise suppression, echo cancellation and automatic gain; join/leave sounds.
+- **Push-to-talk works while a game is in front:** a system-wide keyboard and mouse hook (`uiohook-napi`, `src/main/voice/hotkeys.ts`) reports the key going down and up. A game run as administrator needs Vanity run as administrator too. If the hook can't load, the key works while Vanity is in front, and Settings says so.
+- **Errors are plain words:** no microphone (you join and can listen), microphone blocked by Windows (with where to allow it), the server can't be reached, a wrong code, a full room, signed out. Dropped connections reconnect by themselves, back into the same room.
+- **Phones:** voice works the same, with a "Hold to talk" button for push-to-talk (no global keys).
+
+**How it's built:**
+- **Audio:** WebRTC with Opus, tuned for voice (mono, error correction, silence suppression, at most 64 kbit/s), directly between players: a peer-to-peer "mesh".
+- **The engine** is `src/renderer/src/voice/`, with no screen code in it:
+  - `client.ts` runs a call
+  - `signaling.ts` keeps the server connection (reconnecting by itself)
+  - `audio.ts` is the microphone, talking detection, per-person volume, output device and sounds
+  - `mesh.ts` makes the connections
+- **Swapping the mesh later:** the screens only see `VoiceTransport` (`transport.ts`), so the mesh can be replaced by a media server (LiveKit, mediasoup) for bigger rooms without changing them.
+- **The signaling server** is in [`server/voice`](server/voice/README.md): how to run it, put it online, and add a TURN server for strict networks.
+- **Message format:** shared by both sides in `src/shared/voiceProtocol.ts`.
+- **Voice settings:** `src/shared/voiceSettings.ts`, kept on the device.
+
+**Two copies on one PC** (to try voice with two accounts): `Vanity.exe --profile=friend` starts a second, separate Vanity with its own sign-in and settings.
+
+**Planned next (not built yet):**
+- **An in-game overlay of who's talking:** a see-through, always-on-top window, which works over games in windowed and borderless mode. Exclusive fullscreen would need hooking into the game's graphics, which anti-cheat systems can flag, so that's left out.
+- **Screen sharing:** Electron's screen capture as a video track. For more than two or three people, video needs a media server, which `VoiceTransport` is ready for.
+- **Text chat inside each room:** sent through the voice server, saved on the Vanity server, and drawn like the chat pop-ups.
+
 ## Customize
 
 Settings → **Customize** switches parts of the launcher on and off and changes how it feels: the start page, which pages are in the sidebar, the top bar (launcher status, music player, clock), what the Library shows, interface size, corner style, animations and confirmation messages.

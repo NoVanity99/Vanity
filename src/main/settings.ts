@@ -1,3 +1,4 @@
+import { normalizeVoice } from '@shared/voiceSettings'
 import { normalizeInterface } from '@shared/interfaceOptions'
 import { promises as fs, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -66,7 +67,8 @@ function withDefaults(stored: Partial<Settings>): Settings {
     ...DEFAULTS,
     ...stored,
     enabledSources: { ...DEFAULTS.enabledSources, ...stored.enabledSources },
-    interface: normalizeInterface(stored.interface)
+    interface: normalizeInterface(stored.interface),
+    voice: normalizeVoice(stored.voice)
   }
   for (const field of SECRET_FIELDS) merged[field] ||= BUILT_IN[field]
   merged.discordClientId ||= import.meta.env.MAIN_VITE_DISCORD_CLIENT_ID?.trim() || BUILT_IN_KEYS.discordClientId

@@ -51,6 +51,7 @@ import { scanners } from './scanners'
 import { tracked } from './sync/track'
 import { createSessionVault, nodeAuthHttp } from './account/desktop'
 import { backendConfig } from '@shared/backend'
+import { PushToTalkHotkey } from './voice/hotkeys'
 import { accountServerUrl, getSettings, updateSettings } from './settings'
 import { themeById } from '@shared/themes'
 import { loadWindowState, trackWindowState } from './windowState'
@@ -70,6 +71,7 @@ let update: Updater | null = null
 let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
 let gameWindows: GameWindows | null = null
+let pushToTalk: PushToTalkHotkey | null = null
 /** Vanity's own window (game windows for web games are separate). */
 let mainWindow: BrowserWindow | null = null
 
@@ -128,6 +130,12 @@ function broadcast(channel: string, payload: unknown): void {
 
 // Lets tests (and anyone wanting a separate profile) point the app at another data folder.
 if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USER_DATA)
+// `Vanity.exe --profile=friend` runs a second, separate copy (its own sign-in, library and
+// settings), e.g. to try voice rooms with two accounts on one PC. Each profile is one window.
+{
+  const profile = process.argv.find((a) => a.startsWith('--profile='))?.slice('--profile='.length).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32)
+  if (profile && !process.env.VANITY_USER_DATA) app.setPath('userData', `${app.getPath('userData')}-${profile}`)
+}
 
 // One instance only: launching Vanity again brings the open window to the front.
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -305,6 +313,9 @@ app.whenReady().then(() => {
     }
   })
 
+  // Push-to-talk from anywhere: the key's ups and downs go to the voice engine in the window.
+  pushToTalk = new PushToTalkHotkey((down) => broadcast(IPC.voicePushToTalk, down))
+  pushToTalk.configure(getSettings().voice.inputMode === 'ptt', getSettings().voice.pttKey)
   const live = new LiveService({ db, store, fetchFn, getSettings })
   const details = new DetailsService({ db, store, fetchFn, getSettings, steamAppIdFor: (g) => live.steamAppIdFor(g) })
 
@@ -312,7 +323,7 @@ app.whenReady().then(() => {
     store,
     fetchFn,
     authHttp: nodeAuthHttp,
-    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }),
+    backend: () => backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL, voiceUrl: import.meta.env.MAIN_VITE_VOICE_URL }),
     vault: createSessionVault(join(app.getPath('userData'), 'session.bin')),
     runningGame: () => tracker?.running() ?? null,
     onChange: (s) => {
@@ -444,7 +455,7 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ pushToTalk, voiceUrl: backendConfig({ voiceUrl: import.meta.env.MAIN_VITE_VOICE_URL }).voiceUrl, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
@@ -492,6 +503,7 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  pushToTalk?.stop()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()
   gameWindows?.closeAll()

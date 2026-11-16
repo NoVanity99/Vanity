@@ -1,3 +1,5 @@
+import { VoiceBar } from '@/components/voice/VoiceBar'
+import { useVoice } from '@/state/voice'
 import { useFriends } from '@/state/friends'
 import { clampSidebarWidth, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
 import { saveSettings, useInterface } from '@/state/settings'
@@ -5,7 +7,7 @@ import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { AudioLines, Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -210,6 +212,9 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const friendsOnline = friendList?.friends.filter((f) => f.status.state !== 'offline').length
   const friendsUnread = friendList?.friends.reduce((sum, f) => sum + (f.unread ?? 0), 0)
   const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
+  // People in your voice room (shown next to Voice while you're in one).
+  const voiceState = useVoice()
+  const voiceCount = voiceState.status === 'in-room' || voiceState.status === 'reconnecting' ? voiceState.members.length : 0
   const count = (n: number | undefined): number | undefined => (ui.sidebarCounts ? n : undefined)
 
   // Width and collapse (computers only: on phones the sidebar is a slide-out menu).
@@ -322,6 +327,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" />
         {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />}
         {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
+        {shows('voice') && <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" />}
         {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" />}
         {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />}
         {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" />}
@@ -352,6 +358,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       </nav>
 
       <div className="space-y-1 px-3 pb-4 pt-2">
+        <VoiceBar className="mb-2" />
         {playing.map((g) => (
           <NavLink
             key={g.id}

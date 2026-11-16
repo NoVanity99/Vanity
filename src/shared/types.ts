@@ -1,3 +1,4 @@
+import type { VoiceSettings } from './voiceSettings'
 import type { InterfaceOptions } from './interfaceOptions'
 import type { ProfileStyle } from './profileStyle'
 // Types shared between the main process, preload and renderer.
@@ -211,6 +212,8 @@ export interface Settings {
   breakReminderMinutes: number
   /** Which parts of the launcher show, and how it looks (Settings → Customize). Kept on this device. */
   interface: InterfaceOptions
+  /** Voice chat: devices, push-to-talk, sensitivity, per-person volumes. Kept on this device. */
+  voice: VoiceSettings
 }
 
 /** Fields the user can change on a game. */

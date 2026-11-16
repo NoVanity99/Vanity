@@ -1,3 +1,4 @@
+import { DEFAULT_VOICE } from '@shared/voiceSettings'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings, TrendingState } from '@shared/types'
@@ -28,7 +29,8 @@ const settings: Settings = {
   discordClientId: '',
   updateKey: '',
   breakReminderMinutes: 0,
-  interface: DEFAULT_INTERFACE
+  interface: DEFAULT_INTERFACE,
+  voice: DEFAULT_VOICE
 }
 
 /** IGDB/Twitch/Steam answering like their documented APIs, with two trending PC games. */

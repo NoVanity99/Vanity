@@ -1,3 +1,4 @@
+import type { PushToTalkHotkey } from '../voice/hotkeys'
 import type { ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
@@ -91,9 +92,13 @@ export interface IpcDeps {
   downloadLog: string
   /** Called after settings change (e.g. to recolour the window for a new theme). */
   onSettingsChanged?: (settings: Settings) => void
+  /** The push-to-talk hotkey (main process). */
+  pushToTalk: PushToTalkHotkey
+  /** The voice server built into this copy ('' for none). */
+  voiceUrl: string
 }
 
-export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged }: IpcDeps): void {
+export function registerIpc({ store, collections, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, stats, account, sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, onSettingsChanged, pushToTalk, voiceUrl }: IpcDeps): void {
   let scanInFlight: Promise<ScanSummary> | null = null
 
   const windowOf = (e: IpcMainInvokeEvent): BrowserWindow | undefined =>
@@ -283,6 +288,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
     if (before.githubToken !== after.githubToken || before.updateKey !== after.updateKey || before.accountServerUrl !== after.accountServerUrl) void update.check()
     if (before.discordPresence !== after.discordPresence || before.discordClientId !== after.discordClientId) discord.sync()
     sync.settingsChanged(before, after)
+    pushToTalk.configure(after.voice.inputMode === 'ptt', after.voice.pttKey)
     onSettingsChanged?.(after)
     return after
   })
@@ -363,6 +369,9 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.steamOwnedGames, () => wrap(() => steam.ownedGames()))
   ipcMain.handle(IPC.steamRecentGames, () => wrap(() => steam.recentGames()))
   ipcMain.handle(IPC.steamAchievements, (_e, appId: number) => wrap(() => steam.achievements(Number(appId))))
+  ipcMain.handle(IPC.voiceServerUrl, () => ({ url: getSettings().voice.serverUrl || voiceUrl, builtIn: voiceUrl }))
+  ipcMain.handle(IPC.voiceToken, () => wrap(() => account.token()))
+  ipcMain.handle(IPC.voiceHotkeyStatus, () => pushToTalk.status())
   ipcMain.handle(IPC.accountState, () => account.state())
   ipcMain.handle(IPC.accountSignUp, (_e, email: string, u: string, p: string, remember: boolean) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)))
   ipcMain.handle(IPC.accountSignIn, (_e, email: string, p: string, remember: boolean) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)))

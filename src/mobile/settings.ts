@@ -1,3 +1,4 @@
+import { normalizeVoice } from '@shared/voiceSettings'
 import { normalizeInterface } from '@shared/interfaceOptions'
 import { DEFAULT_SETTINGS } from '@shared/settingsDefaults'
 import type { Settings } from '@shared/types'
@@ -8,7 +9,7 @@ let cache: Settings | null = null
 
 /** Fills in defaults and the built-in API keys, like the desktop app does. */
 function withDefaults(stored: Partial<Settings>): Settings {
-  const merged: Settings = { ...DEFAULT_SETTINGS, ...stored, enabledSources: { ...DEFAULT_SETTINGS.enabledSources, ...stored.enabledSources }, interface: normalizeInterface(stored.interface) }
+  const merged: Settings = { ...DEFAULT_SETTINGS, ...stored, enabledSources: { ...DEFAULT_SETTINGS.enabledSources, ...stored.enabledSources }, interface: normalizeInterface(stored.interface), voice: normalizeVoice(stored.voice) }
   merged.steamGridDbApiKey ||= BUILT_IN_KEYS.steamGridDbApiKey
   merged.igdbClientId ||= BUILT_IN_KEYS.igdbClientId
   merged.igdbClientSecret ||= BUILT_IN_KEYS.igdbClientSecret

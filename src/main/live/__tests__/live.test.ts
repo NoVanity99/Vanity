@@ -1,3 +1,4 @@
+import { DEFAULT_VOICE } from '@shared/voiceSettings'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '@shared/types'
@@ -30,7 +31,8 @@ const settings = (keys: boolean): Settings =>
   discordClientId: '',
   updateKey: '',
   breakReminderMinutes: 0,
-  interface: DEFAULT_INTERFACE
+  interface: DEFAULT_INTERFACE,
+  voice: DEFAULT_VOICE
   }) as Settings
 
 function apis() {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
-import { ArrowDownToLine, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, AudioLines, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, GitBranch, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
@@ -8,6 +8,7 @@ import { applyFont, applyTheme } from '@/lib/theme'
 import { saveSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
 import { CustomizeSettings } from '@/components/settings/CustomizeSettings'
+import { VoiceSettingsPanel } from '@/components/settings/VoiceSettingsPanel'
 import { Section, Toggle } from '@/components/settings/controls'
 import { ScanProgressPanel } from '@/components/ScanProgressPanel'
 import { cn } from '@/lib/cn'
@@ -25,10 +26,11 @@ import { loadPref, savePref } from '@/lib/storage'
 const SHOW_API_KEYS = false
 
 /** Settings are split into a few short pages instead of one long one. */
-type SettingsTab = 'look' | 'customize' | 'library' | 'playing' | 'updates'
+type SettingsTab = 'look' | 'customize' | 'voice' | 'library' | 'playing' | 'updates'
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'look', label: 'Appearance', icon: Palette },
   { id: 'customize', label: 'Customize', icon: SlidersHorizontal },
+  { id: 'voice', label: 'Voice', icon: AudioLines },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'playing', label: 'Playing', icon: Gamepad2 },
   { id: 'updates', label: 'Updates', icon: ArrowDownToLine }
@@ -498,6 +500,12 @@ export function SettingsPage(): React.JSX.Element {
         {tab === 'customize' && (
           <div className="settings-columns">
             <CustomizeSettings options={settings.interface} onChange={(next, note) => save({ interface: next }, note)} />
+          </div>
+        )}
+
+        {tab === 'voice' && (
+          <div className="settings-columns">
+            <VoiceSettingsPanel settings={settings.voice} />
           </div>
         )}
 

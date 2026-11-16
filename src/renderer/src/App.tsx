@@ -29,6 +29,10 @@ import { StatsPage } from './pages/StatsPage'
 import { WrappedPage } from './pages/WrappedPage'
 import { BigPicturePage } from './pages/BigPicturePage'
 import { FriendsPage } from './pages/FriendsPage'
+import { VoicePage } from './pages/VoicePage'
+import { VoiceBar } from './components/voice/VoiceBar'
+import { cn } from './lib/cn'
+import { syncVoiceSettings, wirePushToTalk } from './state/voice'
 import { FriendProfilePage } from './pages/FriendProfilePage'
 import { AccountPage } from './pages/AccountPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -78,6 +82,10 @@ function Shell(): React.JSX.Element {
     if (ui.animations) delete root.dataset.motion
     else root.dataset.motion = 'reduced'
   }, [ui.scale, ui.corners, ui.coverHover, ui.statusBadges, ui.gameNames, ui.animations])
+  // The voice engine follows the voice settings; push-to-talk is listened for once.
+  useEffect(() => syncVoiceSettings(settings?.voice), [settings?.voice])
+  useEffect(() => wirePushToTalk(), [])
+
   // Friends are kept fresh in the background for the sidebar's counts and for notifications.
   useFriendsRefresh(useAccount()?.username)
   const startPath = START_PAGES.find((p) => p.id === ui.startPage)?.path ?? '/library'
@@ -138,6 +146,7 @@ function Shell(): React.JSX.Element {
             <Route path="/wrapped" element={<WrappedPage />} />
             <Route path="/big" element={<BigPicturePage />} />
             <Route path="/friends" element={<FriendsPage />} />
+            <Route path="/voice" element={<VoicePage />} />
             <Route path="/friends/:id" element={<FriendProfilePage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/profile" element={<ProfilePage />} />
@@ -159,6 +168,10 @@ function Shell(): React.JSX.Element {
       <VibeCheck />
       <FriendNotifications />
       <ChatDock />
+      {/* The voice bar, when the sidebar isn't showing it: hidden sidebar, or a phone. */}
+      <div className={cn('pointer-events-none fixed bottom-3 left-3 z-[44] max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]', !ui.sidebarCollapsed && 'md:hidden')}>
+        <VoiceBar floating />
+      </div>
       {candidates.length > 0 && (
         <CandidateReview
           candidates={candidates}

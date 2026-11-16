@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { id: 'trending', label: 'Trending' },
   { id: 'store', label: 'Steam Store' },
   { id: 'friends', label: 'Friends' },
+  { id: 'voice', label: 'Voice' },
   { id: 'recent', label: 'Recently Played' },
   { id: 'favorites', label: 'Favorites' },
   { id: 'stats', label: 'Stats' },

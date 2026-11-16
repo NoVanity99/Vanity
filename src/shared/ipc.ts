@@ -196,6 +196,17 @@ export interface VanityApi {
     /** Removes your Vanity profile, friends and shared stats. */
     deleteAccount(): Promise<Result<AccountState>>
   }
+  /** Voice chat: the server address, a sign-in token for it, and the push-to-talk key. */
+  voice: {
+    /** The voice server to use: the one in Settings → Voice, else the one built into this copy ('' for none). */
+    serverUrl(): Promise<{ url: string; builtIn: string }>
+    /** A fresh Vanity sign-in token, which the voice server checks. */
+    token(): Promise<Result<string>>
+    /** The push-to-talk key going down and up, from anywhere (a game in front included). */
+    onPushToTalk(callback: (down: boolean) => void): () => void
+    /** Whether the push-to-talk key works while a game is in front. */
+    hotkeyStatus(): Promise<{ global: boolean; message: string | null }>
+  }
   /** XP, level, badges and totals, and the state of cloud sync. Works signed out too (this device only). */
   progress: {
     get(): Promise<Progress>
@@ -409,6 +420,10 @@ export const IPC = {
   accountSignOut: 'account:sign-out',
   accountSetUsername: 'account:set-username',
   accountAvailability: 'account:availability',
+  voiceServerUrl: 'voice:server-url',
+  voiceToken: 'voice:token',
+  voicePushToTalk: 'voice:push-to-talk',
+  voiceHotkeyStatus: 'voice:hotkey-status',
   accountSetProfile: 'account:set-profile',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',

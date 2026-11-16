@@ -3,6 +3,28 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.22.0 (2026-11-16)
+- New: **voice rooms.** Talk with friends while you play: **Voice** in the sidebar.
+  - **Rooms:** start one to get a 6-character code, or join with a code (however it's typed). Up to 6 people. **Invite** sends a friend the code as a chat message, which shows them a **Join voice room** button.
+  - **In a room:** everyone's picture and name, with a **green ring that glows while they talk**. Short sounds when people join or leave, and when you mute or deafen.
+  - **Mute, deafen and disconnect.** Right-click someone (or use the ··· button) to set **their volume from 0 to 200%** or **mute them just for you**. Remembered for next time.
+  - **The voice bar** at the bottom of the sidebar stays while you browse other pages: the room, connection quality and ping, who's talking, and your mic buttons. When the sidebar is hidden, a small one floats in the corner.
+  - **Push-to-talk** with any key or mouse side button, and it **works while a game is in front**. Voice activity is the default, with a sensitivity slider.
+  - **Dropped connections reconnect by themselves**, back into the same room, even if the voice server restarts.
+  - Clear messages when something's wrong: no microphone (you can still listen), microphone blocked by Windows (with where to allow it), the voice server can't be reached, a wrong code, a full room, signed out.
+- New: **Settings → Voice:**
+  - the voice server address
+  - microphone and speakers, switching to the default when one is unplugged and back when it returns
+  - a **mic test with a live level meter**, and "let me hear myself"
+  - the sensitivity mark drawn on that meter
+  - push-to-talk key and release delay
+  - noise suppression, echo cancellation and automatic gain control
+  - sounds on or off
+  - All of these are kept between launches.
+- On phones, voice works the same, with a "Hold to talk" button for push-to-talk. Android asks for microphone permission the first time you join.
+- New: `Vanity.exe --profile=name` starts a second, separate copy of Vanity (its own sign-in and settings), for trying voice with two accounts on one PC.
+- Voice needs a **voice server**: see `server/voice/README.md` to run one on your PC or put it online, and to add a TURN server for strict networks.
+
 ## 0.21.0 (2026-11-16)
 - Changed: **chats are pop-ups.** Message (on the Friends tab or a friend's page), or clicking a message notification, opens the chat in a pop-up at the bottom right of the window. It stays open while you move around Vanity, and comes back after a restart. Up to three can be open side by side.
   - **Minimize** (or click the pop-up's title) folds it into a small bar that shows how many new messages are waiting; click the bar to open it again.

@@ -1,5 +1,6 @@
 import { DEFAULT_FONT } from './fonts'
 import { DEFAULT_INTERFACE } from './interfaceOptions'
+import { DEFAULT_VOICE } from './voiceSettings'
 import { DEFAULT_THEME } from './themes'
 import { SCAN_SOURCES, type Settings } from './types'
 
@@ -26,5 +27,6 @@ export const DEFAULT_SETTINGS: Settings = {
   discordClientId: '',
   updateKey: '',
   breakReminderMinutes: 0,
-  interface: DEFAULT_INTERFACE
+  interface: DEFAULT_INTERFACE,
+  voice: DEFAULT_VOICE
 }

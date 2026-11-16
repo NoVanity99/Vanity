@@ -16,6 +16,8 @@ asarUnpack:
   - "**/node_modules/better-sqlite3/**"
   # The bundled ffmpeg (converts WMA, Apple Lossless, AIFF… for the music player) must be a real file to run.
   - "**/node_modules/@ffmpeg-installer/**"
+  # The push-to-talk keyboard hook ships prebuilt (prebuilds/win32-x64), and must be a real file to load.
+  - "**/node_modules/uiohook-napi/**"
   - "resources/**"
 
 win:
