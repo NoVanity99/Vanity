@@ -1,7 +1,7 @@
 import type { PushToTalkHotkey } from '../voice/hotkeys'
 import { pickScreen, screenSources } from '../voice/screen'
 import { MAX_SIGNALS_PER_SEND, type VoiceSignal } from '@shared/voiceProtocol'
-import type { ProfileStyle } from '@shared/profileStyle'
+import { DEFAULT_PROFILE_STYLE, type ProfileStyle } from '@shared/profileStyle'
 import { spawn } from 'node:child_process'
 import { dirname } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron'
@@ -339,7 +339,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   const chatOpts = (o: { before?: number; after?: number; limit?: number } | undefined): { before?: number; after?: number; limit?: number } =>
     Object.fromEntries((['before', 'after', 'limit'] as const).filter((k) => typeof o?.[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0).map((k) => [k, Math.trunc(o![k] as number)]))
   /** Only the four known fields of a profile look, as short text (the server checks the values). */
-  const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((['banner', 'frame', 'nameStyle', 'flair'] as const).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
+  const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((Object.keys(DEFAULT_PROFILE_STYLE) as (keyof ProfileStyle)[]).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
   ipcMain.handle(IPC.progressGet, () => sync.progress())
   ipcMain.handle(IPC.progressSyncNow, async () => {
     await sync.syncNow()

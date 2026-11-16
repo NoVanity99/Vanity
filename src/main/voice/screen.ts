@@ -9,7 +9,19 @@ let picked: { id: string; at: number } | null = null
 
 /** Screens and open windows, with a small picture of each. */
 export async function screenSources(): Promise<ScreenSource[]> {
-  const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
+  // Windows (and Linux) now and then answer with no screens at all for a moment, often right
+  // after a share ends: ask again a couple of times before believing it.
+  let sources: Electron.DesktopCapturerSource[] = []
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
+    } catch (err) {
+      console.warn('[voice] listing screens failed:', err)
+      sources = []
+    }
+    if (sources.some((s) => s.id.startsWith('screen:'))) break
+    await new Promise((r) => setTimeout(r, 400))
+  }
   return sources
     .filter((s) => s.name.trim() || s.id.startsWith('screen:'))
     .map((s, i) => ({

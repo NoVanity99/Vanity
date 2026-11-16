@@ -1,4 +1,4 @@
-import type { ProfileStyle } from '@shared/profileStyle'
+import { nameFontFamily, type ProfileStyle } from '@shared/profileStyle'
 import { cn } from '@/lib/cn'
 import { UserBadges } from './UserBadges'
 
@@ -23,7 +23,12 @@ export function UserName({
 }): React.JSX.Element {
   return (
     <span className={cn('inline-flex min-w-0 max-w-full items-center gap-[0.35em]', className)} data-user-name>
-      <span className="name-fx truncate" data-name={style?.nameStyle ?? 'plain'}>
+      <span
+        className={cn('name-fx truncate', style?.nameFont === 'pixel' && 'text-[0.72em] leading-normal')}
+        data-name={style?.nameStyle ?? 'plain'}
+        data-font={style?.nameFont && style.nameFont !== 'app' ? style.nameFont : undefined}
+        style={style?.nameFont && style.nameFont !== 'app' ? { fontFamily: nameFontFamily(style.nameFont) } : undefined}
+      >
         {name}
       </span>
       {style?.flair && (
@@ -32,6 +37,17 @@ export function UserName({
         </span>
       )}
       <UserBadges verified={verified} admin={admin} size={badgeSize} />
+    </span>
+  )
+}
+
+/** The title someone picked for under their name ("Night owl"), as a small pill. Nothing when they have none. */
+export function ProfileTitle({ title, className }: { title?: string | null; className?: string }): React.JSX.Element | null {
+  if (!title) return null
+  return (
+    <span data-profile-title className={cn('inline-flex w-fit items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-2.5 py-0.5 text-xs font-semibold text-text/90 backdrop-blur', className)}>
+      <span aria-hidden className="text-accent">✦</span>
+      {title}
     </span>
   )
 }

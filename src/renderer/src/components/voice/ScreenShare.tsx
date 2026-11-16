@@ -30,11 +30,29 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
   })
   const [starting, setStarting] = useState(false)
 
-  const load = (): void => {
+  const alive = useRef(true)
+  useEffect(
+    () => () => {
+      alive.current = false
+    },
+    []
+  )
+  // The system sometimes lists no screens for a few seconds (often just after a share ends): keep
+  // looking for a while before saying none were found.
+  const load = async (): Promise<void> => {
     setSources(null)
-    void window.vanity.voice.screenSources().then(setSources, () => setSources([]))
+    const until = Date.now() + 20_000
+    let list: ScreenSource[] = []
+    while (alive.current) {
+      list = await window.vanity.voice.screenSources().catch(() => [])
+      if (list.some((s) => s.kind === 'screen') || Date.now() > until) break
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+    if (alive.current) setSources(list)
   }
-  useEffect(load, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
   const shown = (sources ?? []).filter((s) => s.kind === tab)
   const go = async (): Promise<void> => {
@@ -74,7 +92,7 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
             </button>
           ))}
         </div>
-        <button onClick={load} className="ml-auto rounded-lg p-2 text-muted transition hover:bg-white/10 hover:text-text" aria-label="Refresh the list" title="Refresh the list">
+        <button onClick={() => void load()} disabled={sources === null} className="ml-auto rounded-lg p-2 text-muted transition hover:bg-white/10 hover:text-text" aria-label="Refresh the list" title="Refresh the list">
           <RefreshCw className="size-4" />
         </button>
       </div>

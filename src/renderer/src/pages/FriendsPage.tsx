@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AudioLines, Check, Clock, Gamepad2, Lock, LogIn, Radio, MessageCircle, Trophy, UserMinus, UserPlus, UserRound, Users, X } from 'lucide-react'
 import type { Friend, FriendsList, FriendStats } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
-import { UserName } from '@/components/UserName'
+import { ProfileTitle, UserName } from '@/components/UserName'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
@@ -36,8 +36,8 @@ function FriendRow({ friend, selected, onSelect, index }: { friend: Friend; sele
       )}
     >
       {/* Their profile banner fills the row. */}
-      <span aria-hidden className="profile-banner !absolute" data-banner={friend.style?.banner ?? 'default'} data-row-banner />
-      <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} status={friend.status.state} />
+      <span aria-hidden className="profile-banner !absolute" data-banner={friend.style?.banner ?? 'default'} data-fx={friend.style?.effect ?? 'none'} data-row-banner />
+      <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} aura={friend.style?.aura} status={friend.status.state} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <UserName name={friend.username} style={friend.style} verified={friend.verified} admin={friend.admin} className="font-semibold" />
@@ -124,13 +124,14 @@ function FriendPanel({ friend, onRemoved }: { friend: Friend; onRemoved: () => v
   return (
     <aside key={friend.id} className="animate-rise-in sticky top-0 space-y-5 overflow-clip rounded-2xl border border-border bg-surface p-6 [&>*]:relative">
       {/* Their banner, fading out behind the top of the card. */}
-      <div className="profile-banner !absolute h-36 [mask-image:linear-gradient(to_bottom,black,transparent)]" data-banner={friend.style?.banner ?? 'default'} />
+      <div className="profile-banner !absolute h-36 [mask-image:linear-gradient(to_bottom,black,transparent)]" data-banner={friend.style?.banner ?? 'default'} data-fx={friend.style?.effect ?? 'none'} />
       <button onClick={() => navigate(`/friends/${friend.id}`)} title={`Open ${friend.username}'s profile`} className="flex w-full items-center gap-4 rounded-xl text-left transition hover:brightness-110">
-        <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} size="lg" status={friend.status.state} />
+        <Avatar name={friend.username} src={friend.avatar} frame={friend.style?.frame} aura={friend.style?.aura} size="lg" status={friend.status.state} />
         <span className="block min-w-0">
           <span className="block font-display text-2xl font-bold">
             <UserName name={friend.username} style={friend.style} verified={friend.verified} admin={friend.admin} badgeSize="md" />
           </span>
+          <ProfileTitle title={friend.style?.title} className="my-1" />
           <span className="block truncate text-sm text-muted">{statusLine(friend)}</span>
           <span className="mt-1 block text-xs font-semibold text-accent">
             Level {stats?.level ?? friend.level}
@@ -341,8 +342,8 @@ export function FriendsPage(): React.JSX.Element {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Requests</h2>
             {list.incoming.map((r) => (
               <div key={r.id} className="animate-pop-in relative flex items-center gap-3 overflow-clip rounded-2xl border border-accent/40 bg-surface p-3 [&>*]:relative">
-                <span aria-hidden className="profile-banner !absolute" data-banner={r.style?.banner ?? 'default'} />
-                <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} size="sm" />
+                <span aria-hidden className="profile-banner !absolute" data-banner={r.style?.banner ?? 'default'} data-fx={r.style?.effect ?? 'none'} />
+                <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} aura={r.style?.aura} size="sm" />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
                   <UserName name={r.username} style={r.style} verified={r.verified} admin={r.admin} className="font-bold" /> <span className="shrink-0">wants to be friends</span>
                 </span>
@@ -356,8 +357,8 @@ export function FriendsPage(): React.JSX.Element {
             ))}
             {list.outgoing.map((r) => (
               <div key={r.id} className="relative flex items-center gap-3 overflow-clip rounded-2xl border border-border bg-surface p-3 [&>*]:relative">
-                <span aria-hidden className="profile-banner !absolute opacity-60" data-banner={r.style?.banner ?? 'default'} />
-                <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} size="sm" />
+                <span aria-hidden className="profile-banner !absolute opacity-60" data-banner={r.style?.banner ?? 'default'} data-fx={r.style?.effect ?? 'none'} />
+                <Avatar name={r.username} src={r.avatar} frame={r.style?.frame} aura={r.style?.aura} size="sm" />
                 <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-muted">
                   <span className="shrink-0">Waiting for</span> <UserName name={r.username} style={r.style} verified={r.verified} admin={r.admin} className="font-bold text-text" /> <span className="shrink-0">to accept</span>
                 </span>

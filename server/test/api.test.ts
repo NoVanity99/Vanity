@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import { neonAuthVerifier, type VerifyToken } from '../src/auth'
 import type { Sql } from '../src/db'
-import { DEFAULT_PROFILE_STYLE, PROFILE_BANNERS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_STYLES } from '../../src/shared/profileStyle'
+import { DEFAULT_PROFILE_STYLE, PROFILE_AURAS, PROFILE_BANNERS, PROFILE_EFFECTS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_FONTS, PROFILE_NAME_STYLES, PROFILE_TITLES } from '../../src/shared/profileStyle'
 import { DEFAULT_STYLE, STYLE_OPTIONS } from '../src/profileStyle'
 import { SCHEMA, schemaStatements } from '../src/schema'
 
@@ -355,10 +355,15 @@ describe('profile picture, bio and official badges', () => {
     const b = await register('bob')
     expect((await call('GET', '/me', a.token)).json.user.style).toEqual(DEFAULT_STYLE)
     const set = await call('PUT', '/me/profile', a.token, { style: { banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' } })
-    expect(set.json.user.style).toEqual({ banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })
+    expect(set.json.user.style).toEqual({ ...DEFAULT_STYLE, banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })
     // Only what is sent changes.
-    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'gold' } })).json.user.style).toEqual({ banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'gold' } })).json.user.style).toEqual({ ...DEFAULT_STYLE, banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
     expect((await call('PUT', '/me/profile', a.token, { bio: 'hi' })).json.user.style.banner).toBe('aurora')
+    // The newer looks: name font, aura, banner effect and title, each from a fixed list.
+    const more = await call('PUT', '/me/profile', a.token, { style: { nameFont: 'pixel', aura: 'orbit', effect: 'snow', title: 'Night owl' } })
+    expect(more.json.user.style).toMatchObject({ banner: 'aurora', nameFont: 'pixel', aura: 'orbit', effect: 'snow', title: 'Night owl' })
+    for (const bad of [{ title: 'anything I like' }, { nameFont: 'Comic Sans' }, { aura: 'x' }, { effect: '' }]) expect((await call('PUT', '/me/profile', a.token, { style: bad })).status).toBe(400)
+    await call('PUT', '/me/profile', a.token, { style: { nameFont: 'app', aura: 'none', effect: 'none', title: '' } })
 
     for (const style of [{ banner: 'url(https://evil.example/x.png)' }, { frame: 'none; color: red' }, { flair: '<b>hi</b>' }, { flair: 'not an emoji' }, { colour: 'red' }, { banner: 7 }, 'aurora', ['aurora'], null]) {
       expect((await call('PUT', '/me/profile', a.token, { style })).status).toBe(400)
@@ -368,7 +373,7 @@ describe('profile picture, bio and official badges', () => {
     await call('POST', '/friends/requests', a.token, { username: 'bob' })
     expect((await call('GET', '/friends', b.token)).json.incoming[0].style).toMatchObject({ banner: 'aurora', frame: 'gold' })
     await call('POST', `/friends/requests/${a.id}/accept`, b.token)
-    expect((await call('GET', '/friends', b.token)).json.friends[0].style).toEqual({ banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
+    expect((await call('GET', '/friends', b.token)).json.friends[0].style).toEqual({ ...DEFAULT_STYLE, banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' })
     expect((await call('GET', `/friends/${a.id}/stats`, b.token)).json.style).toMatchObject({ nameStyle: 'neon', flair: '🔥' })
     expect((await call('GET', '/friends', a.token)).json.friends[0].style).toEqual(DEFAULT_STYLE)
   })
@@ -378,6 +383,10 @@ describe('profile picture, bio and official badges', () => {
     expect(STYLE_OPTIONS.frame).toEqual(PROFILE_FRAMES.map((x) => x.id))
     expect(STYLE_OPTIONS.nameStyle).toEqual(PROFILE_NAME_STYLES.map((x) => x.id))
     expect(STYLE_OPTIONS.flair).toEqual([...PROFILE_FLAIRS])
+    expect(STYLE_OPTIONS.nameFont).toEqual(PROFILE_NAME_FONTS.map((x) => x.id))
+    expect(STYLE_OPTIONS.aura).toEqual(PROFILE_AURAS.map((x) => x.id))
+    expect(STYLE_OPTIONS.effect).toEqual(PROFILE_EFFECTS.map((x) => x.id))
+    expect(STYLE_OPTIONS.title).toEqual([...PROFILE_TITLES])
     expect(DEFAULT_STYLE).toEqual(DEFAULT_PROFILE_STYLE)
   })
 

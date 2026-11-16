@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import type { Progress, ProgressBadge, ProgressGame } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
-import { UserName } from '@/components/UserName'
+import { ProfileTitle, UserName } from '@/components/UserName'
 import { Button } from '@/components/Dialog'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime, formatRelativeDate } from '@/lib/format'
@@ -234,10 +234,10 @@ export function ProfilePage(): React.JSX.Element {
       <div className="stagger mx-auto max-w-5xl space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-14">
         {/* Who you are, and your level */}
         <section className="relative overflow-hidden rounded-3xl border border-border bg-surface p-7 max-md:p-5">
-          <div className="profile-banner" data-banner={account?.style.banner ?? 'default'} />
+          <div className="profile-banner" data-banner={account?.style.banner ?? 'default'} data-fx={account?.style.effect ?? 'none'} />
           <div className="relative flex flex-wrap items-center gap-6">
             {account?.username ? (
-              <Avatar name={name} src={account.avatar} frame={account.style.frame} size="xl" />
+              <Avatar name={name} src={account.avatar} frame={account.style.frame} aura={account.style.aura} size="xl" />
             ) : (
               <span className="flex size-20 items-center justify-center rounded-full bg-white/5 text-muted ring-2 ring-bg">
                 <UserCircle2 className="size-10" />
@@ -248,6 +248,7 @@ export function ProfilePage(): React.JSX.Element {
               <h1 className="font-display text-4xl font-black tracking-tight max-md:text-3xl">
                 <UserName name={name} style={account?.style} verified={account?.verified} admin={account?.admin} badgeSize="lg" />
               </h1>
+              <ProfileTitle title={account?.style.title} className="mt-1.5" />
               {account?.bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{account.bio}</p>}
               <p className="mt-1 text-sm text-muted">
                 {earned.length} of {progress.badges.length} badges · {totals.gamesPlayed.toLocaleString()} {totals.gamesPlayed === 1 ? 'game' : 'games'} played

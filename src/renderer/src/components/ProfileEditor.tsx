@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ImagePlus, Loader2, Trash2 } from 'lucide-react'
-import { PROFILE_BANNERS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_STYLES, type ProfileStyle } from '@shared/profileStyle'
+import { nameFontFamily, PROFILE_AURAS, PROFILE_BANNERS, PROFILE_EFFECTS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_FONTS, PROFILE_NAME_STYLES, PROFILE_TITLES, type ProfileStyle } from '@shared/profileStyle'
 import type { AccountState } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/Dialog'
-import { UserName } from '@/components/UserName'
+import { ProfileTitle, UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { toAvatar } from '@/lib/avatarImage'
 import { useToast } from '@/state/toasts'
@@ -116,16 +116,17 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
       {/* The look: what you and everyone who sees your profile get. */}
       <div className="mt-5 border-t border-border pt-4" data-profile-look>
         <p className="text-xs font-semibold text-muted">Profile look</p>
-        <p className="mt-0.5 text-xs text-muted">Pick a banner, a frame for your picture, an effect for your name and an emoji. Your friends see them too.</p>
+        <p className="mt-0.5 text-xs text-muted">Banner and its effect, a frame and an aura for your picture, a color and font for your name, an emoji and a title. Your friends see them too.</p>
 
         <div className="relative mt-3 overflow-clip rounded-xl border border-border bg-surface p-4" data-look-preview>
-          <div className="profile-banner" data-banner={style.banner} />
+          <div className="profile-banner" data-banner={style.banner} data-fx={style.effect ?? 'none'} />
           <div className="relative flex items-center gap-4">
-            <Avatar name={account.username ?? '?'} src={account.avatar} frame={style.frame} size="lg" />
+            <Avatar name={account.username ?? '?'} src={account.avatar} frame={style.frame} aura={style.aura} size="lg" />
             <div className="min-w-0">
               <p className="font-display text-2xl font-bold">
                 <UserName name={account.username ?? ''} style={style} verified={account.verified} admin={account.admin} badgeSize="md" />
               </p>
+              <ProfileTitle title={style.title} className="my-1" />
               <p className="text-xs text-muted">This is how you look to your friends.</p>
             </div>
           </div>
@@ -148,6 +149,23 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
           ))}
         </div>
 
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Banner effect</p>
+        <div className="grid grid-cols-5 gap-2 max-md:grid-cols-3" role="radiogroup" aria-label="Banner effect">
+          {PROFILE_EFFECTS.map((e) => (
+            <button
+              key={e.id}
+              role="radio"
+              aria-checked={style.effect === e.id}
+              onClick={() => pickLook({ effect: e.id })}
+              className={cn('relative h-11 overflow-hidden rounded-lg border bg-surface transition hover:-translate-y-0.5', style.effect === e.id ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25')}
+              data-pick-effect={e.id}
+            >
+              <span className="profile-banner" data-banner={style.banner} data-fx={e.id} />
+              <span className="absolute inset-x-0 bottom-0.5 truncate px-1 text-center text-[10px] font-semibold text-white/90 drop-shadow">{e.label}</span>
+            </button>
+          ))}
+        </div>
+
         <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Picture frame</p>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Picture frame">
           {PROFILE_FRAMES.map((f) => (
@@ -160,12 +178,33 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
           ))}
         </div>
 
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Picture aura</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Picture aura">
+          {PROFILE_AURAS.map((a) => (
+            <button key={a.id} role="radio" aria-checked={style.aura === a.id} onClick={() => pickLook({ aura: a.id })} className={cn(chip(style.aura === a.id), 'flex items-center gap-2.5 py-2')} data-pick-aura={a.id}>
+              <Avatar name={account.username ?? '?'} src={account.avatar} aura={a.id} size="sm" />
+              {a.label}
+            </button>
+          ))}
+        </div>
+
         <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Name effect</p>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Name effect">
           {PROFILE_NAME_STYLES.map((n) => (
             <button key={n.id} role="radio" aria-checked={style.nameStyle === n.id} onClick={() => pickLook({ nameStyle: n.id })} className={chip(style.nameStyle === n.id)}>
               <span className="name-fx text-sm font-bold" data-name={n.id}>
                 {n.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Name font</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Name font">
+          {PROFILE_NAME_FONTS.map((f) => (
+            <button key={f.id} role="radio" aria-checked={style.nameFont === f.id} onClick={() => pickLook({ nameFont: f.id })} className={chip(style.nameFont === f.id)} data-pick-font={f.id}>
+              <span className={cn('text-sm', f.id === 'pixel' && 'text-[10px]')} style={f.family ? { fontFamily: nameFontFamily(f.id) } : undefined}>
+                {f.label}
               </span>
             </button>
           ))}
@@ -183,6 +222,15 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
               className={cn('flex size-9 items-center justify-center rounded-lg border text-lg transition hover:-translate-y-0.5', style.flair === f ? 'border-accent bg-accent/15 ring-2 ring-accent/30' : 'border-border hover:border-white/25')}
             >
               {f || <span className="text-[10px] font-semibold text-muted">None</span>}
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">Title</p>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Title">
+          {PROFILE_TITLES.map((t) => (
+            <button key={t || 'none'} role="radio" aria-checked={style.title === t} onClick={() => pickLook({ title: t })} className={chip(style.title === t)} data-pick-title={t || 'none'}>
+              {t || 'None'}
             </button>
           ))}
         </div>

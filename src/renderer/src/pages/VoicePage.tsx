@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, AudioLines, Check, Crown, Eye, EyeOff, HeadphoneOff, Loader2, Lock, MicOff, MonitorUp, MonitorX, MoreHorizontal, Plus, Radio, RefreshCw, Send, Settings2, UserPlus, Users, Volume2, VolumeX, WifiOff, X } from 'lucide-react'
+import type { ProfileStyle } from '@shared/profileStyle'
 import type { Friend } from '@shared/types'
 import { MAX_ROOM_SIZE } from '@shared/voiceProtocol'
 import { Avatar } from '@/components/Avatar'
@@ -60,6 +61,7 @@ function AccessPicker({ value, onChange, disabled }: { value: Access; onChange: 
 /** One person in the room: their picture with the green talking ring, name, and mute/deafen marks. */
 function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; index: number; onMenu: (m: VoiceMember, x: number, y: number) => void; watching: boolean; onWatch: () => void }): React.JSX.Element {
   const quiet = !m.you && (m.localMuted || m.volume === 0)
+  const look = m.user.style as Partial<ProfileStyle> | null
   return (
     <li
       style={{ '--i': index } as React.CSSProperties}
@@ -76,9 +78,9 @@ function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; i
         !m.connected && 'opacity-60'
       )}
     >
-      <span aria-hidden className="profile-banner opacity-60" data-banner={(m.user.style as { banner?: string } | null)?.banner ?? 'default'} />
+      <span aria-hidden className="profile-banner opacity-60" data-banner={look?.banner ?? 'default'} data-fx={look?.effect ?? 'none'} />
       <span className="relative inline-flex" data-speaking={m.speaking}>
-        <Avatar name={m.user.username} src={m.user.avatar} frame={(m.user.style as { frame?: string } | null)?.frame} size="xl" />
+        <Avatar name={m.user.username} src={m.user.avatar} frame={look?.frame} aura={look?.aura} size="xl" />
         <span aria-hidden className="voice-ring" />
         {(m.muted || m.deafened) && (
           <span className="absolute -bottom-1 -right-1 flex size-7 items-center justify-center rounded-full bg-surface text-accent ring-2 ring-surface" title={m.deafened ? 'Deafened' : 'Muted'}>
@@ -93,7 +95,7 @@ function MemberTile({ m, index, onMenu, watching, onWatch }: { m: VoiceMember; i
       )}
       <span className="relative mt-4 flex max-w-full items-center gap-1.5 text-base font-semibold">
         {m.host && <Crown className="size-4 shrink-0 text-amber-300" aria-label="Started the room" />}
-        <UserName name={m.user.username} style={m.user.style as never} verified={m.user.verified} admin={m.user.admin} className="justify-center" />
+        <UserName name={m.user.username} style={look} verified={m.user.verified} admin={m.user.admin} className="justify-center" />
       </span>
       <span className="relative mt-1 flex min-h-5 items-center gap-1.5 text-xs text-muted">
         {m.you ? (

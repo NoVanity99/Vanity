@@ -1,4 +1,4 @@
-import type { ProfileStyle } from '@shared/profileStyle'
+import { DEFAULT_PROFILE_STYLE, type ProfileStyle } from '@shared/profileStyle'
 import type { Result, VanityApi } from '@shared/ipc'
 import type { ArtworkKind, DiscordStatus, Game, GamePatch, MatchCandidate, Progress, SteamState, StoreAccounts, ScanSummary, SessionState, Settings } from '@shared/types'
 import { gameKey } from '../main/account/gameKey'
@@ -250,7 +250,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
   const chatOpts = (o: { before?: number; after?: number; limit?: number } | undefined): { before?: number; after?: number; limit?: number } =>
     Object.fromEntries((['before', 'after', 'limit'] as const).filter((k) => typeof o?.[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0).map((k) => [k, Math.trunc(o![k] as number)]))
   /** Only the four known fields of a profile look, as short text (the server checks the values). */
-  const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((['banner', 'frame', 'nameStyle', 'flair'] as const).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
+  const stylePatch = (v: Partial<ProfileStyle>): Partial<ProfileStyle> => Object.fromEntries((Object.keys(DEFAULT_PROFILE_STYLE) as (keyof ProfileStyle)[]).filter((k) => typeof v[k] === 'string').map((k) => [k, (v[k] as string).slice(0, 40)]))
   const discordOff: DiscordStatus = { state: 'off', user: null, error: null }
 
   return {

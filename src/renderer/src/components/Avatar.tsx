@@ -8,6 +8,7 @@ export function Avatar({
   name,
   src,
   frame,
+  aura,
   size = 'md',
   status,
   className
@@ -16,6 +17,8 @@ export function Avatar({
   src?: string | null
   /** A frame id from src/shared/profileStyle.ts; 'none' or nothing for a plain picture. */
   frame?: string
+  /** An aura id (something moving around the picture); 'none' or nothing for none. */
+  aura?: string
   size?: 'sm' | 'md' | 'lg' | 'xl'
   status?: Status
   className?: string
@@ -33,7 +36,7 @@ export function Avatar({
     </span>
   )
   return (
-    <span className={cn('relative inline-flex shrink-0', className)}>
+    <span className={cn('relative inline-flex shrink-0', aura && aura !== 'none' && 'avatar-aura', className)} data-aura={aura && aura !== 'none' ? aura : undefined} data-size={size}>
       {frame && frame !== 'none' ? (
         <span className="avatar-frame" data-frame={frame} data-size={size}>
           {picture}

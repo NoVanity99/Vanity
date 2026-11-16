@@ -33,9 +33,11 @@ describe('customize options', () => {
 describe('profile looks', () => {
   it('are complete, with only known values', () => {
     expect(normalizeProfileStyle(undefined)).toEqual(DEFAULT_PROFILE_STYLE)
-    expect(normalizeProfileStyle({ banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })).toEqual({ banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })
+    expect(normalizeProfileStyle({ banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })).toEqual({ ...DEFAULT_PROFILE_STYLE, banner: 'aurora', frame: 'rainbow', nameStyle: 'neon', flair: '🔥' })
     expect(normalizeProfileStyle({ banner: 'url(x)', frame: 3, nameStyle: 'comic sans', flair: '<b>' })).toEqual(DEFAULT_PROFILE_STYLE)
     expect(normalizeProfileStyle({ frame: 'gold' })).toEqual({ ...DEFAULT_PROFILE_STYLE, frame: 'gold' })
+    expect(normalizeProfileStyle({ nameFont: 'pixel', aura: 'orbit', effect: 'snow', title: 'Night owl' })).toEqual({ ...DEFAULT_PROFILE_STYLE, nameFont: 'pixel', aura: 'orbit', effect: 'snow', title: 'Night owl' })
+    expect(normalizeProfileStyle({ nameFont: 'Comic Sans', aura: 1, effect: 'url(x)', title: 'my own words' })).toEqual(DEFAULT_PROFILE_STYLE)
   })
 
   it('offer each emoji once', () => {

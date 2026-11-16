@@ -5,7 +5,7 @@ import { BADGES, levelFor } from '@shared/progress'
 import { PLAY_STATUS_LABELS, type Friend, type FriendGameStat, type FriendStats, type PlayStatus } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/Dialog'
-import { UserName } from '@/components/UserName'
+import { ProfileTitle, UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
@@ -254,14 +254,15 @@ export function FriendProfilePage(): React.JSX.Element {
         {back}
 
         <section className="relative overflow-clip rounded-3xl border border-border bg-surface p-7 max-md:p-5">
-          <div className="profile-banner" data-banner={style?.banner ?? 'default'} />
+          <div className="profile-banner" data-banner={style?.banner ?? 'default'} data-fx={style?.effect ?? 'none'} />
           <div className="relative flex flex-wrap items-center gap-6">
-            <Avatar name={friend.username} src={stats?.avatar ?? friend.avatar} frame={style?.frame} size="xl" status={friend.status.state} />
+            <Avatar name={friend.username} src={stats?.avatar ?? friend.avatar} frame={style?.frame} aura={style?.aura} size="xl" status={friend.status.state} />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>
               <h1 className="font-display text-4xl font-black tracking-tight max-md:text-3xl">
                 <UserName name={friend.username} style={style} verified={friend.verified} admin={friend.admin} badgeSize="lg" />
               </h1>
+              <ProfileTitle title={style?.title} className="mt-1.5" />
               {bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{bio}</p>}
               <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
                 {playing && <Gamepad2 className="size-4 shrink-0" />}

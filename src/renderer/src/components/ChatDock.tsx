@@ -70,7 +70,7 @@ function ChatPopup({ chat, friend, phoneHidden }: { chat: OpenChat; friend: Frie
   const playing = friend?.status.state === 'playing'
   const who = (
     <span className="flex min-w-0 flex-1 items-center gap-2.5">
-      <Avatar name={f.username} src={f.avatar} frame={f.style?.frame} size="sm" status={friend?.status.state} />
+      <Avatar name={f.username} src={f.avatar} frame={f.style?.frame} aura={f.style?.aura} size="sm" status={friend?.status.state} />
       <span className="min-w-0 flex-1">
         <UserName name={f.username} style={f.style} verified={f.verified} admin={f.admin} className="flex text-sm font-semibold" />
         {friend && (
@@ -87,7 +87,7 @@ function ChatPopup({ chat, friend, phoneHidden }: { chat: OpenChat; friend: Frie
   if (chat.minimized) {
     return (
       <div data-chat-popup="minimized" className="pointer-events-auto relative w-60 overflow-clip rounded-t-xl border border-b-0 border-white/15 bg-surface shadow-2xl shadow-black/60 max-md:w-full max-md:rounded-xl max-md:border-b">
-        <span aria-hidden className="profile-banner opacity-70" data-banner={f.style?.banner ?? 'default'} />
+        <span aria-hidden className="profile-banner opacity-70" data-banner={f.style?.banner ?? 'default'} data-fx={f.style?.effect ?? 'none'} />
         <div className="relative flex items-center gap-1 py-1.5 pl-2.5 pr-1.5">
           <button onClick={() => minimizeChat(f.id, false)} className="flex min-w-0 flex-1 items-center text-left" title={`Open the chat with ${f.username}`} data-chat-restore>
             {who}
@@ -120,7 +120,7 @@ function ChatPopup({ chat, friend, phoneHidden }: { chat: OpenChat; friend: Frie
         className="h-full rounded-none border-0"
         header={
           <div className="relative shrink-0 overflow-clip border-b border-border">
-            <span aria-hidden className="profile-banner" data-banner={f.style?.banner ?? 'default'} />
+            <span aria-hidden className="profile-banner" data-banner={f.style?.banner ?? 'default'} data-fx={f.style?.effect ?? 'none'} />
             <div className="relative flex items-center gap-1 py-2 pl-3 pr-1.5">
               <button onClick={() => minimizeChat(f.id)} className="flex min-w-0 flex-1 items-center text-left" title="Minimize">
                 {who}

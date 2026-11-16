@@ -1,13 +1,16 @@
 import { VoiceBar } from '@/components/voice/VoiceBar'
 import { useVoice } from '@/state/voice'
 import { useFriends } from '@/state/friends'
-import { clampSidebarWidth, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
+import { clampSidebarWidth, NAV_ITEMS, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
+import { ContextMenu, type MenuItem } from './ContextMenu'
+import { savePref } from '@/lib/storage'
+import { useToast } from '@/state/toasts'
 import { saveSettings, useInterface } from '@/state/settings'
 import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { AudioLines, Award, BarChart3, Download, Clock, Flame, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { AudioLines, Award, BarChart3, Download, Clock, Eye, EyeOff, Flame, SlidersHorizontal, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -34,7 +37,8 @@ function NavItem({
   count,
   countTone,
   badge,
-  animation
+  animation,
+  onMenu
 }: {
   to: string
   icon: LucideIcon
@@ -45,12 +49,20 @@ function NavItem({
   /** A red bubble, for things waiting for you (unread messages). */
   badge?: number
   animation: IconAnimation
+  /** Right-click (or touch and hold): the tab's menu. */
+  onMenu?: (x: number, y: number) => void
 }): React.JSX.Element {
   const [played, play] = useClickAnimation()
   return (
     <NavLink
       to={to}
       onClick={play}
+      onContextMenu={(e) => {
+        if (!onMenu) return
+        e.preventDefault()
+        onMenu(e.clientX, e.clientY)
+      }}
+      data-nav={to.slice(1)}
       className={({ isActive }) =>
         cn(
           'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -175,8 +187,8 @@ function AccountItem(): React.JSX.Element {
       {account?.signedIn && account.username ? (
         <>
           {/* Your profile banner, behind your name. */}
-          <span aria-hidden className="profile-banner !absolute rounded-lg ring-1 ring-inset ring-white/10" data-banner={account.style.banner} data-sidebar-banner />
-          <Avatar key={played} name={account.username} src={account.avatar} frame={account.style.frame} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
+          <span aria-hidden className="profile-banner !absolute rounded-lg ring-1 ring-inset ring-white/10" data-banner={account.style.banner} data-fx={account.style.effect ?? 'none'} data-sidebar-banner />
+          <Avatar key={played} name={account.username} src={account.avatar} frame={account.style.frame} aura={account.style.aura} size="sm" status="online" className={cn(played > 0 && 'icon-bounce')} />
           <span className="min-w-0 flex-1">
             <UserName name={account.username} style={account.style} verified={account.verified} admin={account.admin} className="flex text-text" />
             <span className="block text-[11px] text-muted">Account</span>
@@ -216,6 +228,41 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const voiceState = useVoice()
   const voiceCount = voiceState.status === 'in-room' || voiceState.status === 'reconnecting' ? voiceState.members.length : 0
   const count = (n: number | undefined): number | undefined => (ui.sidebarCounts ? n : undefined)
+  const toast = useToast()
+
+  // Right-click a tab: hide it, or bring back one hidden earlier.
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; id: NavItemId | 'library' | 'settings' } | null>(null)
+  const menuFor = (id: NavItemId | 'library' | 'settings') => (x: number, y: number) => setTabMenu({ x, y, id })
+  const onThisDevice = NAV_ITEMS.filter((n) => !(isAndroid() && (n.id === 'store' || n.id === 'downloads')))
+  const tabMenuItems = (id: NavItemId | 'library' | 'settings'): MenuItem[] => {
+    const label = id === 'library' ? 'Library' : id === 'settings' ? 'Settings' : NAV_ITEMS.find((n) => n.id === id)!.label
+    const hidden = onThisDevice.filter((n) => ui.hiddenNav.includes(n.id))
+    const items: MenuItem[] = [
+      id === 'library' || id === 'settings'
+        ? { label: `${label} always stays`, icon: EyeOff, disabled: true, onSelect: () => {}, hint: id === 'library' ? 'The Library is home, so it can’t be hidden.' : 'Settings is where hidden tabs come back, so it can’t be hidden.' }
+        : {
+            label: `Hide ${label}`,
+            icon: EyeOff,
+            onSelect: () => {
+              setUi({ hiddenNav: [...ui.hiddenNav, id] })
+              toast(`${label} hidden. Right-click any tab to bring it back.`)
+            }
+          }
+    ]
+    if (hidden.length) {
+      items.push({ type: 'separator' })
+      for (const n of hidden) items.push({ label: `Show ${n.label}`, icon: Eye, onSelect: () => setUi({ hiddenNav: ui.hiddenNav.filter((h) => h !== n.id) }) })
+    }
+    items.push({ type: 'separator' }, {
+      label: 'Customize the sidebar…',
+      icon: SlidersHorizontal,
+      onSelect: () => {
+        savePref('settings-tab', { tab: 'customize' })
+        navigate('/settings')
+      }
+    })
+    return items
+  }
 
   // Width and collapse (computers only: on phones the sidebar is a slide-out menu).
   const setUi = (patch: Partial<InterfaceOptions>): void => void saveSettings({ interface: { ...ui, ...patch } }).catch(() => {})
@@ -324,17 +371,17 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       )}
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" />
-        {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" />}
-        {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" />}
-        {shows('voice') && <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" />}
-        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" />}
-        {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" />}
-        {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" />}
-        {shows('stats') && <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" />}
-        {shows('profile') && <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" />}
+        <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" onMenu={menuFor('library')} />
+        {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" onMenu={menuFor('trending')} />}
+        {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" onMenu={menuFor('store')} />}
+        {shows('voice') && <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" onMenu={menuFor('voice')} />}
+        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" onMenu={menuFor('friends')} />}
+        {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" onMenu={menuFor('recent')} />}
+        {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" onMenu={menuFor('favorites')} />}
+        {shows('stats') && <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" onMenu={menuFor('stats')} />}
+        {shows('profile') && <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" onMenu={menuFor('profile')} />}
         {/* Downloads in progress always show, even with the entry hidden. */}
-        {!isAndroid() && (shows('downloads') || queued > 0) && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" />}
+        {!isAndroid() && (shows('downloads') || queued > 0) && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" onMenu={menuFor('downloads')} />}
 
         {ui.sidebarCollections && (
           <>
@@ -415,9 +462,10 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
           <Plus key={addPlayed} className={cn('size-[18px]', addPlayed > 0 && 'icon-plus')} />
           Add a game
         </button>
-        <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" />
+        <NavItem to="/settings" icon={Settings} label="Settings" animation="gear" onMenu={menuFor('settings')} />
         <AccountItem />
       </div>
+      {tabMenu && <ContextMenu x={tabMenu.x} y={tabMenu.y} items={tabMenuItems(tabMenu.id)} onClose={() => setTabMenu(null)} />}
       {creating && (
         <NameDialog
           title="New collection"

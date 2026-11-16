@@ -3,6 +3,24 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.23.0 (2026-11-16)
+- Changed: **voice rooms need no codes and no voice server.** Voice is now built into Vanity itself.
+  - **Start a room** and your friends see it: on the Voice page under **Friends in voice**, on the Friends page (**In voice**, with a **Join voice** button), and as a notification. Friends of anyone in the room can join.
+  - **Open, Locked or Private:** whoever starts the room picks who can get in, and can change it during the call. **Locked** rooms are seen but only people you invite can join; **Private** rooms are hidden and invite only. A crown shows who started the room; if they leave, the next person takes over.
+  - **Invite** sends a friend a chat message with a **Join voice room** button, and lets them in even when the room is locked or private.
+  - The voice server address is gone from **Settings → Voice**.
+- New: **share your screen in voice (Windows).** **Share screen** opens Vanity's picker: a whole screen or one window, with a live picture of each, and the quality (720p 30 fps, 1080p 30 fps or 1080p 60 fps).
+  - Everyone in the room sees **LIVE** on you and can click **Watch** to see it big, or full screen. Friends see **LIVE** on your room before they join.
+  - You get a small preview of what you're sharing. **Stop sharing** ends it, and so does closing the shared window.
+  - Phones can watch shared screens but can't share. Sound from the shared screen isn't sent yet.
+- New: **right-click any tab in the sidebar to hide it.** The same menu shows the hidden tabs, to bring them back with one click. Library and Settings always stay.
+- New: **more profile looks**, seen by your friends too:
+  - **Banner effects:** snow, twinkling stars, embers, hearts, bubbles, rain, fireflies, scanlines or a shine.
+  - **Picture auras:** pulse, orbit, halo, sparkle, flames, glitch, ripples or prism.
+  - **Name fonts:** 13, from Orbitron and Pixel to Playfair and Mono.
+  - **Titles** under your name, like "Night owl", "Speedrunner" or "Final boss".
+  - They stop moving when animations are turned off in Settings → Customize.
+
 ## 0.22.0 (2026-11-16)
 - New: **voice rooms.** Talk with friends while you play: **Voice** in the sidebar.
   - **Rooms:** start one to get a 6-character code, or join with a code (however it's typed). Up to 6 people. **Invite** sends a friend the code as a chat message, which shows them a **Join voice room** button.

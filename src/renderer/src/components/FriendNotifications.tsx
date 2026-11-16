@@ -60,7 +60,7 @@ export function FriendNotifications(): React.JSX.Element | null {
               note.leaving ? 'animate-[toast-out_240ms_ease-in_forwards]' : 'animate-[note-in_320ms_cubic-bezier(0.2,0.8,0.2,1)]'
             )}
           >
-            <span aria-hidden className="profile-banner" data-banner={note.friend.style?.banner ?? 'default'} />
+            <span aria-hidden className="profile-banner" data-banner={note.friend.style?.banner ?? 'default'} data-fx={note.friend.style?.effect ?? 'none'} />
             <button
               onClick={() => {
                 close(note.id)
@@ -71,7 +71,7 @@ export function FriendNotifications(): React.JSX.Element | null {
               className="relative flex w-full items-center gap-3 p-3.5 pr-10 text-left"
               title={note.kind === 'message' ? 'Open the chat' : `Open ${note.friend.username}'s profile`}
             >
-              <Avatar name={note.friend.username} src={note.friend.avatar} frame={note.friend.style?.frame} status={note.friend.status.state} />
+              <Avatar name={note.friend.username} src={note.friend.avatar} frame={note.friend.style?.frame} aura={note.friend.style?.aura} status={note.friend.status.state} />
               <span className="min-w-0 flex-1">
                 <span className={cn('flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest', kind.tone)}>
                   <Icon className="size-3" /> {kind.label}

@@ -41,7 +41,7 @@ describe('session vault (desktop)', () => {
     expect(await createSessionVault(file).load()).toEqual({ ...session, avatar: null, bio: '', style: DEFAULT_PROFILE_STYLE, verified: false, admin: false })
 
     // The profile last seen from the server is kept with it, so it shows offline too.
-    const profile = { avatar: 'data:image/jpeg;base64,AAAA', bio: 'hello', style: { banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥' }, verified: true, admin: true }
+    const profile = { avatar: 'data:image/jpeg;base64,AAAA', bio: 'hello', style: { ...DEFAULT_PROFILE_STYLE, banner: 'aurora', frame: 'gold', nameStyle: 'neon', flair: '🔥', aura: 'orbit', title: 'Night owl' }, verified: true, admin: true }
     await vault.save({ ...session, ...profile })
     expect(await createSessionVault(file).load()).toEqual({ ...session, ...profile })
   })

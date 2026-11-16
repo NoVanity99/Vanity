@@ -1,5 +1,6 @@
-// How a profile looks to you and to everyone who sees it: a banner behind it, a frame around the
-// picture, an effect on the name and a small emoji next to it. Saved to the account.
+// How a profile looks to you and to everyone who sees it: a banner behind it (with an optional
+// animated effect), a frame and an aura around the picture, an effect and a font for the name, a
+// small emoji next to it and a title under it. Saved to the account.
 //
 // The server keeps its own copy of the allowed ids (server/src/profileStyle.ts) and refuses
 // anything else; a server test checks the two lists stay the same.
@@ -10,9 +11,93 @@ export interface ProfileStyle {
   nameStyle: string
   /** One emoji from PROFILE_FLAIRS, or '' for none. */
   flair: string
+  /** The font of the name. */
+  nameFont: string
+  /** Something moving around the picture. */
+  aura: string
+  /** Something moving over the banner. */
+  effect: string
+  /** A title under the name, from PROFILE_TITLES ('' for none). */
+  title: string
 }
 
-export const DEFAULT_PROFILE_STYLE: ProfileStyle = { banner: 'default', frame: 'none', nameStyle: 'plain', flair: '' }
+export const DEFAULT_PROFILE_STYLE: ProfileStyle = { banner: 'default', frame: 'none', nameStyle: 'plain', flair: '', nameFont: 'app', aura: 'none', effect: 'none', title: '' }
+
+/** Name fonts (all bundled with the app). `family` is the CSS font list. */
+export const PROFILE_NAME_FONTS = [
+  { id: 'app', label: 'Vanity', family: '' },
+  { id: 'orbitron', label: 'Orbitron', family: "'Orbitron Variable', sans-serif" },
+  { id: 'audiowide', label: 'Audiowide', family: "'Audiowide', sans-serif" },
+  { id: 'pixel', label: 'Pixel', family: "'Press Start 2P', monospace" },
+  { id: 'bebas', label: 'Bebas', family: "'Bebas Neue', sans-serif" },
+  { id: 'russo', label: 'Russo', family: "'Russo One', sans-serif" },
+  { id: 'rajdhani', label: 'Rajdhani', family: "'Rajdhani', sans-serif" },
+  { id: 'chakra', label: 'Chakra', family: "'Chakra Petch', sans-serif" },
+  { id: 'oxanium', label: 'Oxanium', family: "'Oxanium Variable', sans-serif" },
+  { id: 'kanit', label: 'Kanit', family: "'Kanit', sans-serif" },
+  { id: 'playfair', label: 'Playfair', family: "'Playfair Display Variable', Georgia, serif" },
+  { id: 'quicksand', label: 'Quicksand', family: "'Quicksand Variable', sans-serif" },
+  { id: 'mono', label: 'Mono', family: "'JetBrains Mono Variable', monospace" }
+] as const
+
+export const PROFILE_AURAS = [
+  { id: 'none', label: 'None' },
+  { id: 'pulse', label: 'Pulse' },
+  { id: 'orbit', label: 'Orbit' },
+  { id: 'halo', label: 'Halo' },
+  { id: 'sparkle', label: 'Sparkle' },
+  { id: 'flames', label: 'Flames' },
+  { id: 'glitch', label: 'Glitch' },
+  { id: 'rings', label: 'Ripples' },
+  { id: 'prism', label: 'Prism' }
+] as const
+
+export const PROFILE_EFFECTS = [
+  { id: 'none', label: 'None' },
+  { id: 'snow', label: 'Snow' },
+  { id: 'stars', label: 'Twinkling stars' },
+  { id: 'embers', label: 'Embers' },
+  { id: 'hearts', label: 'Hearts' },
+  { id: 'bubbles', label: 'Bubbles' },
+  { id: 'rain', label: 'Rain' },
+  { id: 'fireflies', label: 'Fireflies' },
+  { id: 'scanlines', label: 'Scanlines' },
+  { id: 'shine', label: 'Shine' }
+] as const
+
+/** Titles shown under a name. A fixed list, so no one can put anything rude on their profile. */
+export const PROFILE_TITLES = [
+  '',
+  'Casual gamer',
+  'Night owl',
+  'Speedrunner',
+  'Completionist',
+  'Achievement hunter',
+  'Co-op buddy',
+  'Lone wolf',
+  'Tryhard',
+  'Chill vibes only',
+  'Retro fan',
+  'Collector',
+  'Explorer',
+  'Strategist',
+  'Story lover',
+  'Indie fan',
+  'Boss slayer',
+  'Loot goblin',
+  'Builder',
+  'Racer',
+  'Sharpshooter',
+  'Healer main',
+  'Tank main',
+  'Backseat gamer',
+  'One more game',
+  'AFK',
+  'Touch grass later',
+  'Professional noob',
+  'Main character',
+  'Final boss'
+] as const
 
 export const PROFILE_BANNERS = [
   { id: 'default', label: 'Vanity' },
@@ -87,6 +172,9 @@ export const PROFILE_FLAIRS = ['', '🎮', '🕹️', '🔥', '⭐', '💎', '�
 
 const ids = (list: readonly { id: string }[]): string[] => list.map((x) => x.id)
 
+/** The CSS font list for a name font ('' for the app's own). */
+export const nameFontFamily = (id: string | undefined): string => PROFILE_NAME_FONTS.find((f) => f.id === id)?.family ?? ''
+
 /** Whatever was stored or sent, as a complete style with only known values. */
 export function normalizeProfileStyle(value: unknown): ProfileStyle {
   const v = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof ProfileStyle, unknown>>
@@ -95,6 +183,10 @@ export function normalizeProfileStyle(value: unknown): ProfileStyle {
     banner: pick(v.banner, ids(PROFILE_BANNERS), DEFAULT_PROFILE_STYLE.banner),
     frame: pick(v.frame, ids(PROFILE_FRAMES), DEFAULT_PROFILE_STYLE.frame),
     nameStyle: pick(v.nameStyle, ids(PROFILE_NAME_STYLES), DEFAULT_PROFILE_STYLE.nameStyle),
-    flair: pick(v.flair, PROFILE_FLAIRS, DEFAULT_PROFILE_STYLE.flair)
+    flair: pick(v.flair, PROFILE_FLAIRS, DEFAULT_PROFILE_STYLE.flair),
+    nameFont: pick(v.nameFont, ids(PROFILE_NAME_FONTS), DEFAULT_PROFILE_STYLE.nameFont),
+    aura: pick(v.aura, ids(PROFILE_AURAS), DEFAULT_PROFILE_STYLE.aura),
+    effect: pick(v.effect, ids(PROFILE_EFFECTS), DEFAULT_PROFILE_STYLE.effect),
+    title: pick(v.title, PROFILE_TITLES, DEFAULT_PROFILE_STYLE.title)
   }
 }
