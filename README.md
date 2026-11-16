@@ -98,7 +98,7 @@ resources/           App icon and build resources
 - **Stats:** totals, streaks, a 14-day chart, the most played games, and **Your year**, a calendar of the last 12 months.
 - **Vanity Wrapped:** "Play your Wrapped" on the Stats page turns your last 12 months into story slides. Use the arrows or click to move, Space to pause, Esc to close.
 - **Gamer level:** XP comes from minutes played (1 per minute), beating (150) or completing (300) a game, and rating it (20). Your level is under the logo; a recap card after each session shows what you earned.
-- **Big Picture mode:** the TV button next to the logo. A full-screen couch view for a controller or keyboard.
+- **Big Picture mode:** the TV button next to the logo. A full-screen couch view for a controller or keyboard. **Details** (or X on a controller) opens a TV-sized details screen inside it: play, favorite, status, rating, stats and screenshots, all reachable with the d-pad.
 - **Ctrl+Alt+V:** brings Vanity to the front from anywhere. Press it again to minimise it.
 
 - **Web games:** "Add a game" accepts an `.html` file as well as an `.exe`.
@@ -295,7 +295,7 @@ Talk with friends while you play: **Voice** in the sidebar. There are no codes a
 
 ## Customize
 
-Settings → **Customize** switches parts of the launcher on and off and changes how it feels: the start page, which pages are in the sidebar (also: right-click a sidebar tab to hide it, or to bring back a hidden one), the top bar (launcher status, music player, clock), what the Library shows, interface size, corner style, animations and confirmation messages.
+Settings → **Customize** switches parts of the launcher on and off and changes how it feels: the start page, which pages are in the sidebar (also: right-click a sidebar tab to hide it, or to bring back a hidden one; press and hold a tab, then drag, to reorder them), the top bar (launcher status, music player, clock), what the Library shows, interface size, corner style, animations and confirmation messages.
 
 - The options and their defaults are one list: `src/shared/interfaceOptions.ts`. They are stored in the settings as `interface` and kept on this device (not synced: a phone and a PC usually want different layouts).
 - Size, corners, animations and cover effects are attributes on the page (`data-scale`, `data-corners`, `data-motion`, `data-cover-hover`) that the stylesheet reacts to; the rest is read with `useInterface()` where the piece is drawn.

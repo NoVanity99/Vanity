@@ -1,4 +1,5 @@
 import { StopBubble } from '@/components/StopBubble'
+import { BigPictureDetails } from '@/components/BigPictureDetails'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -62,6 +63,9 @@ export function BigPicturePage(): React.JSX.Element {
   const collections = useCollections()
   const [selected, setSelected] = useState<{ row: number; col: number }>({ row: 0, col: 0 })
   const rowsRef = useRef<HTMLDivElement>(null)
+  /** The game whose details are open (over the rows), if any. */
+  const [detailsId, setDetailsId] = useState<number | null>(null)
+  const detailsGame = detailsId !== null ? (games.find((g) => g.id === detailsId) ?? null) : null
 
   useEffect(() => {
     void window.vanity.window.setFullScreen(true)
@@ -112,6 +116,8 @@ export function BigPicturePage(): React.JSX.Element {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // The details screen handles its own keys.
+      if (detailsId !== null) return
       const keys: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }
       if (keys[e.key]) {
         e.preventDefault()
@@ -120,23 +126,31 @@ export function BigPicturePage(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [move, exit])
+  }, [move, exit, detailsId])
 
   useGamepadHandler(
     useCallback(
       (a) => {
+        // Details open: the controller moves between its buttons (it's a dialog); Menu plays.
+        if (detailsGame) {
+          if (a === 'play' && detailsGame.installed) {
+            void launch(detailsGame.id)
+            return true
+          }
+          return false
+        }
         const dirs: Partial<Record<string, [number, number]>> = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] }
         const d = dirs[a]
         if (d) move(d[0], d[1])
         else if (a === 'back') exit()
         else if ((a === 'confirm' || a === 'play') && game) void launch(game.id)
-        else if (a === 'options' && game) navigate(`/game/${game.id}`)
+        else if (a === 'options' && game) setDetailsId(game.id)
         else if (a === 'prevTab') move(-1, 0)
         else if (a === 'nextTab') move(1, 0)
         else return false
         return true
       },
-      [move, exit, game, launch, navigate]
+      [move, exit, game, launch, detailsGame]
     )
   )
 
@@ -163,7 +177,7 @@ export function BigPicturePage(): React.JSX.Element {
         <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">
           Level {lvl.level} · {lvl.title}
         </span>
-        <span className="ml-auto text-sm text-white/40">Arrows to move · Enter to play · Esc to exit</span>
+        <span className="ml-auto text-sm text-white/40">Move with the d-pad or arrows · A / Enter plays · X details · B / Esc exits</span>
         <span className="text-white/80">
           <Clock />
         </span>
@@ -203,7 +217,7 @@ export function BigPicturePage(): React.JSX.Element {
                 <Play className="size-6 fill-current" /> {sessions[game.id] ? (sessions[game.id] === 'running' ? 'Playing' : 'Starting…') : 'Play'}
               </button>
               <StopBubble gameId={game.id} name={game.name} size="lg" />
-              <button onClick={() => navigate(`/game/${game.id}`)} tabIndex={-1} className="flex items-center gap-2 rounded-xl bg-white/10 px-6 py-3.5 text-lg font-semibold backdrop-blur transition hover:bg-white/20">
+              <button onClick={() => setDetailsId(game.id)} tabIndex={-1} className="flex items-center gap-2 rounded-xl bg-white/10 px-6 py-3.5 text-lg font-semibold backdrop-blur transition hover:bg-white/20">
                 <Info className="size-5" /> Details
               </button>
             </div>
@@ -234,6 +248,20 @@ export function BigPicturePage(): React.JSX.Element {
           </section>
         ))}
       </div>
+      {detailsGame && (
+        <BigPictureDetails
+          game={detailsGame}
+          onClose={() => {
+            setDetailsId(null)
+            // Back on the tile it came from.
+            setTimeout(() => focusTile(selected.row, selected.col), 30)
+          }}
+          onFullPage={() => {
+            void window.vanity.window.setFullScreen(false)
+            navigate(`/game/${detailsGame.id}`)
+          }}
+        />
+      )}
     </div>,
     document.body
   )

@@ -15,6 +15,25 @@ export const NAV_ITEMS = [
 ] as const
 export type NavItemId = (typeof NAV_ITEMS)[number]['id']
 
+/** Every sidebar tab that can be moved (press and hold, then drag), in the default order. */
+export const TAB_ORDER_DEFAULT = ['library', 'trending', 'store', 'voice', 'friends', 'recent', 'favorites', 'stats', 'profile', 'downloads'] as const
+export type TabId = (typeof TAB_ORDER_DEFAULT)[number]
+
+/** A saved order, cleaned: known tabs once each, in the saved order, with any new ones at the end. */
+export function normalizeTabOrder(v: unknown): TabId[] {
+  const known = TAB_ORDER_DEFAULT as readonly string[]
+  const saved = Array.isArray(v) ? v.filter((x): x is TabId => typeof x === 'string' && known.includes(x)) : []
+  const unique = [...new Set(saved)]
+  return [...unique, ...TAB_ORDER_DEFAULT.filter((t) => !unique.includes(t))]
+}
+
+/** Moves one tab to another place in the order. */
+export function moveTab(order: TabId[], id: TabId, toIndex: number): TabId[] {
+  const rest = order.filter((t) => t !== id)
+  const at = Math.max(0, Math.min(rest.length, toIndex))
+  return [...rest.slice(0, at), id, ...rest.slice(at)]
+}
+
 export const START_PAGES = [
   { id: 'library', label: 'Library', path: '/library' },
   { id: 'recent', label: 'Recently Played', path: '/recent' },
@@ -59,6 +78,8 @@ export interface InterfaceOptions {
   startPage: StartPageId
   /** Sidebar entries that are hidden. */
   hiddenNav: NavItemId[]
+  /** The sidebar tabs' order (drag to change). */
+  navOrder: TabId[]
   sidebarCollections: boolean
   sidebarLevel: boolean
   sidebarSearch: boolean
@@ -95,6 +116,7 @@ export interface InterfaceOptions {
 export const DEFAULT_INTERFACE: InterfaceOptions = {
   startPage: 'library',
   hiddenNav: [],
+  navOrder: [...TAB_ORDER_DEFAULT],
   sidebarCollections: true,
   sidebarLevel: true,
   sidebarSearch: true,
@@ -130,6 +152,7 @@ export function normalizeInterface(stored: unknown): InterfaceOptions {
   return {
     startPage: oneOf(v.startPage, START_PAGES, d.startPage),
     hiddenNav: Array.isArray(v.hiddenNav) ? NAV_ITEMS.map((n) => n.id).filter((id) => (v.hiddenNav as unknown[]).includes(id)) : [],
+    navOrder: normalizeTabOrder(v.navOrder),
     sidebarCollections: flag('sidebarCollections'),
     sidebarLevel: flag('sidebarLevel'),
     sidebarSearch: flag('sidebarSearch'),

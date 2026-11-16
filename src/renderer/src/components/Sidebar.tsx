@@ -1,7 +1,8 @@
 import { VoiceBar } from '@/components/voice/VoiceBar'
 import { useVoice } from '@/state/voice'
 import { useFriends } from '@/state/friends'
-import { clampSidebarWidth, NAV_ITEMS, SIDEBAR_WIDTH, type InterfaceOptions, type NavItemId } from '@shared/interfaceOptions'
+import { clampSidebarWidth, NAV_ITEMS, SIDEBAR_WIDTH, type InterfaceOptions, TAB_ORDER_DEFAULT, type NavItemId, type TabId } from '@shared/interfaceOptions'
+import { useTabDrag } from './useTabDrag'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { savePref } from '@/lib/storage'
 import { useToast } from '@/state/toasts'
@@ -10,7 +11,7 @@ import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { AudioLines, Award, BarChart3, Download, Clock, Eye, EyeOff, Flame, SlidersHorizontal, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { AudioLines, Award, BarChart3, Download, Clock, Eye, EyeOff, Flame, SlidersHorizontal, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, RotateCcw, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -116,7 +117,8 @@ interface IndicatorPos {
   instant: boolean
 }
 
-function useActiveIndicator(container: React.RefObject<HTMLElement | null>): IndicatorPos {
+/** `moved` changes when the tabs move (reordered, or one being dragged), so the highlight follows. */
+function useActiveIndicator(container: React.RefObject<HTMLElement | null>, moved = ''): IndicatorPos {
   const location = useLocation()
   const [pos, setPos] = useState<IndicatorPos>({ top: 0, height: 0, visible: false, clipTop: 0, clipBottom: 0, instant: false })
   useLayoutEffect(() => {
@@ -138,7 +140,7 @@ function useActiveIndicator(container: React.RefObject<HTMLElement | null>): Ind
       }
       setPos({ top: a.top - c.top, height: a.height, visible: clipTop + clipBottom < a.height, clipTop, clipBottom, instant })
     }
-    update(false)
+    update(moved.includes('drag'))
     const onScroll = (): void => update(true)
     // (An observer reports once as soon as it starts watching: that isn't a resize.)
     let watching = false
@@ -155,7 +157,7 @@ function useActiveIndicator(container: React.RefObject<HTMLElement | null>): Ind
       observer.disconnect()
       nav?.removeEventListener('scroll', onScroll)
     }
-  }, [location.pathname, container])
+  }, [location.pathname, container, moved])
   return pos
 }
 
@@ -207,7 +209,6 @@ function AccountItem(): React.JSX.Element {
 /** `open`/`onClose` only matter on phones, where the sidebar is a slide-out menu. */
 export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }): React.JSX.Element {
   const sidebarRef = useRef<HTMLElement>(null)
-  const indicator = useActiveIndicator(sidebarRef)
   const { games, scan, addManually, sessions, metadata } = useLibrary()
   const playing = games.filter((g) => sessions[g.id])
   const [addPlayed, playAdd] = useClickAnimation()
@@ -253,6 +254,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       items.push({ type: 'separator' })
       for (const n of hidden) items.push({ label: `Show ${n.label}`, icon: Eye, onSelect: () => setUi({ hiddenNav: ui.hiddenNav.filter((h) => h !== n.id) }) })
     }
+    if (ui.navOrder.join() !== TAB_ORDER_DEFAULT.join()) items.push({ type: 'separator' }, { label: 'Reset tab order', icon: RotateCcw, onSelect: () => setUi({ navOrder: [...TAB_ORDER_DEFAULT] }) })
     items.push({ type: 'separator' }, {
       label: 'Customize the sidebar…',
       icon: SlidersHorizontal,
@@ -266,6 +268,24 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
 
   // Width and collapse (computers only: on phones the sidebar is a slide-out menu).
   const setUi = (patch: Partial<InterfaceOptions>): void => void saveSettings({ interface: { ...ui, ...patch } }).catch(() => {})
+
+  // The tabs, by id (null when hidden here), shown in your saved order.
+  const tabs: Record<TabId, React.ReactNode> = {
+    library: <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" onMenu={menuFor('library')} />,
+    trending: shows('trending') ? <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" onMenu={menuFor('trending')} /> : null,
+    store: !isAndroid() && shows('store') ? <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" onMenu={menuFor('store')} /> : null,
+    voice: shows('voice') ? <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" onMenu={menuFor('voice')} /> : null,
+    friends: shows('friends') ? <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" onMenu={menuFor('friends')} /> : null,
+    recent: shows('recent') ? <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" onMenu={menuFor('recent')} /> : null,
+    favorites: shows('favorites') ? <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" onMenu={menuFor('favorites')} /> : null,
+    stats: shows('stats') ? <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" onMenu={menuFor('stats')} /> : null,
+    profile: shows('profile') ? <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" onMenu={menuFor('profile')} /> : null,
+    // Downloads in progress always show, even with the entry hidden.
+    downloads: !isAndroid() && (shows('downloads') || queued > 0) ? <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" onMenu={menuFor('downloads')} /> : null
+  }
+  const shownTabs = ui.navOrder.filter((id) => tabs[id] !== null)
+  const tabDrag = useTabDrag(ui.navOrder, shownTabs, (navOrder) => setUi({ navOrder }))
+  const indicator = useActiveIndicator(sidebarRef, `${ui.navOrder.join()}|${tabDrag.dragging ? `drag${tabDrag.dragging.dy}:${tabDrag.dragging.to}` : ''}`)
   // While the edge is being dragged the width follows the mouse; it is saved when you let go.
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   const width = dragWidth ?? ui.sidebarWidth
@@ -371,17 +391,22 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       )}
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        <NavItem to="/library" icon={LayoutGrid} label="Library" count={count(visible.length)} animation="bounce" onMenu={menuFor('library')} />
-        {shows('trending') && <NavItem to="/trending" icon={Flame} label="Trending" animation="flame" onMenu={menuFor('trending')} />}
-        {!isAndroid() && shows('store') && <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" onMenu={menuFor('store')} />}
-        {shows('voice') && <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" onMenu={menuFor('voice')} />}
-        {shows('friends') && <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" onMenu={menuFor('friends')} />}
-        {shows('recent') && <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" onMenu={menuFor('recent')} />}
-        {shows('favorites') && <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" onMenu={menuFor('favorites')} />}
-        {shows('stats') && <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" onMenu={menuFor('stats')} />}
-        {shows('profile') && <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" onMenu={menuFor('profile')} />}
-        {/* Downloads in progress always show, even with the entry hidden. */}
-        {!isAndroid() && (shows('downloads') || queued > 0) && <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" onMenu={menuFor('downloads')} />}
+        {/* The tabs, in your order: press and hold one, then drag it to move it. */}
+        <div className="space-y-1" data-tab-list>
+          {shownTabs.map((id, i) => (
+            <div
+              key={id}
+              {...tabDrag.bind(id, i)}
+              style={{ transform: `translateY(${tabDrag.dragging?.id === id ? tabDrag.dragging.dy : tabDrag.shiftOf(i)}px)` }}
+              className={cn(
+                'relative touch-pan-y',
+                tabDrag.dragging?.id === id ? 'z-20 scale-[1.03] rounded-lg bg-surface-2 shadow-2xl shadow-black/60 ring-1 ring-accent/50' : tabDrag.dragging && 'transition-transform duration-150'
+              )}
+            >
+              {tabs[id]}
+            </div>
+          ))}
+        </div>
 
         {ui.sidebarCollections && (
           <>

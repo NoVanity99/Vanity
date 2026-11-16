@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.25.0 (2026-11-16)
+- New: **game details in Big Picture.** **Details** (or **X** on a controller) opens a full-screen details screen sized for a TV, without leaving Big Picture.
+  - Big buttons for **Play** (or **Install**), **Close game** while it's running, **Favorite**, **Open folder** and **Full page**.
+  - Set the game's **status** and **your rating** right there.
+  - Your playtime, sessions, last played, average and longest session, and rank; the description, time to beat and screenshots (open one full screen).
+  - **Everything works with a controller:** the d-pad moves between buttons, **A** presses, **B** goes back to the same game in the rows, **Menu** plays, the right stick scrolls.
+- New: **reorder the sidebar.** Press and hold any tab, then drag it up or down. The order is saved for good (Library can move too). Right-click a tab → **Reset tab order** to go back to the original.
+
 ## 0.24.0 (2026-11-16)
 - New: **share sound with your screen (Windows).** Turn on **Share sound** in the screen picker.
   - Sharing a **window** (a game, a video) sends only that program's sound.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_INTERFACE, normalizeInterface } from '../interfaceOptions'
+import { DEFAULT_INTERFACE, normalizeInterface, moveTab, normalizeTabOrder, TAB_ORDER_DEFAULT } from '../interfaceOptions'
 import { DEFAULT_PROFILE_STYLE, normalizeProfileStyle, PROFILE_FLAIRS } from '../profileStyle'
 
 describe('customize options', () => {
@@ -27,6 +27,18 @@ describe('customize options', () => {
     expect(saved).toEqual({ ...DEFAULT_INTERFACE, hiddenNav: ['friends'] })
     // Library can never be hidden, so there is always a way back.
     expect(saved.hiddenNav).not.toContain('library')
+  })
+})
+
+describe('sidebar tab order', () => {
+  it('keeps a saved order, drops unknown tabs and adds new ones at the end', () => {
+    expect(normalizeTabOrder(undefined)).toEqual([...TAB_ORDER_DEFAULT])
+    expect(normalizeTabOrder(['stats', 'library', 'nope', 'stats']).slice(0, 3)).toEqual(['stats', 'library', 'trending'])
+    expect(normalizeTabOrder(['stats', 'library'])).toHaveLength(TAB_ORDER_DEFAULT.length)
+  })
+  it('moves one tab', () => {
+    expect(moveTab(['library', 'trending', 'stats'], 'stats', 0)).toEqual(['stats', 'library', 'trending'])
+    expect(moveTab(['library', 'trending', 'stats'], 'library', 2)).toEqual(['trending', 'stats', 'library'])
   })
 })
 
