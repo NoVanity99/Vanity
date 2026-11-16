@@ -1,12 +1,12 @@
 import { StopBubble } from '@/components/StopBubble'
-import { Play } from 'lucide-react'
+import { Download, Play } from 'lucide-react'
 import type { Game } from '@shared/types'
 import { formatPlaytime, formatRelativeDate } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
 import { useLibrary } from '@/state/library'
 
 /** Wide cards for the most recently played games, shown above the library grid. */
-export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: (g: Game) => void; onMenu: (e: React.MouseEvent, g: Game) => void }): React.JSX.Element | null {
+export function RecentShelf({ games, onOpen, onMenu, onInstall }: { games: Game[]; onOpen: (g: Game) => void; onMenu: (e: React.MouseEvent, g: Game) => void; onInstall?: (g: Game) => void }): React.JSX.Element | null {
   const { launch, sessions } = useLibrary()
   if (games.length === 0) return null
 
@@ -57,6 +57,19 @@ export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: 
                     {formatRelativeDate(g.lastPlayedAt)} · {formatPlaytime(g.playtimeSeconds)}
                   </p>
                 </div>
+                {!g.installed && onInstall ? (
+                  <button
+                    tabIndex={-1}
+                    aria-label={`Install ${g.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onInstall(g)
+                    }}
+                    className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white/95 px-4 text-sm font-semibold text-black shadow-lg transition hover:scale-105 hover:bg-white"
+                  >
+                    <Download className="size-4" /> Install
+                  </button>
+                ) : (
                 <button
                   data-gamepad-play
                   tabIndex={-1}
@@ -76,6 +89,7 @@ export function RecentShelf({ games, onOpen, onMenu }: { games: Game[]; onOpen: 
                     </>
                   )}
                 </button>
+                )}
                 <StopBubble gameId={g.id} name={g.name} />
               </div>
             </div>

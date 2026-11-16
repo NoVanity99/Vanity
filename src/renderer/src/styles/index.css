@@ -952,6 +952,17 @@ html[data-game-names='false'] [data-game-name] {
 /* ---- Profile auras (src/shared/profileStyle.ts): something moving around the picture ---- */
 .avatar-aura {
   isolation: isolate;
+  /* How far an aura reaches past the picture, scaled to the picture's size. */
+  --aura-gap: 1px;
+}
+.avatar-aura[data-size='sm'] {
+  --aura-gap: 0.55px;
+}
+.avatar-aura[data-size='lg'] {
+  --aura-gap: 1.3px;
+}
+.avatar-aura[data-size='xl'] {
+  --aura-gap: 1.6px;
 }
 .avatar-aura::before,
 .avatar-aura::after {
@@ -962,13 +973,13 @@ html[data-game-names='false'] [data-game-name] {
   border-radius: 9999px;
 }
 .avatar-aura[data-aura='pulse']::before {
-  inset: -2px;
+  inset: calc(var(--aura-gap) * -2);
   border: 2px solid var(--color-accent);
   animation: aura-pulse 2.2s ease-out infinite;
 }
 .avatar-aura[data-aura='rings']::before,
 .avatar-aura[data-aura='rings']::after {
-  inset: -1px;
+  inset: calc(var(--aura-gap) * -1);
   border: 1.5px solid color-mix(in oklab, var(--color-accent) 80%, white);
   animation: aura-ripple 2.6s ease-out infinite;
 }
@@ -976,30 +987,30 @@ html[data-game-names='false'] [data-game-name] {
   animation-delay: 1.3s;
 }
 .avatar-aura[data-aura='orbit']::before {
-  inset: -5px;
+  inset: calc(var(--aura-gap) * -5);
   border: 1px dashed color-mix(in oklab, var(--color-accent) 45%, transparent);
   animation: aura-spin 14s linear infinite;
 }
 .avatar-aura[data-aura='orbit']::after {
-  inset: -5px;
+  inset: calc(var(--aura-gap) * -5);
   background: radial-gradient(circle at 50% 0, white 0 2.5px, var(--color-accent) 3.5px, transparent 5px), radial-gradient(circle at 50% 100%, color-mix(in oklab, var(--color-accent-2) 90%, white) 0 2px, transparent 3.5px);
   filter: drop-shadow(0 0 4px var(--color-accent));
   animation: aura-spin 3s linear infinite;
 }
 .avatar-aura[data-aura='halo']::before {
-  inset: -6px;
+  inset: calc(var(--aura-gap) * -6);
   background: conic-gradient(from 0deg, transparent, color-mix(in oklab, var(--color-accent) 85%, white), transparent 35%, transparent 50%, color-mix(in oklab, var(--color-accent-2) 85%, white), transparent 85%);
   filter: blur(5px);
   animation: aura-spin 4s linear infinite;
 }
 .avatar-aura[data-aura='prism']::before {
-  inset: -4px;
+  inset: calc(var(--aura-gap) * -4);
   background: conic-gradient(#ff4d6d, #ffb84d, #f9f871, #4dffb8, #4dc3ff, #9b5cff, #ff4d6d);
   filter: blur(3px) saturate(1.3);
   animation: aura-spin 5s linear infinite, aura-hue 6s linear infinite;
 }
 .avatar-aura[data-aura='flames']::before {
-  inset: -7px -4px -2px;
+  inset: calc(var(--aura-gap) * -7) calc(var(--aura-gap) * -4) calc(var(--aura-gap) * -2);
   background: radial-gradient(40% 45% at 50% 100%, #ffd166, transparent 70%), radial-gradient(30% 60% at 25% 90%, #ff7b00, transparent 70%), radial-gradient(30% 60% at 75% 90%, #ff3d00, transparent 70%), radial-gradient(45% 70% at 50% 75%, #ff5e00, transparent 75%);
   filter: blur(4px);
   border-radius: 45% 45% 50% 50%;
@@ -1008,7 +1019,7 @@ html[data-game-names='false'] [data-game-name] {
 }
 .avatar-aura[data-aura='sparkle']::before,
 .avatar-aura[data-aura='sparkle']::after {
-  inset: -8px;
+  inset: calc(var(--aura-gap) * -8);
   z-index: 2;
   border-radius: 0;
   background: radial-gradient(circle at 12% 18%, white 0 1.5px, transparent 2.5px), radial-gradient(circle at 88% 28%, #fff7b0 0 2px, transparent 3px), radial-gradient(circle at 80% 88%, white 0 1.5px, transparent 2.5px), radial-gradient(circle at 18% 80%, #b0e9ff 0 1px, transparent 2px);
@@ -1030,10 +1041,6 @@ html[data-game-names='false'] [data-game-name] {
   border-color: #ff2bd6;
   animation-delay: 0.25s;
   animation-direction: reverse;
-}
-.avatar-aura[data-size='sm']::before,
-.avatar-aura[data-size='sm']::after {
-  transform: scale(0.85);
 }
 @keyframes aura-spin {
   to {

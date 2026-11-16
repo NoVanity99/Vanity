@@ -184,7 +184,7 @@ function AccountItem(): React.JSX.Element {
       to="/account"
       onClick={play}
       className={({ isActive }) =>
-        cn('group relative flex items-center gap-3 overflow-clip rounded-lg px-3 py-2 text-sm font-medium transition-colors [&>*]:relative', isActive ? 'text-text' : 'text-muted hover:bg-white/5 hover:text-text')
+        cn('group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [&>*]:relative', isActive ? 'text-text' : 'text-muted hover:bg-white/5 hover:text-text')
       }
     >
       {account?.signedIn && account.username ? (

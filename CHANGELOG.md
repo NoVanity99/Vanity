@@ -3,6 +3,11 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.27.1 (2026-11-16)
+- Fixed: **picture auras on your account card** (bottom left) were cut off at the edges and the wrong size. They now show in full, sized to fit the picture everywhere.
+- Fixed: **Jump back in** disappeared whenever a Library filter was left on (a launcher, genre, status, or installed / not installed), and filters are remembered between launches, so it could stay gone. It now always shows, narrowed by your filters, and hides only while you search. Games you've played but haven't installed show there too, with an **Install** button.
+- Fixed: a game you'd launched for zero seconds could appear in Jump back in as "Never played".
+
 ## 0.27.0 (2026-11-16)
 - New: **cameras in voice rooms.** The **Camera** button turns your camera on for everyone in the room; your video fills your tile (with the green ring glowing around it while you talk). It works alongside screen sharing: the screen in the big view, cameras in the tiles. Pick which camera in Settings → Voice. Works on phones too (Android asks for camera permission the first time).
 - Fixed: when someone is muted **and** deafened, both marks now show, not just one.

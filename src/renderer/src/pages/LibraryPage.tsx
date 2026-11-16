@@ -192,16 +192,17 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
   const playGame = useCallback((g: Game): void => void launch(g.id), [launch])
   const installGame = useCallback((g: Game): void => void install(g.id), [install])
 
-  // "Jump back in": the three most recent, on the main Library view when nothing is filtered.
+  // "Jump back in": the three most recently played of the games the grid shows (so a filter
+  // left on narrows it, rather than hiding it). Hidden while you search.
   const recent = useMemo(
     () =>
-      view === 'all' && !filtered && ui.jumpBackIn
-        ? games
+      view === 'all' && !query.trim() && ui.jumpBackIn
+        ? shown
             .filter((g) => g.lastPlayedAt !== null && !g.hidden)
             .sort(SORTERS.recent)
             .slice(0, 3)
         : [],
-    [games, view, filtered, ui.jumpBackIn]
+    [shown, view, query, ui.jumpBackIn]
   )
 
   return (
@@ -437,7 +438,7 @@ export function LibraryPage({ view, collection }: { view: View; collection?: { i
           </div>
         ) : shown.length > 0 ? (
           <>
-            <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} />
+            <RecentShelf games={recent} onOpen={openGame} onMenu={openMenu} onInstall={installGame} />
             {recent.length > 0 && <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted">All games</h2>}
             {layout === 'list' ? (
               <div>
