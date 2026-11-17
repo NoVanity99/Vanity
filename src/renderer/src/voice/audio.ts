@@ -5,11 +5,20 @@ import { micError } from './errors'
 export type VoiceSound = 'join' | 'leave' | 'self-join' | 'self-leave' | 'mute' | 'unmute' | 'deafen' | 'undeafen'
 
 interface RemoteAudio {
-  /** Chrome only lets a remote WebRTC stream into Web Audio while it is attached to a media element (muted here). */
+  /**
+   * Plays the person's voice. A plain audio element is the path the echo canceller on THEIR side
+   * knows about, so your voice coming out of their speakers is taken out of their microphone
+   * before it's sent back to you. (Sound played through Web Audio isn't reliably known to it,
+   * which is how people heard themselves.)
+   */
   element: HTMLAudioElement
+  /** For the talking ring only: measured, never played. */
   source: MediaStreamAudioSourceNode
   analyser: AnalyserNode
+  /** Only for volumes above 100%, which an audio element can't reach: then Web Audio plays it instead. */
   gain: GainNode
+  /** Their volume for you (0–2). */
+  volume: number
 }
 
 type MicConstraints = Pick<VoiceSettings, 'inputDeviceId' | 'noiseSuppression' | 'echoCancellation' | 'autoGainControl'>
@@ -39,6 +48,8 @@ export class AudioEngine {
   private workletLoaded: Promise<void> | null = null
   private buf = new Float32Array(1024)
   private outputDevice = ''
+  private outputVolume = 1
+  private deafened = false
   /** Called when the microphone stops by itself (unplugged, or taken by Windows). */
   onMicEnded: (() => void) | null = null
 
@@ -180,17 +191,35 @@ export class AudioEngine {
   addRemote(id: string, stream: MediaStream): void {
     this.removeRemote(id)
     const element = new Audio()
-    element.muted = true
+    element.autoplay = true
     element.srcObject = stream
+    const sink = element as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }
+    if (this.outputDevice && sink.setSinkId) void sink.setSinkId(this.outputDevice).catch(() => {})
     void element.play().catch(() => {})
     const source = this.ctx.createMediaStreamSource(stream)
     const analyser = this.ctx.createAnalyser()
     analyser.fftSize = 1024
     const gain = this.ctx.createGain()
+    gain.gain.value = 0
     source.connect(analyser)
     source.connect(gain)
     gain.connect(this.master)
-    this.remotes.set(id, { element, source, analyser, gain })
+    const r: RemoteAudio = { element, source, analyser, gain, volume: 1 }
+    this.remotes.set(id, r)
+    this.applyRemote(r)
+  }
+
+  /**
+   * Up to 100% (after the output volume), the audio element plays it, echo-cancellable. Above
+   * that, Web Audio plays it boosted and the element is silenced.
+   */
+  private applyRemote(r: RemoteAudio): void {
+    const level = this.deafened ? 0 : r.volume * this.outputVolume
+    const boosted = level > 1
+    r.element.muted = boosted || level === 0
+    r.element.volume = Math.min(1, Math.max(0, level))
+    // The master gain carries the output volume and deafen for this path.
+    r.gain.gain.setTargetAtTime(boosted ? r.volume : 0, this.ctx.currentTime, 0.02)
   }
 
   removeRemote(id: string): void {
@@ -198,13 +227,17 @@ export class AudioEngine {
     if (!r) return
     r.source.disconnect()
     r.gain.disconnect()
+    r.element.pause()
     r.element.srcObject = null
     this.remotes.delete(id)
   }
 
   /** 0 to 2 (0–200%). */
   setRemoteVolume(id: string, v: number): void {
-    this.remotes.get(id)?.gain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02)
+    const r = this.remotes.get(id)
+    if (!r) return
+    r.volume = Math.min(2, Math.max(0, v))
+    this.applyRemote(r)
   }
 
   remoteLevelDb(id: string): number {
@@ -216,7 +249,10 @@ export class AudioEngine {
 
   /** Everything you hear: the output volume, or silence while deafened. */
   setOutput(volume: number, deafened: boolean): void {
+    this.outputVolume = volume
+    this.deafened = deafened
     this.master.gain.setTargetAtTime(deafened ? 0 : volume, this.ctx.currentTime, 0.02)
+    for (const r of this.remotes.values()) this.applyRemote(r)
   }
 
   /** Sends sound to a chosen speaker or headset ('' = the system default). Falls back to the default if it's gone. */
@@ -227,6 +263,11 @@ export class AudioEngine {
     try {
       await ctx.setSinkId(deviceId)
       this.outputDevice = deviceId
+      // The voices play through their own elements: send those there too.
+      for (const r of this.remotes.values()) {
+        const el = r.element as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }
+        await el.setSinkId?.(deviceId).catch(() => {})
+      }
       return true
     } catch {
       if (deviceId) await ctx.setSinkId('').catch(() => {})

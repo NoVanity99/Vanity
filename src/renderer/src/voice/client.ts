@@ -159,6 +159,8 @@ export class VoiceClient {
   private gateOpen = false
   private screenTrack: MediaStreamTrack | null = null
   private cameraTrack: MediaStreamTrack | null = null
+  /** The camera picked when it was turned on ('' for the default). */
+  private cameraDevice = ''
   /** Every video stream from each person, by stream id; their room state says which is the screen and which the camera. */
   private remoteVideos = new Map<string, Map<string, MediaStream>>()
   /** Stops listening to the shared sound coming from Windows. */
@@ -438,33 +440,39 @@ export class VoiceClient {
   /** Turns your camera on for everyone in the room. */
   async startCamera(): Promise<void> {
     if (!this.transport || !this.inRoom || this.cameraTrack) return
-    if (!navigator.mediaDevices?.getUserMedia) return this.set({ notice: "A camera can't be used on this device." })
-    const id = this.deps.settings().cameraDeviceId
-    let stream: MediaStream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: id ? { ideal: id } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }, audio: false })
-    } catch (err) {
-      const name = err instanceof DOMException ? err.name : ''
-      return this.set({
-        notice:
-          name === 'NotAllowedError' || name === 'SecurityError'
-            ? "Vanity isn't allowed to use your camera. Allow it in your device's privacy settings (Windows: Settings → Privacy & security → Camera)."
-            : name === 'NotFoundError' || name === 'OverconstrainedError'
-              ? 'No camera was found.'
-              : 'Your camera couldn\'t be started. Another app may be using it.'
-      })
-    }
-    const track = stream.getVideoTracks()[0]
-    if (!track || !this.transport) return stream.getTracks().forEach((t) => t.stop())
+    const r = await openCamera(this.deps.settings().cameraDeviceId)
+    if ('error' in r) return this.set({ notice: r.error })
+    if (!this.transport || !this.inRoom) return r.track.stop()
+    this.useCameraTrack(r.track, r.deviceId)
+    this.sendState()
+    this.emitMembers()
+  }
+
+  /** Puts a new camera picture on the line (turning on, or switching cameras without a gap). */
+  private useCameraTrack(track: MediaStreamTrack, deviceId: string): void {
     track.contentHint = 'motion'
     track.onended = () => {
       if (this.cameraTrack === track) this.stopCamera()
     }
+    const old = this.cameraTrack
     this.cameraTrack = track
-    this.transport.setCamera(track)
+    this.cameraDevice = deviceId
+    this.transport?.setCamera(track)
+    if (old && old !== track) {
+      old.onended = null
+      old.stop()
+    }
     this.set({ localCamera: new MediaStream([track]) })
-    this.sendState()
-    this.emitMembers()
+  }
+
+  /** Another camera was picked in Settings while yours is on: switch to it straight away. */
+  private async switchCamera(): Promise<void> {
+    const want = this.deps.settings().cameraDeviceId
+    if (!this.cameraTrack || want === this.cameraDevice) return
+    const r = await openCamera(want)
+    if ('error' in r) return this.set({ notice: r.error })
+    if (!this.cameraTrack) return r.track.stop() // turned off meanwhile
+    this.useCameraTrack(r.track, r.deviceId)
   }
 
   stopCamera(): void {
@@ -518,6 +526,7 @@ export class VoiceClient {
       this.audio.setRemoteVolume(p.id, v.muted ? 0 : v.volume)
     }
     if (this.inRoom || this.testing) await this.openMic()
+    await this.switchCamera()
     this.emitMembers()
   }
 
@@ -954,5 +963,38 @@ export class VoiceClient {
     this.stopCameraTrack()
     this.remoteVideos.clear()
     this.set({ sharing: null, localVideo: null, videos: {}, cameras: {}, localCamera: null, watching: null })
+  }
+}
+
+/** Turns the camera into plain words when it can't be opened. */
+function cameraError(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : ''
+  if (name === 'NotAllowedError' || name === 'SecurityError') return "Vanity isn't allowed to use your camera. Allow it in your device's privacy settings (Windows: Settings → Privacy & security → Camera)."
+  if (name === 'NotFoundError') return 'No camera was found.'
+  return "Your camera couldn't be started. Another app may be using it."
+}
+
+/**
+ * Opens a camera: the one picked in Settings (exactly that one), or the default when none is
+ * picked or the picked one is gone. Also used by the camera preview in Settings → Voice.
+ */
+export async function openCamera(deviceId: string): Promise<{ track: MediaStreamTrack; deviceId: string } | { error: string }> {
+  if (!navigator.mediaDevices?.getUserMedia) return { error: "A camera can't be used on this device." }
+  const shape = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { ...shape, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) }, audio: false })
+    return { track: stream.getVideoTracks()[0], deviceId }
+  } catch (err) {
+    const name = err instanceof DOMException ? err.name : ''
+    if (deviceId && (name === 'OverconstrainedError' || name === 'NotFoundError' || name === 'NotReadableError')) {
+      // The picked camera is unplugged or busy: the default one instead.
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: shape, audio: false })
+        return { track: stream.getVideoTracks()[0], deviceId: '' }
+      } catch (err2) {
+        return { error: cameraError(err2) }
+      }
+    }
+    return { error: cameraError(err) }
   }
 }

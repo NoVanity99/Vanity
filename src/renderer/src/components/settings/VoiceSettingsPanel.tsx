@@ -8,6 +8,8 @@ import { useSettings } from '@/state/settings'
 import { previewVoiceSettings, saveVoiceSettings, useMicLevel, useVoice, voice } from '@/state/voice'
 import { dbToUnit } from '@/voice/detect'
 import type { AudioDevices } from '@/voice/audio'
+import { openCamera } from '@/voice/client'
+import { StreamVideo } from '@/components/voice/ScreenShare'
 import { Section, Toggle } from './controls'
 
 const select =
@@ -91,6 +93,49 @@ function KeyRecorder({ value, onChange }: { value: VoiceSettings['pttKey']; onCh
           Clear
         </button>
       )}
+    </div>
+  )
+}
+
+/**
+ * See your camera before turning it on in a call, and let Vanity use it: until it's been allowed
+ * once, cameras have no names (and can't be told apart), so the list above fills in after this.
+ */
+function CameraPreview({ deviceId, onOpened }: { deviceId: string; onOpened: () => void }): React.JSX.Element {
+  const [on, setOn] = useState(false)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!on) return
+    let alive = true
+    let opened: MediaStreamTrack | null = null
+    setError(null)
+    void openCamera(deviceId).then((r) => {
+      if ('error' in r) {
+        if (alive) setError(r.error)
+        return
+      }
+      if (!alive) return r.track.stop()
+      opened = r.track
+      setStream(new MediaStream([r.track]))
+      onOpened()
+    })
+    return () => {
+      alive = false
+      opened?.stop()
+      setStream(null)
+    }
+  }, [on, deviceId]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="md:col-span-2" data-camera-preview>
+      <div className="flex items-center gap-3">
+        <Button onClick={() => setOn((x) => !x)} data-camera-test={on ? 'on' : 'off'}>
+          <Video className="size-4" /> {on ? 'Stop camera preview' : 'Preview camera'}
+        </Button>
+        <span className="text-xs text-muted">{on ? 'Only you see this.' : 'Also lets Vanity use your camera, so the list above shows their names.'}</span>
+      </div>
+      {error && <p className="mt-2 text-xs text-accent">{error}</p>}
+      {on && stream && <StreamVideo stream={stream} contain={false} className="mt-3 aspect-video w-full max-w-sm -scale-x-100 rounded-xl" />}
     </div>
   )
 }
@@ -187,14 +232,16 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
               <Video className="size-4" /> Camera
             </span>
             <select value={s.cameraDeviceId} onChange={(e) => save({ cameraDeviceId: e.target.value })} className={select} data-camera-device>
-              <option value="">{devices && devices.cameras.length === 0 ? 'No camera found' : 'Default camera'}</option>
+              <option value="">Default camera</option>
               {devices?.cameras.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.label}
                 </option>
               ))}
+              {s.cameraDeviceId && devices && !devices.cameras.some((d) => d.id === s.cameraDeviceId) && <option value={s.cameraDeviceId}>Unplugged camera (default is used)</option>}
             </select>
           </label>
+          <CameraPreview deviceId={s.cameraDeviceId} onOpened={refreshDevices} />
         </div>
         {devices && devices.inputs.length === 0 && <p className="mx-3 mt-3 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">No microphone found. Plug one in: it shows up here by itself.</p>}
         {missingNames && <p className="mx-3 mt-3 text-xs text-muted">Device names show once Vanity is allowed to use the microphone: start the test below.</p>}

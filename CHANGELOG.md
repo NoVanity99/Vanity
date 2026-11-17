@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.27.2 (2026-11-17)
+- Fixed: **hearing yourself back in voice.** When a friend used speakers instead of headphones, their microphone picked up your voice and sent it back. Voices now play the way the echo canceller expects, so it removes them. (Everyone in the call should update. Volumes above 100% for someone still work, but at those levels their echo can't be removed as well.)
+- Fixed: **choosing a camera in Settings → Voice.** The list now fills in with your cameras' names (use the new **Preview camera** button once to let Vanity see them), your choice is used exactly, and switching cameras while yours is on in a call takes effect straight away.
+
 ## 0.27.1 (2026-11-16)
 - Fixed: **picture auras on your account card** (bottom left) were cut off at the edges and the wrong size. They now show in full, sized to fit the picture everywhere.
 - Fixed: **Jump back in** disappeared whenever a Library filter was left on (a launcher, genre, status, or installed / not installed), and filters are remembered between launches, so it could stay gone. It now always shows, narrowed by your filters, and hides only while you search. Games you've played but haven't installed show there too, with an **Install** button.
