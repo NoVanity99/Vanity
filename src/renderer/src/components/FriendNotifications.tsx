@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AudioLines, Gamepad2, MessageCircle, Wifi, X } from 'lucide-react'
+import { AudioLines, Gamepad2, MessageCircle, UserPlus, Wifi, X } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
@@ -19,7 +19,8 @@ const KINDS = {
   online: { icon: Wifi, tone: 'text-emerald-400', label: 'Online' },
   playing: { icon: Gamepad2, tone: 'text-accent', label: 'Now playing' },
   message: { icon: MessageCircle, tone: 'text-sky-400', label: 'New message' },
-  voice: { icon: AudioLines, tone: 'text-emerald-400', label: 'In voice' }
+  voice: { icon: AudioLines, tone: 'text-emerald-400', label: 'In voice' },
+  request: { icon: UserPlus, tone: 'text-sky-400', label: 'Friend request' }
 } as const
 
 
@@ -36,7 +37,7 @@ export function FriendNotifications(): React.JSX.Element | null {
   const [notes, setNotes] = useState<(FriendNote & { leaving?: boolean })[]>([])
 
   useEffect(() => {
-    const wanted = { online: ui.notifyFriendOnline, playing: ui.notifyFriendPlaying, message: ui.notifyFriendMessage, voice: ui.notifyFriendOnline || ui.notifyFriendPlaying }
+    const wanted = { online: ui.notifyFriendOnline, playing: ui.notifyFriendPlaying, message: ui.notifyFriendMessage, voice: ui.notifyFriendOnline || ui.notifyFriendPlaying, request: true }
     return onFriendNote((note) => {
       if (note.group ? !ui.notifyGroupMessage : !wanted[note.kind]) return
       // Already in that room: nothing to say.
@@ -47,10 +48,16 @@ export function FriendNotifications(): React.JSX.Element | null {
       setTimeout(() => setNotes((list) => list.filter((n) => n.id !== note.id)), SHOWN_MS)
       // Also a Windows / Android notification (by default only while Vanity isn't in front).
       const inFront = document.hasFocus() && document.visibilityState === 'visible'
-      if (ui.systemNotifications === 'always' || (ui.systemNotifications === 'background' && !inFront)) {
-        const { title, body, action } = systemNotification(note)
-        void window.vanity.notify(title, body, action).catch(() => {})
+      const system = (): void => {
+        if (ui.systemNotifications === 'always' || (ui.systemNotifications === 'background' && !inFront)) {
+          const { title, body, action } = systemNotification(note)
+          void window.vanity.notify(title, body, action).catch(() => {})
+        }
       }
+      // While a game started from Vanity is running, it shows over the game instead (when the
+      // overlay is on), without taking you out of it. Otherwise it is a normal notification.
+      const over = { name: note.friend.username, avatar: note.friend.avatar ?? null, action: note.group ? `in ${note.group.name}` : note.action, detail: note.detail, kind: note.kind }
+      window.vanity.overlay.note(over).then((shown) => !shown && system(), system)
     })
   }, [ui.notifyFriendOnline, ui.notifyFriendPlaying, ui.notifyFriendMessage, ui.notifyGroupMessage, ui.systemNotifications])
 
@@ -69,6 +76,7 @@ export function FriendNotifications(): React.JSX.Element | null {
           else navigate('/friends')
         } else if (kind === 'friend') navigate(`/friends/${id}`)
         else if (kind === 'voice') navigate('/voice')
+        else if (kind === 'friends') navigate('/friends')
       }),
     [navigate]
   )

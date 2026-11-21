@@ -12,7 +12,7 @@ import { memoryAdapter } from 'better-auth/adapters/memory'
 import { emailOTP, jwt } from 'better-auth/plugins'
 import { createLocalJWKSet, type JSONWebKeySet } from 'jose'
 import { Hono } from 'hono'
-import { createApp } from '../../src/app'
+import { createApp, neonAuthSignIn } from '../../src/app'
 import { neonAuthVerifier } from '../../src/auth'
 import type { Sql } from '../../src/db'
 import { schemaStatements } from '../../src/schema'
@@ -21,11 +21,12 @@ import { fakeSteam, KEY } from './fake-steam'
 const port = Number(process.env.PORT) || 8791
 const base = `http://127.0.0.1:${port}`
 
+const memory: { user: { id: string; email: string }[]; [table: string]: unknown[] } = { user: [], session: [], account: [], verification: [], jwks: [] }
 const auth = betterAuth({
   baseURL: `${base}/neondb/auth`,
   basePath: '/neondb/auth',
   secret: 'local-playground-only-9f3k2j5h8d1s',
-  database: memoryAdapter({ user: [], session: [], account: [], verification: [], jwks: [] }),
+  database: memoryAdapter(memory),
   emailAndPassword: { enabled: true },
   session: process.env.SESSION_SECONDS ? { expiresIn: Number(process.env.SESSION_SECONDS) } : undefined,
   trustedOrigins: ['http://localhost:*'],
@@ -53,6 +54,9 @@ const steam = fakeSteam([
 
 const api = createApp({
   sql,
+  // Signing in with a username: the server asks the stand-in for Neon Auth, like the real one does.
+  authSignIn: neonAuthSignIn(`${base}/neondb/auth`, 'http://localhost:5173', ((url: string, init?: RequestInit) => auth.handler(new Request(url, init))) as typeof fetch),
+  emailOfUser: async (id) => memory.user.find((u) => u.id === id)?.email ?? null,
   steamApiKey: process.env.NO_STEAM ? '' : KEY,
   // GIF search answers like KLIPY does (KLIPY_FAKE=1), since tests can't reach it.
   klipyKey: process.env.KLIPY_FAKE ? 'local-test-key' : '',

@@ -95,6 +95,24 @@ try {
 
   const named = await api('PUT', '/me/username', jwt, { username })
   step('a username can be picked (the database works)', named.status === 200 && named.json?.user?.username === username, `HTTP ${named.status} ${named.text.slice(0, 200)}`)
+  // Signing in with the username instead of the email goes through the server (new copies only).
+  let byName = await api('POST', '/auth/sign-in', null, { username, password })
+  for (let i = 0; i < 12 && byName.status === 404; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    byName = await api('POST', '/auth/sign-in', null, { username, password })
+  }
+  const nameCookie = (byName.json?.setCookie ?? []).map((c) => c.split(';')[0]).join('; ')
+  if (step('signing in with the username works', byName.status === 200 && byName.json?.user?.id === userId && nameCookie.includes('session_token'), `HTTP ${byName.status} ${byName.status === 200 ? '' : byName.text.slice(0, 200)}`)) {
+    step('that session is a real one', (await auth('GET', '/get-session', { cookie: nameCookie })).json?.user?.id === userId)
+    const badName = await api('POST', '/auth/sign-in', null, { username, password: 'definitely-wrong' })
+    const noName = await api('POST', '/auth/sign-in', null, { username: `nobody_${tag}`.slice(0, 20), password })
+    step('a wrong password and an unknown username get the same answer', badName.status === 401 && noName.status === 401 && badName.text === noName.text, `HTTP ${badName.status} / ${noName.status}`)
+    // After a password reset the app ends every other session: check Neon Auth can do that.
+    const revoke = await auth('POST', '/revoke-other-sessions', { cookie })
+    const other = await auth('GET', '/get-session', { cookie: nameCookie })
+    const mine = await auth('GET', '/get-session', { cookie })
+    step('other sessions can be signed out, and this one stays', revoke.status === 200 && other.json === null && mine.json?.user?.id === userId, `HTTP ${revoke.status}, other session ${other.json === null ? 'ended' : 'still alive'}`)
+  }
   // Right after a deploy, some requests still reach the previous copy of the server for a few
   // seconds. It doesn't know this route yet (404): give the new copy a moment before judging.
   let profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })

@@ -3,9 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Award, CalendarDays, Clock, ExternalLink, Flame, Gamepad2, Heart, MessageCircle, Rocket, Star, Trophy, UserCheck, Users, UserPlus } from 'lucide-react'
 import { BADGES, levelFor } from '@shared/progress'
 import { PLAY_STATUS_LABELS, type Friend, type FriendGameStat, type FriendStats, type PlayStatus } from '@shared/types'
-import { Avatar } from '@/components/Avatar'
+import { ProfileCard } from '@/components/profile/ProfileCard'
 import { Button } from '@/components/Dialog'
-import { ProfileTitle, UserName } from '@/components/UserName'
 import { cn } from '@/lib/cn'
 import { formatAgo, formatPlaytime } from '@/lib/format'
 import { mediaUrl, nameHue } from '@/lib/media'
@@ -285,17 +284,55 @@ export function FriendProfilePage(): React.JSX.Element {
       <div className="stagger mx-auto max-w-6xl space-y-6 px-10 pb-16 pt-12 max-md:px-4 max-md:pt-14">
         {back}
 
-        <section className="relative overflow-clip rounded-3xl border border-border bg-surface p-7 max-md:p-5">
-          <div className="profile-banner" data-banner={style?.banner ?? 'default'} data-fx={style?.effect ?? 'none'} />
-          <div className="relative flex flex-wrap items-center gap-6">
-            <Avatar name={friend.username} src={stats?.avatar ?? friend.avatar} frame={style?.frame} aura={style?.aura} size="xl" status={friend.status.state} />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>
-              <h1 className="font-display text-4xl font-black tracking-tight max-md:text-3xl">
-                <UserName name={friend.username} style={style} verified={friend.verified} admin={friend.admin} badgeSize="lg" />
-              </h1>
-              <ProfileTitle title={style?.title} className="mt-1.5" />
-              {bio && <p className="mt-1.5 max-w-xl whitespace-pre-wrap break-words text-sm text-text/85">{bio}</p>}
+        <ProfileCard
+          size="page"
+          heading="h1"
+          name={friend.username}
+          avatar={stats?.avatar ?? friend.avatar}
+          bio={bio}
+          style={style}
+          verified={friend.verified}
+          admin={friend.admin}
+          status={friend.status.state}
+          eyebrow={<p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">{level.title}</p>}
+          aside={
+            <>
+            {nowPlaying && (
+              <div className="flex items-center gap-3 rounded-2xl border border-accent/40 bg-black/35 p-2.5 pr-4 backdrop-blur" data-now-playing>
+                <Cover name={nowPlaying} src={coverOf(nowPlaying)} className="h-20 w-[60px] ring-1 ring-white/15" />
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-accent">Playing now</span>
+                  <span className="block max-w-[11rem] truncate text-sm font-semibold">{nowPlaying}</span>
+                  {friend.status.since && <span className="block text-xs text-muted">since {new Date(friend.status.since).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>}
+                </span>
+              </div>
+            )}
+            <span className="relative flex size-24 shrink-0 items-center justify-center">
+              <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90" aria-hidden>
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white/10" />
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-accent)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${(pct / 100) * 97.4} 97.4`} />
+              </svg>
+              <span className="text-center">
+                <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">Level</span>
+                <span className="block font-display text-3xl font-black tabular-nums leading-none">{level.level}</span>
+              </span>
+            </span>
+            </>
+          }
+          footer={
+          <div className="relative mt-6">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-semibold tabular-nums">
+                {level.into.toLocaleString()} <span className="font-normal text-muted">/ {level.span.toLocaleString()} XP</span>
+              </span>
+              <span className="text-muted">{xp.toLocaleString()} XP in all</span>
+            </div>
+            <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/8">
+              <div className="h-full rounded-full bg-gradient-to-r from-accent to-accent-2" style={{ width: `${Math.max(pct, 1)}%` }} />
+            </div>
+          </div>
+          }
+        >
               {isFriend && (
                 <p className={cn('mt-1.5 flex items-center gap-1.5 text-sm', playing ? 'text-accent' : friend.status.state === 'online' ? 'text-emerald-400' : 'text-muted')}>
                   {playing && <Gamepad2 className="size-4 shrink-0" />}
@@ -335,40 +372,7 @@ export function FriendProfilePage(): React.JSX.Element {
                   </a>
                 )}
               </div>
-            </div>
-            {nowPlaying && (
-              <div className="flex items-center gap-3 rounded-2xl border border-accent/40 bg-black/35 p-2.5 pr-4 backdrop-blur" data-now-playing>
-                <Cover name={nowPlaying} src={coverOf(nowPlaying)} className="h-20 w-[60px] ring-1 ring-white/15" />
-                <span className="min-w-0">
-                  <span className="block text-[10px] font-bold uppercase tracking-widest text-accent">Playing now</span>
-                  <span className="block max-w-[11rem] truncate text-sm font-semibold">{nowPlaying}</span>
-                  {friend.status.since && <span className="block text-xs text-muted">since {new Date(friend.status.since).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>}
-                </span>
-              </div>
-            )}
-            <span className="relative flex size-24 shrink-0 items-center justify-center">
-              <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90" aria-hidden>
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white/10" />
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-accent)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${(pct / 100) * 97.4} 97.4`} />
-              </svg>
-              <span className="text-center">
-                <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">Level</span>
-                <span className="block font-display text-3xl font-black tabular-nums leading-none">{level.level}</span>
-              </span>
-            </span>
-          </div>
-          <div className="relative mt-6">
-            <div className="flex items-baseline justify-between text-sm">
-              <span className="font-semibold tabular-nums">
-                {level.into.toLocaleString()} <span className="font-normal text-muted">/ {level.span.toLocaleString()} XP</span>
-              </span>
-              <span className="text-muted">{xp.toLocaleString()} XP in all</span>
-            </div>
-            <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/8">
-              <div className="h-full rounded-full bg-gradient-to-r from-accent to-accent-2" style={{ width: `${Math.max(pct, 1)}%` }} />
-            </div>
-          </div>
-        </section>
+        </ProfileCard>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4" data-friend-tiles>
           <Tile icon={Clock} label="Playtime" value={formatPlaytime(stats?.totalPlaytimeSeconds ?? friend.totalPlaytimeSeconds)} hint={stats?.daysPlayed ? `on ${stats.daysPlayed.toLocaleString()} day${stats.daysPlayed === 1 ? '' : 's'}` : undefined} />

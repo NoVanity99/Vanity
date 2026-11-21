@@ -8,7 +8,7 @@ import { memoryAdapter } from 'better-auth/adapters/memory'
 import { emailOTP, jwt } from 'better-auth/plugins'
 import { createLocalJWKSet, type JSONWebKeySet } from 'jose'
 import { describe, expect, it } from 'vitest'
-import { createApp } from '../src/app'
+import { createApp, neonAuthSignIn } from '../src/app'
 import { neonAuthVerifier } from '../src/auth'
 import type { Sql } from '../src/db'
 import { schemaStatements } from '../src/schema'
@@ -23,11 +23,12 @@ const ORIGIN = 'http://localhost:5173'
 /** A stand-in for Neon Auth: same endpoints, cookies, origin check, EdDSA tokens and emailed codes. */
 function neonAuthDouble(opts: { sessionSeconds?: number } = {}) {
   const codes = new Map<string, string>()
+  const memory: { user: { id: string; email: string }[]; [table: string]: unknown[] } = { user: [], session: [], account: [], verification: [], jwks: [] }
   const auth = betterAuth({
     baseURL: AUTH_URL,
     basePath: '/neondb/auth',
     secret: 'k3Jx0p9QmW7vT2yB5nR8sL1dF4gH6jZa',
-    database: memoryAdapter({ user: [], session: [], account: [], verification: [], jwks: [] }),
+    database: memoryAdapter(memory),
     emailAndPassword: { enabled: true },
     session: opts.sessionSeconds ? { expiresIn: opts.sessionSeconds } : undefined,
     trustedOrigins: ['http://localhost:*'],
@@ -46,7 +47,10 @@ function neonAuthDouble(opts: { sessionSeconds?: number } = {}) {
     return { status: res.status, headers: out, setCookie: res.headers.getSetCookie(), body: await res.text() }
   }
   const jwks = async (): Promise<JSONWebKeySet> => (await (await auth.handler(new Request(`${AUTH_URL}/.well-known/jwks.json`))).json()) as JSONWebKeySet
-  return { http, codes, requests, jwks, setDown: (v: boolean) => (down = v) }
+  // What the Vanity server uses for signing in with a username.
+  const signIn = neonAuthSignIn(AUTH_URL, ORIGIN, ((url: string, init?: RequestInit) => auth.handler(new Request(url, init))) as typeof fetch)
+  const emailOf = async (id: string): Promise<string | null> => memory.user.find((u) => u.id === id)?.email ?? null
+  return { http, codes, requests, jwks, signIn, emailOf, setDown: (v: boolean) => (down = v) }
 }
 
 async function backend(authDouble: ReturnType<typeof neonAuthDouble>) {
@@ -64,7 +68,9 @@ async function backend(authDouble: ReturnType<typeof neonAuthDouble>) {
     migrate: async () => {
       for (const statement of schemaStatements()) await db.query(statement)
     },
-    lookupRateLimit: 1000
+    lookupRateLimit: 1000,
+    authSignIn: authDouble.signIn,
+    emailOfUser: authDouble.emailOf
   })
   let down = false
   const fetchFn = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -276,8 +282,14 @@ describe('app ↔ Neon Auth ↔ server', () => {
     await a.service.signUp('a@example.com', 'alice', 'longpassword', true)
     a.service.stop()
     const b = vanity(env)
-    await expect(b.service.signIn('a@example.com', 'wrong-password')).rejects.toThrow('Wrong email or password.')
-    await expect(b.service.signIn('nobody@example.com', 'whatever123')).rejects.toThrow('Wrong email or password.')
+    await expect(b.service.signIn('a@example.com', 'wrong-password')).rejects.toThrow('Incorrect username/email or password.')
+    await expect(b.service.signIn('nobody@example.com', 'whatever123')).rejects.toThrow('Incorrect username/email or password.')
+    // The same words whatever was wrong, by email or by username.
+    await expect(b.service.signIn('alice', 'wrong-password', true)).rejects.toThrow('Incorrect username/email or password.')
+    await expect(b.service.signIn('nobody_here', 'longpassword', true)).rejects.toThrow('Incorrect username/email or password.')
+    await expect(b.service.signIn('not a name!', 'longpassword', true)).rejects.toThrow('Incorrect username/email or password.')
+    await expect(b.service.signIn('', '', true)).rejects.toThrow('Incorrect username/email or password.')
+    expect(b.service.state().signedIn).toBe(false)
     await expect(b.service.signUp('b@example.com', 'ALICE', 'longpassword', true)).rejects.toThrow('That username is already in use.')
     await expect(b.service.signUp('a@example.com', 'bob', 'longpassword', true)).rejects.toThrow('That email is already in use. Sign in instead, or use another email.')
     await expect(b.service.signUp('A@Example.com', 'bob', 'longpassword', true)).rejects.toThrow(/email is already in use/)
@@ -308,6 +320,28 @@ describe('app ↔ Neon Auth ↔ server', () => {
     expect((await app.service.guard((c) => c.friends())).friends).toEqual([])
   })
 
+  it('signs in with a username as well as an email', async () => {
+    const { auth, env } = await world()
+    const a = vanity(env)
+    await a.service.signUp('a@example.com', 'Alice_1', 'longpassword', true)
+    await a.service.signOut()
+    // Any capitals; spaces around it don't matter.
+    expect(await a.service.signIn('  alice_1 ', 'longpassword', true)).toMatchObject({ signedIn: true, username: 'Alice_1', email: 'a@example.com', remembered: true })
+    // It is a real session: the server accepts its tokens, and it survives a restart.
+    expect((await a.service.guard((c) => c.me())).username).toBe('Alice_1')
+    a.service.stop()
+    const restarted = vanity(env, [], a.vault)
+    await restarted.service.load()
+    expect((await restarted.service.guard((c) => c.friends())).friends).toEqual([])
+    restarted.service.stop()
+    // The app itself never asked Neon Auth by username, and the email sign-in still goes straight there.
+    const before = auth.requests.length
+    await a.service.signOut()
+    await a.service.signIn('a@example.com', 'longpassword', true)
+    expect(auth.requests.slice(before).some((r) => r.path === '/sign-in/email')).toBe(true)
+    a.service.stop()
+  })
+
   it('resets a forgotten password with a code sent by email', async () => {
     const { auth, env } = await world()
     const app = vanity(env)
@@ -319,9 +353,26 @@ describe('app ↔ Neon Auth ↔ server', () => {
     expect(code).toMatch(/^\d{6}$/)
     await expect(app.service.resetPassword('a@example.com', '000000', 'new-password')).rejects.toThrow(/code is wrong/)
     await expect(app.service.resetPassword('a@example.com', code, 'short')).rejects.toThrow(/8 characters/)
-    await app.service.resetPassword('a@example.com', code, 'new-password')
+    // Signed in on another device with the old password before the reset.
+    await app.service.signIn('a@example.com', 'old-password', true)
+    app.service.stop()
+    const elsewhere = vanity(env)
+    await elsewhere.service.signIn('alice', 'old-password', true)
+    elsewhere.service.stop()
+    await app.service.signOut()
+    // Asking for an address nobody has reads exactly the same as a real one: no error, no code sent.
+    await expect(app.service.sendResetCode('nobody@example.com')).resolves.toBeUndefined()
+    expect(auth.codes.has('nobody@example.com')).toBe(false)
+    await expect(app.service.resetPassword('nobody@example.com', '123456', 'new-password')).rejects.toThrow(/code is wrong|expired/)
 
-    await expect(app.service.signIn('a@example.com', 'old-password', true)).rejects.toThrow('Wrong email or password.')
+    await app.service.resetPassword('a@example.com', code, 'new-password')
+    // Signed in here straight away, and the other device's session is over.
+    expect(app.service.state()).toMatchObject({ signedIn: true, username: 'alice' })
+    app.service.stop()
+    await expect(elsewhere.service.token(true)).rejects.toThrow(/expired/)
+    expect(elsewhere.service.state()).toMatchObject({ signedIn: false, sessionExpired: true })
+
+    await expect(app.service.signIn('a@example.com', 'old-password', true)).rejects.toThrow('Incorrect username/email or password.')
     expect(await app.service.signIn('a@example.com', 'new-password', true)).toMatchObject({ signedIn: true, username: 'alice' })
     app.service.stop()
   })

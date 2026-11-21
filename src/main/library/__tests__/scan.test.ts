@@ -1,4 +1,5 @@
 import { DEFAULT_VOICE } from '@shared/voiceSettings'
+import { DEFAULT_OVERLAY } from '@shared/overlay'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it, vi } from 'vitest'
 import type { GameCandidate, Settings } from '@shared/types'
@@ -32,7 +33,8 @@ const settings: Settings = {
   updateKey: '',
   breakReminderMinutes: 0,
   interface: DEFAULT_INTERFACE,
-  voice: DEFAULT_VOICE
+  voice: DEFAULT_VOICE,
+  overlay: DEFAULT_OVERLAY
 }
 
 const candidate = (name: string, folder: string): GameCandidate => ({

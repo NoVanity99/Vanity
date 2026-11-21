@@ -1,6 +1,7 @@
 import { DEFAULT_FONT } from './fonts'
 import { DEFAULT_INTERFACE } from './interfaceOptions'
 import { DEFAULT_VOICE } from './voiceSettings'
+import { DEFAULT_OVERLAY } from './overlay'
 import { DEFAULT_THEME } from './themes'
 import { SCAN_SOURCES, type Settings } from './types'
 
@@ -28,5 +29,6 @@ export const DEFAULT_SETTINGS: Settings = {
   updateKey: '',
   breakReminderMinutes: 0,
   interface: DEFAULT_INTERFACE,
-  voice: DEFAULT_VOICE
+  voice: DEFAULT_VOICE,
+  overlay: DEFAULT_OVERLAY
 }

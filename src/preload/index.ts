@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type VanityApi } from '@shared/ipc'
+import type { OverlayState } from '@shared/overlay'
 import type { AccountState, DownloadItem, Game, SteamState, StoreAccounts, Progress, Settings, LauncherStatus, MetadataProgress, ScanProgress, SessionChange, TrendingState, UpdateState, DiscordStatus } from '@shared/types'
 
 const api: VanityApi = {
@@ -11,6 +12,19 @@ const api: VanityApi = {
     return () => ipcRenderer.removeListener(IPC.appNotificationClick, listener)
   },
   allowNotifications: async () => true,
+  overlay: {
+    supported: true,
+    setVoice: (members) => ipcRenderer.send(IPC.overlayVoice, members),
+    setSpeaking: (ids) => ipcRenderer.send(IPC.overlaySpeaking, ids),
+    note: (note) => ipcRenderer.invoke(IPC.overlayNote, note),
+    preview: () => ipcRenderer.invoke(IPC.overlayPreview),
+    state: () => ipcRenderer.invoke(IPC.overlayState),
+    onState: (callback) => {
+      const listener = (_e: unknown, state: OverlayState): void => callback(state)
+      ipcRenderer.on(IPC.overlayPush, listener)
+      return () => ipcRenderer.removeListener(IPC.overlayPush, listener)
+    }
+  },
   games: {
     list: () => ipcRenderer.invoke(IPC.gamesList),
     get: (id) => ipcRenderer.invoke(IPC.gamesGet, id),

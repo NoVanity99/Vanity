@@ -8,6 +8,8 @@
 import { AccountError } from './errors'
 
 export const USERNAME_IN_USE = 'That username is already in use.'
+/** One message for every failed sign-in, so nobody can learn which accounts exist. */
+export const SIGN_IN_FAILED = 'Incorrect username/email or password.'
 export const EMAIL_IN_USE = 'That email is already in use. Sign in instead, or use another email.'
 
 export interface AuthRequest {
@@ -45,9 +47,9 @@ export interface AuthSession {
 
 /** Friendly messages for Neon Auth's error codes. */
 const MESSAGES: Record<string, string> = {
-  INVALID_EMAIL_OR_PASSWORD: 'Wrong email or password.',
+  INVALID_EMAIL_OR_PASSWORD: SIGN_IN_FAILED,
   INVALID_EMAIL: "That doesn't look like an email address.",
-  INVALID_PASSWORD: 'Wrong email or password.',
+  INVALID_PASSWORD: SIGN_IN_FAILED,
   USER_ALREADY_EXISTS: EMAIL_IN_USE,
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: EMAIL_IN_USE,
   PASSWORD_TOO_SHORT: 'Passwords need at least 8 characters.',
@@ -56,7 +58,7 @@ const MESSAGES: Record<string, string> = {
   INVALID_OTP: 'That code is wrong. Check the email and try again.',
   OTP_EXPIRED: 'That code has expired. Ask for a new one.',
   TOO_MANY_ATTEMPTS: 'Too many wrong codes. Ask for a new one.',
-  USER_NOT_FOUND: 'No account uses that email.'
+  USER_NOT_FOUND: SIGN_IN_FAILED
 }
 
 export const OFFLINE_MESSAGE = "You're offline, or Vanity's account service can't be reached. Check your connection and try again."
@@ -121,9 +123,9 @@ export class NeonAuth {
     }
     if (res.status >= 200 && res.status < 300) return { ...res, json }
     const code = typeof json?.code === 'string' ? json.code : ''
-    if (res.status === 429) throw new AccountError('Too many attempts. Wait a minute and try again.')
+    if (res.status === 429) throw new AccountError('Too many attempts. Wait a minute and try again.', false, false, 'rate_limited')
     if (res.status >= 500) throw new AccountError("Vanity's account service is having trouble. Try again in a moment.", false, true)
-    throw new AccountError(MESSAGES[code] ?? (typeof json?.message === 'string' && json.message ? json.message : `Sign-in failed (error ${res.status}).`))
+    throw new AccountError(MESSAGES[code] ?? (typeof json?.message === 'string' && json.message ? json.message : `Sign-in failed (error ${res.status}).`), false, false, code || `http_${res.status}`)
   }
 
   private toSession(res: AuthResponse & { json: Record<string, unknown> | null }, previousCookie = ''): AuthSession | null {
@@ -143,7 +145,11 @@ export class NeonAuth {
   }
 
   async signIn(email: string, password: string): Promise<AuthSession> {
-    const res = await this.call('POST', '/sign-in/email', { body: { email, password, rememberMe: true } })
+    const res = await this.call('POST', '/sign-in/email', { body: { email, password, rememberMe: true } }).catch((err: unknown) => {
+      // Whatever was wrong with the email or password, the answer reads the same.
+      if (err instanceof AccountError && err.code && err.code !== 'rate_limited' && err.code !== 'EMAIL_NOT_VERIFIED') throw new AccountError(SIGN_IN_FAILED)
+      throw err
+    })
     const session = this.toSession(res)
     if (!session) throw new AccountError('Sign-in failed. Try again.')
     return session
@@ -169,12 +175,28 @@ export class NeonAuth {
     await this.call('POST', '/sign-out', { cookie })
   }
 
-  /** Emails a 6-digit code for choosing a new password. */
+  /** Ends every session of this account except the one the cookie belongs to. */
+  async revokeOtherSessions(cookie: string): Promise<void> {
+    await this.call('POST', '/revoke-other-sessions', { cookie })
+  }
+
+  /**
+   * Emails a 6-digit code for choosing a new password, if an account uses that email.
+   * It never says whether one does: only being offline or asking too often is an error.
+   */
   async sendResetCode(email: string): Promise<void> {
-    await this.call('POST', '/email-otp/send-verification-otp', { body: { email, type: 'forget-password' } })
+    try {
+      await this.call('POST', '/email-otp/send-verification-otp', { body: { email, type: 'forget-password' } })
+    } catch (err) {
+      if (err instanceof AccountError && (err.offline || err.code === 'rate_limited')) throw err
+    }
   }
 
   async resetPassword(email: string, code: string, password: string): Promise<void> {
-    await this.call('POST', '/email-otp/reset-password', { body: { email, otp: code, password } })
+    await this.call('POST', '/email-otp/reset-password', { body: { email, otp: code, password } }).catch((err: unknown) => {
+      // "No such account" would give away who has one: it reads like a wrong code.
+      if (err instanceof AccountError && err.code === 'USER_NOT_FOUND') throw new AccountError(MESSAGES.INVALID_OTP)
+      throw err
+    })
   }
 }

@@ -264,6 +264,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       const handle = native.addListener?.('notificationClick', (d: { action: string }) => callback(d.action))
       return () => void Promise.resolve(handle).then((h) => h?.remove())
     },
+    // A phone game takes the whole screen and other apps can't draw over it: no overlay here.
+    overlay: { supported: false, setVoice: () => {}, setSpeaking: () => {}, note: async () => false, preview: async () => false, state: async () => null, onState: () => () => {} },
     allowNotifications: async () => (await native.requestNotifications?.().catch(() => null))?.granted ?? false,
     games: {
       list: async () => store.list(),

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { OverlayApp } from './overlay/OverlayApp'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/outfit'
 import '@fontsource-variable/space-grotesk'
@@ -45,10 +46,10 @@ applySavedTheme()
 applySavedFont()
 
 // On Android, `ready` resolves once window.vanity (the app's backend) is set up; on desktop the preload already did it.
+// The in-game overlay's windows load this same page with ?overlay=voice or ?overlay=notes.
+const overlay = new URLSearchParams(location.search).get('overlay')
+if (overlay) document.documentElement.classList.add('overlay-window')
+
 void ready.then(() =>
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <App />
-    </StrictMode>
-  )
+  createRoot(document.getElementById('root')!).render(<StrictMode>{overlay === 'voice' || overlay === 'notes' ? <OverlayApp kind={overlay} /> : <App />}</StrictMode>)
 )

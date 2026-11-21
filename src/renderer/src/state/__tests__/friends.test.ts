@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Friend, FriendsList } from '@shared/types'
 import { DEFAULT_PROFILE_STYLE } from '@shared/profileStyle'
-import { notesFor } from '../friends'
+import { notesFor, requestNotes } from '../friends'
 
 const friend = (id: string, state: Friend['status']['state'], game: string | null = null, last: { id: number; mine: boolean; text: string } | null = null): Friend => ({
   id,
@@ -59,5 +59,14 @@ describe('friend notifications', () => {
     expect(said(was(friend('max', 'online')), list(inVoice(true, ['ann', 'max', 'cal'])))).toEqual(['max joined voice with ann, cal'])
     expect(said(was(inVoice()), list(inVoice()))).toEqual([])
     expect(said(was(friend('max', 'online')), list(inVoice(false)))).toEqual([]) // locked: nothing to join
+  })
+})
+
+describe('friend requests', () => {
+  const req = (id: string) => ({ id, username: id, avatar: null, style: undefined as never, verified: false, admin: false, createdAt: 1 })
+  it('announces a request once, when it is new', () => {
+    const list = { friends: [], incoming: [req('zoe'), req('max')], outgoing: [req('me_to_someone')] } as never as FriendsList
+    expect(requestNotes(new Set(['max']), list).map((n) => `${n.kind} ${n.friend.username} ${n.action} -> ${n.to}`)).toEqual(['request zoe sent you a friend request -> /friends'])
+    expect(requestNotes(new Set(['max', 'zoe']), list)).toEqual([])
   })
 })

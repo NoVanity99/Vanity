@@ -1,4 +1,5 @@
 import { DEFAULT_VOICE } from '@shared/voiceSettings'
+import { DEFAULT_OVERLAY } from '@shared/overlay'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -36,7 +37,8 @@ const baseSettings: Settings = {
   updateKey: '',
   breakReminderMinutes: 0,
   interface: DEFAULT_INTERFACE,
-  voice: DEFAULT_VOICE
+  voice: DEFAULT_VOICE,
+  overlay: DEFAULT_OVERLAY
 }
 
 const portal: DetectedGame = { source: 'steam', externalId: '620', name: 'Portal 2', installPath: '/p', executablePath: null }

@@ -3,6 +3,15 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.28.0 (2026-11-21)
+- New: **a log-in pop-up.** The first time Vanity opens, and whenever nobody is signed in, a small pop-up sits over a dimmed, blurred launcher with **Log In** and **Sign Up**. It can't be closed or clicked around until you're signed in. (If you're already signed in, nothing changes, and you stay signed in without internet.)
+- New: **log in with your username or your email**, whichever you remember.
+- New: **set up your account step by step.** After signing up, ten short pages: your picture (upload and crop it, or pick a ready-made one) and bio, then banner, banner effect, picture frame, aura, name effect, name font, emoji and title. A card at the top shows **how you look to your friends** and changes as you point at or pick things. Back, Next and Skip on every page; close Vanity half-way and it carries on where you were.
+- New: **in-game overlay (Windows).** While a game started from Vanity is running, small pictures of everyone in your voice room sit in a corner, with a glowing green ring around whoever is talking, and friend requests, messages, invites and friends coming online show as small notifications for about 5 seconds. It never takes the mouse or keyboard from the game. Turn it or its notifications off, pick a corner for each, and try it with **Show a preview** in **Account → In-game overlay**. It works over windowed and borderless-fullscreen games; a game in exclusive full screen hides it. Not on Android, where a game covers the whole screen.
+- New: **friend requests are announced** like other notifications, and profile pictures can be **cropped** or picked from ready-made ones in Account too.
+- Safer: every failed log-in now says the same thing ("Incorrect username/email or password."), and "Forgot password?" says the same whether or not the email has an account, so nobody can use either to find out who has one. Passwords can be shown while typing, a meter rates new ones, a new password is typed twice, and after a reset you're signed in and **every other device is signed out**.
+- Under the hood: Account and the set-up pages now draw their choices from one list, so a new banner, frame or font shows up in both by itself.
+
 ## 0.27.2 (2026-11-17)
 - Fixed: **hearing yourself back in voice.** When a friend used speakers instead of headphones, their microphone picked up your voice and sent it back. Voices now play the way the echo canceller expects, so it removes them. (Everyone in the call should update. Volumes above 100% for someone still work, but at those levels their echo can't be removed as well.)
 - Fixed: **choosing a camera in Settings → Voice.** The list now fills in with your cameras' names (use the new **Preview camera** button once to let Vanity see them), your choice is used exactly, and switching cameras while yours is on in a call takes effect straight away.

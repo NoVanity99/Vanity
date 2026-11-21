@@ -1,5 +1,7 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { setupOverlay } from './overlay/setup'
+import type { GameOverlay } from './overlay/manager'
 import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, net, Notification, protocol, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
@@ -75,6 +77,7 @@ let discord: DiscordPresence | null = null
 let breaks: BreakReminders | null = null
 let gameWindows: GameWindows | null = null
 let pushToTalk: PushToTalkHotkey | null = null
+let overlay: GameOverlay | null = null
 /** Vanity's own window (game windows for web games are separate). */
 let mainWindow: BrowserWindow | null = null
 
@@ -197,7 +200,12 @@ function createWindow(): void {
     return { action: 'deny' }
   })
   win.webContents.on('did-create-window', (popup, details) => trackStreamWindow(popup, details.frameName))
-  win.on('closed', () => closeStreamWindows())
+  win.on('closed', () => {
+    closeStreamWindows()
+    // The voice room lived in that window.
+    overlay?.setVoice([])
+    overlay?.close()
+  })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -219,6 +227,8 @@ app.whenReady().then(() => {
       broadcast(IPC.sessionsChanged, { gameId, state })
       minimizeWhilePlaying(state)
       account?.onSessionChange(state)
+      // The overlay is only up while a game started from Vanity runs.
+      overlay?.refresh()
       // A finished session is new progress: save it to the cloud.
       if (state === 'stopped') sync?.touch()
       showGameOnDiscord()
@@ -323,6 +333,7 @@ app.whenReady().then(() => {
   })
 
   // Push-to-talk from anywhere: the key's ups and downs go to the voice engine in the window.
+  overlay = setupOverlay({ settings: () => getSettings().overlay, gameRunning: () => !!tracker?.running(), mainWindow: getMainWindow })
   pushToTalk = new PushToTalkHotkey((down) => broadcast(IPC.voicePushToTalk, down))
   setupScreenShare()
   pushToTalk.configure(getSettings().voice.inputMode === 'ptt', getSettings().voice.pttKey)
@@ -465,7 +476,11 @@ app.whenReady().then(() => {
   })
   update.start()
 
-  registerIpc({ pushToTalk, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: applyChrome })
+  registerIpc({ pushToTalk, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: () => {
+      applyChrome()
+      overlay?.refresh()
+    }
+  })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
@@ -514,6 +529,7 @@ app.on('before-quit', (event) => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   pushToTalk?.stop()
+  overlay?.close()
   stopScreenAudio()
   // Record playtime up to now for games still running; tracking stops with the app.
   tracker?.stopAll()

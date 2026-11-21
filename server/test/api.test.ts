@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { exportJWK, generateKeyPair, SignJWT, createLocalJWKSet } from 'jose'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
+import { testBackend } from './support/backend'
 import { neonAuthVerifier, type VerifyToken } from '../src/auth'
 import type { Sql } from '../src/db'
 import { DEFAULT_PROFILE_STYLE, PROFILE_AURAS, PROFILE_BANNERS, PROFILE_EFFECTS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_FONTS, PROFILE_NAME_STYLES, PROFILE_TITLES } from '../../src/shared/profileStyle'
@@ -306,6 +307,49 @@ describe('one account per username and per email', () => {
 
   it('leaves it to Neon Auth when its tables cannot be read', async () => {
     expect((await call('POST', '/emails/check', undefined, { email: 'someone@example.com' })).json).toEqual({ inUse: null })
+  })
+})
+
+describe('signing in with a username', () => {
+  it('finds the email privately, signs in at Neon Auth and hands the session back', async () => {
+    const seen: string[] = []
+    const b = await testBackend({
+      emailOfUser: async (id) => (id === 'alice' ? 'alice@mail.test' : null),
+      authSignIn: async (email, password) => {
+        seen.push(email)
+        return password === 'right-password' ? { status: 200, json: { user: { id: 'alice', email, name: 'Alice' } }, setCookie: ['neon-auth.session_token=abc; Path=/'], jwt: 'j.w.t' } : { status: 401, json: { code: 'INVALID_EMAIL_OR_PASSWORD' }, setCookie: [], jwt: null }
+      }
+    })
+    const post = async (body: unknown) => {
+      const r = await b.fetchFn('https://x/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      return { status: r.status, json: (await r.json()) as Record<string, unknown> }
+    }
+    await b.fetchFn('https://x/me/username', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer t:alice' }, body: JSON.stringify({ username: 'Alice_1' }) })
+
+    const ok = await post({ username: 'alice_1', password: 'right-password' })
+    expect(ok.status).toBe(200)
+    expect(ok.json).toEqual({ user: { id: 'alice', email: 'alice@mail.test', name: 'Alice' }, setCookie: ['neon-auth.session_token=abc; Path=/'], jwt: 'j.w.t' })
+    expect(seen).toEqual(['alice@mail.test'])
+
+    // A wrong password, a name nobody has and nonsense all read exactly the same, and never show an email.
+    const wrong = await post({ username: 'alice_1', password: 'nope' })
+    const nobody = await post({ username: 'nobody_here', password: 'right-password' })
+    const junk = await post({ username: "x' OR 1=1", password: 'p' })
+    for (const r of [wrong, nobody, junk]) {
+      expect(r.status).toBe(401)
+      expect(r.json).toEqual({ error: 'Incorrect username/email or password.' })
+    }
+    expect(seen).toEqual(['alice@mail.test', 'alice@mail.test'])
+  })
+
+  it('pauses a username after too many wrong passwords, and is off without Neon Auth', async () => {
+    const b = await testBackend({ signInRateLimit: 3, emailOfUser: async () => 'a@mail.test', authSignIn: async () => ({ status: 401, json: null, setCookie: [], jwt: null }) })
+    const post = async (fetchFn: typeof b.fetchFn, username: string) => (await fetchFn('https://x/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, password: 'guess' }) })).status
+    await b.fetchFn('https://x/me/username', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: 'Bearer t:alice' }, body: JSON.stringify({ username: 'alice' }) })
+    expect([await post(b.fetchFn, 'alice'), await post(b.fetchFn, 'alice'), await post(b.fetchFn, 'ALICE'), await post(b.fetchFn, 'alice')]).toEqual([401, 401, 401, 429])
+    expect(await post(b.fetchFn, 'someone_else')).toBe(401)
+    const off = await testBackend()
+    expect(await post(off.fetchFn, 'alice')).toBe(409)
   })
 })
 

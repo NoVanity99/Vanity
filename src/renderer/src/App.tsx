@@ -15,6 +15,7 @@ import { VibeCheck } from './components/VibeCheck'
 import { FriendNotifications } from './components/FriendNotifications'
 import { ChatDock } from './components/ChatDock'
 import { useAccount } from './state/account'
+import { AuthGate, useGate } from './components/auth/AuthGate'
 import { useFriendsRefresh } from './state/friends'
 import { useGroupsRefresh } from './state/groups'
 import { GamepadLayer } from './gamepad/GamepadLayer'
@@ -33,7 +34,7 @@ import { FriendsPage } from './pages/FriendsPage'
 import { VoicePage } from './pages/VoicePage'
 import { VoiceBar } from './components/voice/VoiceBar'
 import { cn } from './lib/cn'
-import { syncVoiceSettings, wirePushToTalk } from './state/voice'
+import { syncVoiceSettings, wireOverlay, wirePushToTalk } from './state/voice'
 import { FriendProfilePage } from './pages/FriendProfilePage'
 import { AccountPage } from './pages/AccountPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -86,10 +87,14 @@ function Shell(): React.JSX.Element {
   // The voice engine follows the voice settings; push-to-talk is listened for once.
   useEffect(() => syncVoiceSettings(settings?.voice), [settings?.voice])
   useEffect(() => wirePushToTalk(), [])
+  useEffect(() => (window.vanity.overlay.supported ? wireOverlay() : undefined), [])
 
   // Friends are kept fresh in the background for the sidebar's counts and for notifications.
-  useFriendsRefresh(useAccount()?.username)
-  useGroupsRefresh(useAccount()?.username)
+  const account = useAccount()
+  useFriendsRefresh(account?.username)
+  useGroupsRefresh(account?.username)
+  // Signed out, or a new account still being set up: the launcher waits behind a pop-up.
+  const gate = useGate(account)
   const startPath = START_PAGES.find((p) => p.id === ui.startPage)?.path ?? '/library'
 
   // Cloud sync brought something in from another device: show it.
@@ -105,7 +110,10 @@ function Shell(): React.JSX.Element {
   useEffect(() => setMenuOpen(false), [location.pathname])
 
   return (
-    <div className="relative flex h-full">
+    <>
+    {gate && account && <AuthGate account={account} gate={gate} />}
+    {/* Nothing behind the pop-up can be clicked, tabbed to or reached with a controller. */}
+    <div className="relative flex h-full" inert={gate ? true : undefined} data-gated={gate ? '' : undefined}>
       {settings?.ambientBackground !== false && <AmbientBackground />}
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <main className="relative z-10 min-w-0 flex-1 max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] max-md:pt-[env(safe-area-inset-top)]">
@@ -164,7 +172,7 @@ function Shell(): React.JSX.Element {
       <AppPicker />
       <GamepadLayer />
       <UpdateBanner />
-      <CommandPalette />
+      {!gate && <CommandPalette />}
       <InstallDialog />
       <SessionRecap />
       <VibeCheck />
@@ -185,6 +193,7 @@ function Shell(): React.JSX.Element {
         />
       )}
     </div>
+    </>
   )
 }
 

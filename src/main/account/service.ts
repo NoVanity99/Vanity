@@ -6,7 +6,7 @@ import type { FetchFn } from '../metadata/http'
 import { AccountClient, type Me } from './client'
 import { AccountError } from './errors'
 import { gameKey } from './gameKey'
-import { EMAIL_IN_USE, jwtExpiry, NeonAuth, USERNAME_IN_USE, type AuthHttp, type AuthSession } from './neonAuth'
+import { EMAIL_IN_USE, jwtExpiry, mergeCookies, NeonAuth, SIGN_IN_FAILED, USERNAME_IN_USE, type AuthHttp, type AuthSession } from './neonAuth'
 
 const HEARTBEAT_MS = 60_000
 const STATS_SYNC_MS = 15 * 60_000
@@ -164,9 +164,21 @@ export class AccountService {
     return this.state()
   }
 
-  async signIn(email: string, password: string, remember: boolean): Promise<AccountState> {
+  /** Signs in with whatever was typed: an email (it has an @) or a username. */
+  async signIn(identifier: string, password: string, remember: boolean): Promise<AccountState> {
     await this.load()
-    const session = await this.auth().signIn(email.trim(), password)
+    identifier = identifier.trim()
+    if (!identifier || !password) throw new AccountError(SIGN_IN_FAILED)
+    let session: AuthSession
+    if (identifier.includes('@')) session = await this.auth().signIn(identifier, password)
+    else {
+      // Something that can't be a username can't be an account either: same answer, no request.
+      if (!USERNAME.test(identifier)) throw new AccountError(SIGN_IN_FAILED)
+      const res = await this.client().signInWithUsername(identifier, password)
+      const cookie = mergeCookies('', res.setCookie ?? [])
+      if (!res.user?.id || !cookie) throw new AccountError(SIGN_IN_FAILED)
+      session = { cookie, user: res.user, jwt: res.jwt || null }
+    }
     await this.adopt(session, null, remember)
     try {
       const me = await this.client().me()
@@ -221,9 +233,21 @@ export class AccountService {
     await this.auth().sendResetCode(email.trim())
   }
 
+  /**
+   * Sets the new password with the emailed code, then signs in here and ends every other
+   * session of the account (a stolen or forgotten sign-in elsewhere stops working).
+   */
   async resetPassword(email: string, code: string, password: string): Promise<void> {
     if (password.length < 8) throw new AccountError('Passwords need at least 8 characters.')
     await this.auth().resetPassword(email.trim(), code.trim(), password)
+    try {
+      await this.signIn(email, password, true)
+      const cookie = this.saved?.cookie
+      if (cookie) await this.auth().revokeOtherSessions(cookie)
+    } catch (err) {
+      // The password is changed either way; signing in by hand still works.
+      console.warn('[account] signed-in clean-up after a password reset did not finish:', err)
+    }
   }
 
   async signOut(): Promise<AccountState> {

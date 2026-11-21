@@ -136,3 +136,29 @@ export function wirePushToTalk(): void {
   // Leaving the window with the key held: let go.
   window.addEventListener('blur', () => !global && voice.pushToTalk(false))
 }
+
+/**
+ * Tells the in-game overlay who is in your voice room and who is talking. The list (with
+ * pictures) is only sent when it changes; who is talking is a short list of ids sent as it flips.
+ */
+export function wireOverlay(): () => void {
+  let roster = ''
+  let talking = ''
+  const send = (s: typeof voice.snapshot): void => {
+    const inRoom = s.status === 'in-room' || s.status === 'reconnecting'
+    const members = inRoom ? s.members.map((m) => ({ id: m.id, name: m.user.username, avatar: m.user.avatar ?? null, muted: m.muted, deafened: m.deafened })) : []
+    const nextRoster = JSON.stringify(members.map((m) => [m.id, m.name, m.muted, m.deafened, m.avatar?.length ?? 0]))
+    if (nextRoster !== roster) {
+      roster = nextRoster
+      window.vanity.overlay.setVoice(members)
+    }
+    const ids = inRoom ? s.members.filter((m) => m.speaking).map((m) => m.id) : []
+    const nextTalking = ids.join(',')
+    if (nextTalking !== talking) {
+      talking = nextTalking
+      window.vanity.overlay.setSpeaking(ids)
+    }
+  }
+  send(voice.snapshot)
+  return voice.subscribe(send)
+}

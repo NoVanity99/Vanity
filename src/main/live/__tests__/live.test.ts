@@ -1,4 +1,5 @@
 import { DEFAULT_VOICE } from '@shared/voiceSettings'
+import { DEFAULT_OVERLAY } from '@shared/overlay'
 import { DEFAULT_INTERFACE } from '@shared/interfaceOptions'
 import { describe, expect, it } from 'vitest'
 import type { Settings } from '@shared/types'
@@ -32,7 +33,8 @@ const settings = (keys: boolean): Settings =>
   updateKey: '',
   breakReminderMinutes: 0,
   interface: DEFAULT_INTERFACE,
-  voice: DEFAULT_VOICE
+  voice: DEFAULT_VOICE,
+  overlay: DEFAULT_OVERLAY
   }) as Settings
 
 function apis() {

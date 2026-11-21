@@ -41,6 +41,48 @@ export interface AppOptions {
   updates?: () => Promise<UpdateBundle | null>
   /** When set, /update needs this in the X-Update-Key header. */
   updateKey?: string
+  /**
+   * Signs in at Neon Auth with an email and password, for people who typed their username
+   * (see POST /auth/sign-in). Without it, signing in by username is off.
+   */
+  authSignIn?: AuthSignIn
+  /** The sign-in email of an account. Default: read from Neon Auth's own table in the same database. */
+  emailOfUser?: (id: string) => Promise<string | null>
+  /** Wrong passwords one username may get per 10 minutes before it is paused. */
+  signInRateLimit?: number
+}
+
+/** What Neon Auth answered to a sign-in: the app needs the cookies and the token as they are. */
+export interface AuthSignInResult {
+  status: number
+  json: Record<string, unknown> | null
+  setCookie: string[]
+  jwt: string | null
+}
+export type AuthSignIn = (email: string, password: string) => Promise<AuthSignInResult>
+
+/** One message for every failed sign-in, so nobody can learn which accounts exist. */
+export const SIGN_IN_FAILED = 'Incorrect username/email or password.'
+
+/** Sign-in at a Neon Auth address, from the server. */
+export function neonAuthSignIn(baseUrl: string, origin = 'http://localhost:5173', fetchFn: typeof fetch = fetch): AuthSignIn {
+  return async (email, password) => {
+    const res = await fetchFn(`${baseUrl.replace(/\/+$/, '')}/sign-in/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json', origin },
+      body: JSON.stringify({ email, password, rememberMe: true }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000)
+    })
+    let json: Record<string, unknown> | null = null
+    try {
+      const parsed: unknown = await res.json()
+      if (parsed && typeof parsed === 'object') json = parsed as Record<string, unknown>
+    } catch {
+      // not JSON
+    }
+    return { status: res.status, json, setCookie: res.headers.getSetCookie(), jwt: res.headers.get('set-auth-jwt') }
+  }
 }
 
 export type Env = { Variables: { userId: string; username: string; email: string | null } }
@@ -117,7 +159,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10 }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
@@ -222,6 +264,61 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       // Neon Auth's tables aren't readable from here: leave it to Neon Auth.
     }
     return c.json({ inUse })
+  })
+
+  const emailOf =
+    emailOfUser ??
+    (async (id: string): Promise<string | null> => {
+      try {
+        const [row] = await sql<{ email: string }>`SELECT email FROM neon_auth."user" WHERE id::text = ${id} LIMIT 1`
+        return row?.email ?? null
+      } catch {
+        return null
+      }
+    })
+  const wrongPasswords = new Map<string, { count: number; reset: number }>()
+
+  /**
+   * Signing in with a username. The app can't ask Neon Auth itself, because Neon Auth only knows
+   * emails and a username must never be turned into its email for a stranger. So the server looks
+   * the email up privately, signs in at Neon Auth, and hands the session back. The password is
+   * passed on over https and never stored or logged. Every failure reads the same.
+   */
+  app.post('/auth/sign-in', rateLimit, async (c) => {
+    const { username, password } = await body<{ username: string; password: string }>(c)
+    if (typeof username !== 'string' || typeof password !== 'string' || !password || password.length > 256 || !USERNAME.test(username.trim())) fail(401, SIGN_IN_FAILED)
+    if (!authSignIn) fail(409, 'Signing in with a username is not available right now. Use your email instead.', 'username_sign_in_off')
+    const key = username!.trim().toLowerCase()
+    const at = Date.now()
+    const tries = wrongPasswords.get(key)
+    if (tries && tries.reset > at && tries.count >= signInRateLimit) fail(429, 'Too many attempts. Wait a few minutes and try again.')
+    const miss = (): never => {
+      const t = wrongPasswords.get(key)
+      if (!t || t.reset < at) wrongPasswords.set(key, { count: 1, reset: at + 10 * 60_000 })
+      else t.count++
+      return fail(401, SIGN_IN_FAILED)
+    }
+    await ready()
+    const [profile] = await sql<{ id: string }>`SELECT id FROM vanity.profiles WHERE lower(username) = ${key}`
+    const email = profile ? await emailOf(profile.id) : null
+    if (!email) miss()
+    let res: AuthSignInResult
+    try {
+      res = await authSignIn!(email!, password!)
+    } catch {
+      throw new HTTPException(503 as never, { message: "Vanity's sign-in service can't be reached. Try again in a moment." })
+    }
+    if (res.status === 429) fail(429, 'Too many attempts. Wait a minute and try again.')
+    if (res.status >= 500) throw new HTTPException(503 as never, { message: "Vanity's sign-in service is having trouble. Try again in a moment." })
+    const user = res.json?.user as { id?: unknown; email?: unknown; name?: unknown } | undefined
+    if (res.status < 200 || res.status >= 300 || !user || typeof user.id !== 'string' || !res.setCookie.length) {
+      // An address that still has to be confirmed is the one thing worth saying (the password was right).
+      if (res.json?.code === 'EMAIL_NOT_VERIFIED') fail(403, 'Check your email and confirm your address first, then sign in.')
+      miss()
+    }
+    wrongPasswords.delete(key)
+    c.header('Cache-Control', 'no-store')
+    return c.json({ user: { id: user!.id, email: String(user!.email ?? ''), name: String(user!.name ?? '') }, setCookie: res.setCookie, jwt: res.jwt })
   })
 
   app.get('/me', requireAuth, async (c) => {

@@ -1,3 +1,4 @@
+import type { OverlayMember, OverlayNote, OverlayState } from './overlay'
 import type { ProfileStyle } from './profileStyle'
 import type { VoiceSignal, VoiceUpdate } from './voiceProtocol'
 import type { GifResult, GroupChat, GroupMessage, GroupPage } from './groups'
@@ -101,6 +102,22 @@ export interface VanityApi {
   onNotificationClick(callback: (action: string) => void): () => void
   /** Asks to show notifications (phones, Android 13+). True when allowed. */
   allowNotifications(): Promise<boolean>
+  /** The overlay over a running game (src/shared/overlay.ts). */
+  overlay: {
+    /** False where there is no overlay (Android). */
+    supported: boolean
+    /** The people in your voice room, for the pictures (an empty list when you're not in one). */
+    setVoice(members: OverlayMember[]): void
+    /** Who is talking right now. */
+    setSpeaking(ids: string[]): void
+    /** Shows a notification over the game. Resolves false when the overlay isn't showing them (no game, or turned off). */
+    note(note: Omit<OverlayNote, 'id'>): Promise<boolean>
+    /** Shows the overlay for a few seconds without a game, to see where it sits. False when it is turned off. */
+    preview(): Promise<boolean>
+    /** For the overlay's own windows: what to draw now, and every change after. */
+    state(): Promise<OverlayState | null>
+    onState(callback: (state: OverlayState) => void): () => void
+  }
   games: {
     list(): Promise<Game[]>
     get(id: number): Promise<Game | null>
@@ -527,6 +544,12 @@ export const IPC = {
   voiceScreenAudioEnded: 'voice:screen-audio-ended',
   voicePopOutOnTop: 'voice:pop-out-on-top',
   voicePushToTalk: 'voice:push-to-talk',
+  overlayVoice: 'overlay:voice',
+  overlaySpeaking: 'overlay:speaking',
+  overlayNote: 'overlay:note',
+  overlayPreview: 'overlay:preview',
+  overlayState: 'overlay:state',
+  overlayPush: 'overlay:push',
   voiceHotkeyStatus: 'voice:hotkey-status',
   accountSetProfile: 'account:set-profile',
   accountSendResetCode: 'account:send-reset-code',

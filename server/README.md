@@ -41,18 +41,19 @@ The key allows 100,000 calls a day for everyone together, so the server protects
 
 ### Things to know
 
-- **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*.
+- **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*. [Resend](https://resend.com) works there (it offers SMTP): it needs a Resend account and a domain you own, verified in Resend. Its key is typed into the Neon console only: it never goes in the app, this repository or a `.env` file.
+- **Passwords** are hashed by Neon Auth (Better Auth: scrypt with a per-password salt) and stored in the `neon_auth` schema of the same database, with the sessions and reset codes. Neon Auth also rate-limits sign-in, sign-up and reset requests itself; this server adds its own limits to the public checks and to signing in with a username.
 - **Email confirmation at sign-up** is off by default in Neon Auth, and Vanity expects that: a new account is signed in straight away. If you turn it on in the Neon console, new users must confirm their address before they can sign in.
 - **Trusted origins.** Neon Auth only answers requests from origins it trusts, and local addresses are trusted by default. The app sends `http://localhost:5173` (`BACKEND.origin` in `src/shared/backend.ts`). If you ever switch *Allow localhost* off in the Neon console (Auth → Domains), sign-in stops working until you add that origin as a trusted domain.
 - **The old server.** Vanity used to keep accounts itself (usernames and password hashes in `public.users`, with its own tokens). That is gone. The old tables in the `public` schema are not used or touched: everything now lives in the `vanity` schema, and you can drop the old tables whenever you like.
 
 ## How sign-in works
 
-1. The app posts the email and password to Neon Auth (`/sign-in/email`). Neon Auth answers with a session cookie.
+1. The app posts the email and password to Neon Auth (`/sign-in/email`). Neon Auth answers with a session cookie. If a **username** was typed instead, the app posts it to this server (`POST /auth/sign-in`), which looks the email up privately, asks Neon Auth, and hands the same session back: a username is never turned into its email for a stranger. Every failure reads "Incorrect username/email or password."
 2. The app keeps that cookie in the operating system's protected storage: DPAPI on Windows (`session.bin`, readable only by that Windows user on that PC) and a Keystore-encrypted value on Android. With "Stay signed in" off it is kept in memory only.
 3. To talk to this server, the app trades the cookie for a 15-minute token (a JWT signed with Ed25519) and sends it as `Authorization: Bearer …`. When the token runs out it gets a new one by itself.
 4. If Neon Auth says the session is over (expired, or signed out), the app forgets it and asks you to sign in again.
-5. **Forgot password:** Neon Auth emails a 6-digit code; the app sends the code and the new password back to Neon Auth.
+5. **Forgot password:** Neon Auth emails a 6-digit code (the app says the same thing whether or not the address has an account); the app sends the code and the new password back to Neon Auth, signs in, and ends every other session of the account (`/revoke-other-sessions`).
 
 ## API
 
@@ -62,6 +63,7 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | --- | --- | --- |
 | GET | `/` | `{ name: "vanity-api", ok: true }` |
 | GET | `/usernames/:name` | `{ available }`: whether a username is free (rate-limited per IP) |
+| POST | `/auth/sign-in` | `{ username, password }` → `{ user, setCookie, jwt }`: signs in at Neon Auth for someone who typed their username. Public; rate-limited per IP and per username (10 wrong passwords per 10 minutes). `401` with one fixed message for every failure. The password is passed on over https and never stored or logged |
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
 | POST | `/emails/check` | `{ email }` → `{ inUse }`: whether an email already has an account (true/false), or `null` when Neon Auth's own tables can't be read from the server. Public and rate-limited; the sign-up form uses it. Neon Auth itself refuses a second account for an email either way |
 | PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |

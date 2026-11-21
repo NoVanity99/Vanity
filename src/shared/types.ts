@@ -1,3 +1,4 @@
+import type { OverlaySettings } from './overlay'
 import type { FriendVoice } from './voiceProtocol'
 import type { VoiceSettings } from './voiceSettings'
 import type { InterfaceOptions } from './interfaceOptions'
@@ -215,6 +216,8 @@ export interface Settings {
   interface: InterfaceOptions
   /** Voice chat: devices, push-to-talk, sensitivity, per-person volumes. Kept on this device. */
   voice: VoiceSettings
+  /** The overlay over a running game: voice pictures and notifications (Windows). Kept on this device. */
+  overlay: OverlaySettings
 }
 
 /** Fields the user can change on a game. */
