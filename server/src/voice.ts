@@ -1,7 +1,7 @@
 import { randomBytes, createHmac } from 'node:crypto'
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { FriendVoice, VoiceIceServer, VoicePeer, VoiceRoom, VoiceSignal, VoiceUpdate } from '../../src/shared/voiceProtocol'
-import { body, fail, publicUser, toMs, type Env } from './app'
+import { body, fail, toMs, RING_MS, type Env, type PublicUserFn } from './app'
 import type { Sql } from './db'
 
 /** STUN/TURN settings, from the function's environment (TURN is optional). */
@@ -53,6 +53,9 @@ export interface VoiceDeps {
   requireAuth: MiddlewareHandler<Env>
   requireUser: MiddlewareHandler<Env>
   areFriends(a: string, b: string): Promise<boolean>
+  publicUser: PublicUserFn
+  /** Throws when the account is banned or timed out. */
+  canSpeak(userId: string): void
   ice: IceConfig
   /** Requests one account may make to voice routes per minute (checking in, connection details…). */
   rateLimit?: number
@@ -95,7 +98,10 @@ function validSignal(d: unknown): d is VoiceSignal {
   return false
 }
 
-type MemberRow = { user_id: string; username: string; avatar: string | null; style: unknown; muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: string | null; joined_at: unknown; last_seen: unknown }
+type MemberRow = { user_id: string; username: string; avatar: string | null; style: unknown; muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: string | null; watching: string | null; joined_at: unknown; last_seen: unknown }
+
+/** The chat a direct call between two accounts belongs to (the same as dmChat in src/shared/voiceProtocol.ts). */
+export const dmChat = (a: string, b: string): string => `dm:${[a, b].sort().join(':')}`
 
 /**
  * Voice rooms, on the Vanity server. No codes: a room belongs to whoever started it and is seen
@@ -104,7 +110,7 @@ type MemberRow = { user_id: string; username: string; avatar: string | null; sty
  * at most. Apps check in every second or two during a call (`GET /voice/update`), which also
  * delivers the WebRTC connection details other players sent them.
  */
-export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, rateLimit = 600, now = Date.now }: VoiceDeps): Hono<Env> {
+export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, publicUser, canSpeak, ice, rateLimit = 600, now = Date.now }: VoiceDeps): Hono<Env> {
   const app = new Hono<Env>()
   const hits = new Map<string, { count: number; reset: number }>()
   const limit: MiddlewareHandler<Env> = async (c, next) => {
@@ -122,13 +128,14 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
     await sql`DELETE FROM vanity.voice_members WHERE last_seen < to_timestamp(${(now() - VOICE_GONE_MS) / 1000})`
     await sql`DELETE FROM vanity.voice_rooms r WHERE NOT EXISTS (SELECT 1 FROM vanity.voice_members m WHERE m.room_id = r.id) AND r.created_at < to_timestamp(${(now() - 30_000) / 1000})`
     await sql`DELETE FROM vanity.voice_signals WHERE created_at < to_timestamp(${(now() - 120_000) / 1000})`
+    await sql`DELETE FROM vanity.voice_rings WHERE created_at < to_timestamp(${(now() - RING_MS) / 1000})`
   }
 
   async function roomView(roomId: string): Promise<VoiceRoom | null> {
-    const [r] = await sql<{ id: string; host_id: string; private: boolean; locked: boolean }>`SELECT id, host_id, private, locked FROM vanity.voice_rooms WHERE id = ${roomId}`
+    const [r] = await sql<{ id: string; host_id: string; private: boolean; locked: boolean; chat: string | null }>`SELECT id, host_id, private, locked, chat FROM vanity.voice_rooms WHERE id = ${roomId}`
     if (!r) return null
     const rows = await sql<MemberRow>`
-      SELECT m.user_id, p.username, p.avatar, p.style, m.muted, m.deafened, m.sharing, m.camera, m.streams, m.joined_at, m.last_seen
+      SELECT m.user_id, p.username, p.avatar, p.style, m.muted, m.deafened, m.sharing, m.camera, m.streams, m.watching, m.joined_at, m.last_seen
       FROM vanity.voice_members m JOIN vanity.profiles p ON p.id = m.user_id
       WHERE m.room_id = ${roomId} ORDER BY m.joined_at, m.user_id`
     const t = now()
@@ -141,9 +148,16 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
       camera: m.camera,
       streams: readStreams(m.streams),
       connected: t - (toMs(m.last_seen) ?? 0) < VOICE_STALE_MS,
-      joinedAt: toMs(m.joined_at) ?? 0
+      joinedAt: toMs(m.joined_at) ?? 0,
+      // Only counts while that person really is sharing.
+      watching: m.watching && rows.some((o) => o.user_id === m.watching && o.sharing) ? m.watching : null
     }))
-    return { id: r.id, hostId: r.host_id, private: r.private, locked: r.locked, members }
+    const ringing = r.chat
+      ? await sql<{ id: string; username: string; avatar: string | null; style: unknown }>`
+          SELECT p.id, p.username, p.avatar, p.style FROM vanity.voice_rings g JOIN vanity.profiles p ON p.id = g.user_id
+          WHERE g.room_id = ${roomId} AND g.created_at > to_timestamp(${(t - RING_MS) / 1000}) ORDER BY p.username`
+      : []
+    return { id: r.id, hostId: r.host_id, private: r.private, locked: r.locked, members, chat: r.chat, ringing: ringing.map((p) => publicUser(p)) }
   }
 
   async function myRoomId(me: string): Promise<string | null> {
@@ -178,7 +192,10 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
   }
 
   /** Whether someone may join a room: invited, or (open and not locked) a friend of someone in it. */
-  async function mayJoin(me: string, room: { id: string; private: boolean; locked: boolean }): Promise<boolean> {
+  async function mayJoin(me: string, room: { id: string; private: boolean; locked: boolean; chat?: string | null }): Promise<boolean> {
+    // A call belongs to its chat: whoever is in the chat may join it, any time.
+    if (room.chat?.startsWith('dm:')) return room.chat.split(':').slice(1).includes(me)
+    if (room.chat?.startsWith('group:')) return (await sql`SELECT 1 FROM vanity.chat_group_members WHERE group_id = ${room.chat.slice(6)} AND user_id = ${me}`).length > 0
     const [inv] = await sql`SELECT 1 FROM vanity.voice_invites WHERE room_id = ${room.id} AND user_id = ${me}`
     if (inv) return true
     if (room.private || room.locked) return false
@@ -191,6 +208,7 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
   app.post('/rooms', async (c) => {
     const me = c.get('userId')
     const b = await body<{ private: boolean; locked: boolean }>(c)
+    canSpeak(me)
     await tidy()
     await leave(me)
     const id = randomBytes(9).toString('base64url')
@@ -204,8 +222,11 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
     const me = c.get('userId')
     const id = c.req.param('id')
     await tidy()
-    const [room] = await sql<{ id: string; private: boolean; locked: boolean }>`SELECT id, private, locked FROM vanity.voice_rooms WHERE id = ${id}`
+    const [room] = await sql<{ id: string; private: boolean; locked: boolean; chat: string | null }>`SELECT id, private, locked, chat FROM vanity.voice_rooms WHERE id = ${id}`
     if (!room) fail(404, 'That voice room has closed: everyone left.', 'voice_gone')
+    canSpeak(me)
+    // Answered: it stops ringing here.
+    await sql`DELETE FROM vanity.voice_rings WHERE room_id = ${id} AND user_id = ${me}`
     const current = await myRoomId(me)
     if (current !== id) {
       if (!(await mayJoin(me, room!))) fail(403, room!.locked ? 'That voice room is locked. Ask someone in it to invite you.' : "You can't join that voice room.", 'voice_locked')
@@ -238,8 +259,63 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice, ra
   })
 
   app.post('/state', async (c) => {
-    const b = await body<{ muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: unknown }>(c)
-    await sql`UPDATE vanity.voice_members SET muted = ${b.muted === true}, deafened = ${b.deafened === true}, sharing = ${b.sharing === true}, camera = ${b.camera === true}, streams = ${JSON.stringify(readStreams(b.streams))}, last_seen = to_timestamp(${now() / 1000}) WHERE user_id = ${c.get('userId')}`
+    const b = await body<{ muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: unknown; watching: unknown }>(c)
+    const watching = typeof b.watching === 'string' && b.watching.length <= 80 && b.watching !== c.get('userId') ? b.watching : null
+    await sql`UPDATE vanity.voice_members SET watching = ${watching}, muted = ${b.muted === true}, deafened = ${b.deafened === true}, sharing = ${b.sharing === true}, camera = ${b.camera === true}, streams = ${JSON.stringify(readStreams(b.streams))}, last_seen = to_timestamp(${now() / 1000}) WHERE user_id = ${c.get('userId')}`
+    return c.body(null, 204)
+  })
+
+  /**
+   * Calls a friend (`friendId`) or a group chat (`groupId`): starts the chat's call and rings
+   * everyone else in the chat, or joins the call if one is already going.
+   */
+  app.post('/call', async (c) => {
+    const me = c.get('userId')
+    const b = await body<{ friendId: string; groupId: string }>(c)
+    canSpeak(me)
+    await tidy()
+    let chat: string
+    let others: string[]
+    if (typeof b.groupId === 'string' && b.groupId) {
+      const members = await sql<{ user_id: string }>`SELECT user_id FROM vanity.chat_group_members WHERE group_id = ${b.groupId}`
+      if (!members.some((m) => m.user_id === me)) fail(404, "That group chat doesn't exist, or you're not in it.", 'no_group')
+      chat = `group:${b.groupId}`
+      others = members.map((m) => m.user_id).filter((id) => id !== me)
+    } else {
+      if (typeof b.friendId !== 'string' || !(await areFriends(me, b.friendId))) fail(403, 'You can only call your friends.')
+      chat = dmChat(me, b.friendId!)
+      others = [b.friendId!]
+    }
+    const [going] = await sql<{ id: string }>`SELECT r.id FROM vanity.voice_rooms r WHERE r.chat = ${chat} AND EXISTS (SELECT 1 FROM vanity.voice_members m WHERE m.room_id = r.id) ORDER BY r.created_at LIMIT 1`
+    let id = going?.id
+    if (id) {
+      if ((await myRoomId(me)) !== id) {
+        const [n] = await sql<{ n: number }>`SELECT COUNT(*)::int AS n FROM vanity.voice_members WHERE room_id = ${id}`
+        if ((n?.n ?? 0) >= MAX_ROOM_SIZE) fail(409, `That call is full (${MAX_ROOM_SIZE} people).`, 'voice_full')
+        await leave(me)
+        await sql`INSERT INTO vanity.voice_members (user_id, room_id, last_seen) VALUES (${me}, ${id}, to_timestamp(${now() / 1000}))
+          ON CONFLICT (user_id) DO UPDATE SET room_id = excluded.room_id, muted = false, deafened = false, sharing = false, camera = false, streams = '{}', watching = NULL, joined_at = now(), last_seen = excluded.last_seen`
+      }
+      await sql`DELETE FROM vanity.voice_rings WHERE room_id = ${id} AND user_id = ${me}`
+    } else {
+      await leave(me)
+      id = randomBytes(9).toString('base64url')
+      // Hidden from the friends list: it is reached from its chat.
+      await sql`INSERT INTO vanity.voice_rooms (id, host_id, private, locked, chat) VALUES (${id}, ${me}, true, false, ${chat})`
+      await sql`INSERT INTO vanity.voice_members (user_id, room_id, last_seen) VALUES (${me}, ${id}, to_timestamp(${now() / 1000}))`
+    }
+    // Rings for everyone in the chat who isn't in the call (again, if they missed it before).
+    const inCall = new Set((await sql<{ user_id: string }>`SELECT user_id FROM vanity.voice_members WHERE room_id = ${id}`).map((m) => m.user_id))
+    for (const other of others.filter((o) => !inCall.has(o)).slice(0, 25)) {
+      await sql`INSERT INTO vanity.voice_rings (room_id, user_id, from_id, created_at) VALUES (${id}, ${other}, ${me}, to_timestamp(${now() / 1000}))
+        ON CONFLICT (room_id, user_id) DO UPDATE SET from_id = excluded.from_id, created_at = excluded.created_at`
+    }
+    return c.json(await update(me, 0), 201)
+  })
+
+  /** "Not now": the call stops ringing for you. The caller sees you weren't reached. */
+  app.post('/rings/:roomId/decline', async (c) => {
+    await sql`DELETE FROM vanity.voice_rings WHERE room_id = ${c.req.param('roomId')} AND user_id = ${c.get('userId')}`
     return c.body(null, 204)
   })
 

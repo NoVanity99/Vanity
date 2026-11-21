@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { GifResult, GroupChat, GroupMessage } from '../../src/shared/groups'
-import { body, fail, publicUser, toMs, type Env } from './app'
+import { body, fail, toMs, type Env, type PublicUserFn } from './app'
 import type { Sql } from './db'
 
 // Group chats, GIF search (through KLIPY, so the key stays here) and uploaded GIFs.
@@ -27,6 +27,9 @@ export interface GroupDeps {
   requireAuth: MiddlewareHandler<Env>
   requireUser: MiddlewareHandler<Env>
   areFriends(a: string, b: string): Promise<boolean>
+  publicUser: PublicUserFn
+  /** Throws when the account is banned or timed out. */
+  canSpeak(userId: string): void
   /** KLIPY's key for GIF search ('' turns search off; uploads still work). */
   klipyKey: string
   fetchFn: (url: string, init?: RequestInit) => Promise<Response>
@@ -46,7 +49,7 @@ function cleanName(v: unknown): string {
   return name
 }
 
-export function groupRoutes({ sql, requireAuth, requireUser, areFriends, klipyKey, fetchFn, messageRateLimit, now = Date.now }: GroupDeps): { groups: Hono<Env>; gifs: Hono<Env>; media: Hono<Env> } {
+export function groupRoutes({ sql, requireAuth, requireUser, areFriends, publicUser, canSpeak, klipyKey, fetchFn, messageRateLimit, now = Date.now }: GroupDeps): { groups: Hono<Env>; gifs: Hono<Env>; media: Hono<Env> } {
   const sends = new Map<string, { count: number; reset: number }>()
   const limit = (map: Map<string, { count: number; reset: number }>, key: string, max: number, windowMs: number, message: string): void => {
     const t = Date.now()
@@ -189,6 +192,7 @@ export function groupRoutes({ sql, requireAuth, requireUser, areFriends, klipyKe
     const me = c.get('userId')
     const id = c.req.param('id')
     await memberOf(me, id)
+    canSpeak(me)
     const { text } = await body<{ text: string }>(c)
     const clean = typeof text === 'string' ? text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim() : ''
     if (!clean) fail(400, 'Write a message first.')

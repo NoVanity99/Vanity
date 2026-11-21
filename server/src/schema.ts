@@ -236,6 +236,131 @@ CREATE TABLE IF NOT EXISTS vanity.openid_states (
   user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
   expires_at  timestamptz NOT NULL
 );
+
+-- Official badges, by permanent account id (never by username, which can change).
+CREATE TABLE IF NOT EXISTS vanity.roles (
+  user_id   text PRIMARY KEY REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  verified  boolean NOT NULL DEFAULT false,
+  admin     boolean NOT NULL DEFAULT false
+);
+-- Names from roles.ts that have been turned into a badge on an account once. Never applied twice,
+-- so a name that is later given up can't hand its badge to whoever takes it next.
+CREATE TABLE IF NOT EXISTS vanity.role_seeds (
+  name        text PRIMARY KEY,
+  user_id     text NOT NULL,
+  applied_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Bans and time-outs, set by admins.
+CREATE TABLE IF NOT EXISTS vanity.moderation (
+  user_id        text PRIMARY KEY REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  banned         boolean NOT NULL DEFAULT false,
+  reason         text NOT NULL DEFAULT '',
+  timeout_until  timestamptz,
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+-- Everything an admin did, for the record.
+CREATE TABLE IF NOT EXISTS vanity.admin_log (
+  id          bigserial PRIMARY KEY,
+  admin_id    text NOT NULL,
+  target_id   text,
+  action      text NOT NULL,
+  detail      text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- Every username an account has had (old_username is null for the first one).
+CREATE TABLE IF NOT EXISTS vanity.username_history (
+  id            bigserial PRIMARY KEY,
+  user_id       text NOT NULL,
+  old_username  text,
+  new_username  text NOT NULL,
+  by_admin      boolean NOT NULL DEFAULT false,
+  changed_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS username_history_user ON vanity.username_history (user_id, changed_at DESC);
+
+-- Vanity Coins. The ledger is the record: every purchase, spend, refund, chargeback and admin
+-- adjustment is one row that is never edited. (kind, ref) is unique, so the same Stripe event or
+-- the same purchase can never be written twice.
+CREATE TABLE IF NOT EXISTS vanity.coin_ledger (
+  id          bigserial PRIMARY KEY,
+  user_id     text NOT NULL,
+  kind        text NOT NULL CHECK (kind IN ('purchase', 'spend', 'refund', 'chargeback', 'reversal', 'admin')),
+  amount      integer NOT NULL,
+  ref         text NOT NULL,
+  note        text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (kind, ref)
+);
+CREATE INDEX IF NOT EXISTS coin_ledger_user ON vanity.coin_ledger (user_id, id DESC);
+-- The running total of each account's ledger, changed only in the same statement that adds a
+-- ledger row (so two purchases at the same moment can't both spend the same coins).
+CREATE TABLE IF NOT EXISTS vanity.coin_wallets (
+  user_id  text PRIMARY KEY,
+  balance  integer NOT NULL DEFAULT 0
+);
+-- One row per Stripe Checkout started: what was offered, to whom, and what became of it.
+CREATE TABLE IF NOT EXISTS vanity.coin_orders (
+  session_id      text PRIMARY KEY,
+  user_id         text NOT NULL,
+  bundle_id       text NOT NULL,
+  coins           integer NOT NULL,
+  amount_cents    integer NOT NULL,
+  currency        text NOT NULL,
+  status          text NOT NULL DEFAULT 'pending',
+  payment_intent  text,
+  refunded_coins  integer NOT NULL DEFAULT 0,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  paid_at         timestamptz
+);
+CREATE INDEX IF NOT EXISTS coin_orders_user ON vanity.coin_orders (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS coin_orders_intent ON vanity.coin_orders (payment_intent);
+-- Stripe events already handled (a repeated delivery is answered without doing anything).
+CREATE TABLE IF NOT EXISTS vanity.stripe_events (
+  id           text PRIMARY KEY,
+  type         text NOT NULL,
+  received_at  timestamptz NOT NULL DEFAULT now()
+);
+-- What an account bought with coins ("frame:diamond", later things for games).
+CREATE TABLE IF NOT EXISTS vanity.shop_owned (
+  user_id    text NOT NULL,
+  item_id    text NOT NULL,
+  bought_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, item_id)
+);
+
+-- Comments on a game's page, one thread per game (game_key: the game's normalised title).
+CREATE TABLE IF NOT EXISTS vanity.game_comments (
+  id          bigserial PRIMARY KEY,
+  game_key    text NOT NULL,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  body        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  edited_at   timestamptz
+);
+CREATE INDEX IF NOT EXISTS game_comments_game ON vanity.game_comments (game_key, id DESC);
+CREATE TABLE IF NOT EXISTS vanity.comment_reports (
+  id           bigserial PRIMARY KEY,
+  comment_id   bigint NOT NULL REFERENCES vanity.game_comments (id) ON DELETE CASCADE,
+  reporter_id  text NOT NULL,
+  reason       text NOT NULL DEFAULT '',
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  resolved_at  timestamptz,
+  UNIQUE (comment_id, reporter_id)
+);
+
+-- Calls: a voice room started from a chat. chat is "dm:<id>:<id>" (the two ids in order) or "group:<id>".
+ALTER TABLE vanity.voice_rooms ADD COLUMN IF NOT EXISTS chat text;
+-- Whose shared screen each person is watching.
+ALTER TABLE vanity.voice_members ADD COLUMN IF NOT EXISTS watching text;
+-- A call ringing for someone, until they answer, decline, or it times out.
+CREATE TABLE IF NOT EXISTS vanity.voice_rings (
+  room_id     text NOT NULL REFERENCES vanity.voice_rooms (id) ON DELETE CASCADE,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  from_id     text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (room_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS voice_rings_user ON vanity.voice_rings (user_id);
 `
 
 /** The schema as separate statements, without comments. */

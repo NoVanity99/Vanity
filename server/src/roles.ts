@@ -1,11 +1,10 @@
-// Who gets the official badges. This list is the only place they are granted: nobody can
-// give themselves one from the app. Names are matched without regard to capitals.
+// The starting list of official badges, by username. Each name is turned into a badge on the
+// account that holds it, once (see people.ts); from then on the badge belongs to that account,
+// whatever it is renamed to, and removing a name here does not take the badge away again.
+// Admins give and take badges in Settings → Admin. Names are matched without regard to capitals.
 //
-// To add someone, put their Vanity username in the list and deploy the server
-// (pushing this file runs the "Deploy backend" workflow by itself). Nobody has to update the
-// app: every running copy of Vanity checks in with the server about once a minute, and the
-// answer carries that account's badges, so a new badge shows up within a minute or so, for
-// the person and for their friends.
+// To add someone, put their Vanity username in the list and deploy the server (pushing this
+// file runs the "Deploy backend" workflow by itself). Their badge shows within a minute.
 
 /** The blue check: this account is officially who it says it is. */
 export const VERIFIED_USERNAMES = ['SBCVanity', 'Max', 'chefdal', 'deggy', 'soupystew']
@@ -16,11 +15,4 @@ export const ADMIN_USERNAMES = ['SBCVanity', 'chefdal', 'soupystew']
 export interface Roles {
   verified: boolean
   admin: boolean
-}
-
-const has = (list: string[], username: string): boolean => list.some((n) => n.toLowerCase() === username.toLowerCase())
-
-export function rolesFor(username: string | null | undefined): Roles {
-  if (!username) return { verified: false, admin: false }
-  return { verified: has(VERIFIED_USERNAMES, username), admin: has(ADMIN_USERNAMES, username) }
 }

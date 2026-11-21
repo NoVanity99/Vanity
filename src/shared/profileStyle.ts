@@ -49,7 +49,9 @@ export const PROFILE_AURAS = [
   { id: 'flames', label: 'Flames' },
   { id: 'glitch', label: 'Glitch' },
   { id: 'rings', label: 'Ripples' },
-  { id: 'prism', label: 'Prism' }
+  { id: 'prism', label: 'Prism' },
+  { id: 'vortex', label: 'Vortex' },
+  { id: 'lightning', label: 'Lightning' }
 ] as const
 
 export const PROFILE_EFFECTS = [
@@ -62,7 +64,8 @@ export const PROFILE_EFFECTS = [
   { id: 'rain', label: 'Rain' },
   { id: 'fireflies', label: 'Fireflies' },
   { id: 'scanlines', label: 'Scanlines' },
-  { id: 'shine', label: 'Shine' }
+  { id: 'shine', label: 'Shine' },
+  { id: 'meteors', label: 'Meteors' }
 ] as const
 
 /** Titles shown under a name. A fixed list, so no one can put anything rude on their profile. */
@@ -96,7 +99,10 @@ export const PROFILE_TITLES = [
   'Touch grass later',
   'Professional noob',
   'Main character',
-  'Final boss'
+  'Final boss',
+  'High roller',
+  'Vanity VIP',
+  'Legend'
 ] as const
 
 export const PROFILE_BANNERS = [
@@ -125,7 +131,10 @@ export const PROFILE_BANNERS = [
   { id: 'retro', label: 'Retro grid' },
   { id: 'blood', label: 'Blood moon' },
   { id: 'matrix', label: 'Matrix' },
-  { id: 'cotton', label: 'Cotton sky' }
+  { id: 'cotton', label: 'Cotton sky' },
+  { id: 'obsidian', label: 'Obsidian' },
+  { id: 'hologram', label: 'Hologram' },
+  { id: 'dragonfire', label: 'Dragonfire' }
 ] as const
 
 export const PROFILE_FRAMES = [
@@ -146,7 +155,10 @@ export const PROFILE_FRAMES = [
   { id: 'void', label: 'Void' },
   { id: 'pastel', label: 'Pastel' },
   { id: 'plasma', label: 'Plasma' },
-  { id: 'candy', label: 'Candy' }
+  { id: 'candy', label: 'Candy' },
+  { id: 'diamond', label: 'Diamond' },
+  { id: 'inferno', label: 'Inferno' },
+  { id: 'celestial', label: 'Celestial' }
 ] as const
 
 export const PROFILE_NAME_STYLES = [
@@ -165,7 +177,9 @@ export const PROFILE_NAME_STYLES = [
   { id: 'royal', label: 'Royal' },
   { id: 'candy', label: 'Candy' },
   { id: 'aurora', label: 'Aurora' },
-  { id: 'lava', label: 'Lava flow' }
+  { id: 'lava', label: 'Lava flow' },
+  { id: 'chrome', label: 'Chrome' },
+  { id: 'hologram', label: 'Hologram' }
 ] as const
 
 export const PROFILE_FLAIRS = ['', '🎮', '🕹️', '🔥', '⭐', '💎', '🚀', '🌙', '⚡', '🎧', '🏆', '🐉', '🍀', '💀', '🌈', '👾', '🎯', '🧩', '🦊', '🐱', '☕', '🎲', '🏹', '⚔️', '🛡️', '🧙', '👻', '🤖', '👽', '🦄', '🐺', '🦉', '🐼', '🐸', '🦖', '🐙', '🌟', '❄️', '🌊', '🌸', '🍕', '🍩', '🎸', '🎨', '📚', '🏎️', '⚽', '🏀', '🧠', '💜', '🖤', '💚', '☠️', '🥷', '🪐', '🌋'] as const
@@ -190,3 +204,10 @@ export function normalizeProfileStyle(value: unknown): ProfileStyle {
     title: pick(v.title, PROFILE_TITLES, DEFAULT_PROFILE_STYLE.title)
   }
 }
+
+/**
+ * A look's id in the coin shop: "<part>:<look id>" (e.g. "frame:diamond"). Which looks cost coins,
+ * and how much, is decided by the server (server/src/coinBundles.ts), so prices can change
+ * without an app update.
+ */
+export const lookItemId = (part: keyof ProfileStyle, id: string): string => `${part}:${id}`

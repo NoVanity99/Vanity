@@ -7,6 +7,7 @@
 #   NEON_PROJECT_ID    from the Neon console → your project → Settings (looks like "cool-lab-12345678")
 #   STEAM_WEB_API_KEY  optional, for Steam linking: from https://steamcommunity.com/dev/apikey
 #   KLIPY_API_KEY      optional, for GIF search in chats: from https://partner.klipy.com
+#   STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET  optional, for buying Vanity Coins: see server/README.md
 #   TURN_URLS + TURN_SECRET (or TURN_USERNAME + TURN_CREDENTIAL)  optional, a TURN relay for voice
 #                      rooms on strict networks: see server/README.md
 #                      It is stored on Neon as a secret of the server and never reaches the app or this repo.
@@ -80,6 +81,8 @@ jobs:
         env:
           STEAM_WEB_API_KEY: ${{ secrets.STEAM_WEB_API_KEY }}
           KLIPY_API_KEY: ${{ secrets.KLIPY_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           TURN_URLS: ${{ secrets.TURN_URLS }}
           TURN_SECRET: ${{ secrets.TURN_SECRET }}
           TURN_USERNAME: ${{ secrets.TURN_USERNAME }}

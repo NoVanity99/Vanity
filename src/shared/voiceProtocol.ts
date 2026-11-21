@@ -49,6 +49,8 @@ export interface VoicePeer {
   /** False while their app hasn't checked in for a few seconds (a dropped connection). */
   connected: boolean
   joinedAt: number
+  /** Whose shared screen they're watching (an account id), or null. */
+  watching?: string | null
 }
 
 export interface VoiceRoom {
@@ -61,6 +63,10 @@ export interface VoiceRoom {
   locked: boolean
   /** Everyone in it, you included, in the order they joined. */
   members: VoicePeer[]
+  /** A call started from a chat: "dm:<id>:<id>" or "group:<id>". Null for a room from the Voice page. */
+  chat?: string | null
+  /** People this call is still ringing for. */
+  ringing?: VoiceUser[]
 }
 
 /** STUN finds your public address; TURN relays audio when a direct connection isn't possible. */
@@ -103,6 +109,21 @@ export interface FriendVoice {
   /** False when it's locked, or full, and you weren't invited. */
   canJoin: boolean
 }
+
+/** How long a call rings before it is given up on. */
+export const RING_MS = 40_000
+
+/** A call ringing for you (from the quick check-in). */
+export interface IncomingCall {
+  roomId: string
+  from: VoiceUser
+  /** The group chat it is for, or null for a call from one friend. */
+  group: { id: string; name: string } | null
+  at: number | null
+}
+
+/** The chat a direct call between two accounts belongs to. */
+export const dmChat = (a: string, b: string): string => `dm:${[a, b].sort().join(':')}`
 
 /** Connection details sent in one go (the app gathers them for a moment rather than sending each). */
 export const MAX_SIGNALS_PER_SEND = 40

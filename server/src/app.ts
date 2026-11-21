@@ -5,7 +5,11 @@ import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
 import type { Sql } from './db'
 import { mergeStyle, readStyle, type ProfileStyle } from './profileStyle'
-import { rolesFor } from './roles'
+import { createPeople, type People } from './people'
+import { usernameProblem } from './words'
+import { coinRoutes, type StripeConfig } from './coins'
+import { commentRoutes } from './comments'
+import { adminRoutes } from './admin'
 import { createSteam, SteamError, type FetchFn } from './steam'
 import { SyncError, syncUser } from './sync'
 import { keyMatches, type UpdateBundle } from './updates'
@@ -50,6 +54,10 @@ export interface AppOptions {
   emailOfUser?: (id: string) => Promise<string | null>
   /** Wrong passwords one username may get per 10 minutes before it is paused. */
   signInRateLimit?: number
+  /** Stripe, for buying Vanity Coins. Without keys the store says purchases aren't set up. */
+  stripe?: StripeConfig
+  /** How long between username changes (ms). */
+  usernameCooldownMs?: number
 }
 
 /** What Neon Auth answered to a sign-in: the app needs the cookies and the token as they are. */
@@ -87,7 +95,11 @@ export function neonAuthSignIn(baseUrl: string, origin = 'http://localhost:5173'
 
 export type Env = { Variables: { userId: string; username: string; email: string | null } }
 
+/** How long a call rings before it is given up on. */
+export const RING_MS = 40_000
 const USERNAME = /^[A-Za-z0-9_]{3,20}$/
+/** A username can be changed once in this long. */
+export const USERNAME_COOLDOWN_MS = 30 * 86_400_000
 const ONLINE_WINDOW = '3 minutes'
 const MAX_STATS = 5000
 const MAX_BIO = 200
@@ -104,11 +116,15 @@ const VISIBILITIES: StatsVisibility[] = ['everyone', 'friends', 'private']
 /** Who can see a player's stats (anything unknown counts as the default, everyone). */
 export const visibilityOf = (v: unknown): StatsVisibility => (VISIBILITIES.includes(v as StatsVisibility) ? (v as StatsVisibility) : 'everyone')
 
-export function publicUser(row: { id: string; username: string; avatar?: string | null; style?: unknown }): { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean } {
-  return { id: row.id, username: row.username, avatar: row.avatar ?? null, style: readStyle(row.style), ...rolesFor(row.username) }
-}
+export type PublicUser = { id: string; username: string; avatar: string | null; style: ProfileStyle; verified: boolean; admin: boolean }
+export type PublicUserFn = (row: { id: string; username: string; avatar?: string | null; style?: unknown }) => PublicUser
 
-export const fail = (status: 400 | 401 | 403 | 404 | 409 | 429, message: string, code?: string): never => {
+/** A player as others see them. Badges come from the account's id, not its name. */
+export const publicUserWith =
+  (people: People): PublicUserFn =>
+  (row) => ({ id: row.id, username: row.username, avatar: row.avatar ?? null, style: readStyle(row.style), ...people.rolesOf(row.id) })
+
+export const fail = (status: 400 | 401 | 402 | 403 | 404 | 409 | 429, message: string, code?: string): never => {
   throw new HTTPException(status, { message, cause: code })
 }
 
@@ -159,8 +175,11 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10 }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10, stripe, usernameCooldownMs = USERNAME_COOLDOWN_MS }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
+  const clock = now ?? Date.now
+  const people = createPeople(sql, clock)
+  const publicUser = publicUserWith(people)
 
   // The tables are created on first use, so a fresh Neon database needs no manual setup.
   let migrated: Promise<void> | null = null
@@ -190,8 +209,25 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const user = token ? await verifyToken(token) : null
     if (!user) fail(401, 'Please sign in again.')
     await ready()
+    await people.fresh()
     c.set('userId', user!.id)
     c.set('email', user!.email)
+    await next()
+  }
+
+  /** Stops a banned account. Asked wherever an account does something others can see. */
+  const notBanned = (id: string): void => {
+    const s = people.standingOf(id)
+    if (s.banned) fail(403, s.reason ? `This account has been banned: ${s.reason}` : 'This account has been banned.', 'banned')
+  }
+  /** Stops a timed-out account from posting, messaging or calling. */
+  const canSpeak = (id: string): void => {
+    notBanned(id)
+    const until = people.standingOf(id).timeoutUntil
+    if (until) fail(403, `You're timed out and can't do that until ${new Date(until).toUTCString().replace(' GMT', ' UTC')}.`, 'timed_out')
+  }
+  const requireAdmin: MiddlewareHandler<Env> = async (c, next) => {
+    if (!people.rolesOf(c.get('userId')).admin) fail(403, 'Only Vanity admins can do that.')
     await next()
   }
 
@@ -199,6 +235,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   const requireUser: MiddlewareHandler<Env> = async (c, next) => {
     const [profile] = await sql<{ username: string }>`SELECT username FROM vanity.profiles WHERE id = ${c.get('userId')}`
     if (!profile) fail(409, 'Choose a username to finish setting up your account.', 'needs_username')
+    notBanned(c.get('userId'))
     c.set('username', profile.username)
     await next()
   }
@@ -241,10 +278,18 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     return c.json({ available: taken.length === 0 })
   })
 
+  /** When this account last changed its username, and when it may again (ms; null = now). */
+  const usernameChange = async (id: string): Promise<{ usernameChangedAt: number | null; usernameChangeAt: number | null }> => {
+    const [last] = await sql<{ changed_at: unknown }>`SELECT changed_at FROM vanity.username_history WHERE user_id = ${id} AND old_username IS NOT NULL AND NOT by_admin AND lower(old_username) <> lower(new_username) ORDER BY changed_at DESC LIMIT 1`
+    const at = toMs(last?.changed_at)
+    const next = at ? at + usernameCooldownMs : null
+    return { usernameChangedAt: at, usernameChangeAt: next && next > clock() ? next : null }
+  }
+
   /** The signed-in account as the app sees it. */
   const account = async (c: Context<Env>) => {
     const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown; stats_visibility: string | null }>`SELECT username, avatar, bio, style, stats_visibility FROM vanity.profiles WHERE id = ${c.get('userId')}`
-    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), statsVisibility: visibilityOf(profile?.stats_visibility), ...rolesFor(profile?.username) }
+    return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), statsVisibility: visibilityOf(profile?.stats_visibility), ...people.rolesOf(c.get('userId')), ...(await usernameChange(c.get('userId'))), standing: people.standingOf(c.get('userId')) }
   }
 
   /**
@@ -276,6 +321,10 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
         return null
       }
     })
+  /** Writes down what an admin did. */
+  const logAdmin = async (adminId: string, action: string, targetId: string | null, detail = ''): Promise<void> => {
+    await sql`INSERT INTO vanity.admin_log (admin_id, target_id, action, detail) VALUES (${adminId}, ${targetId}, ${action}, ${detail.slice(0, 500)})`
+  }
   const wrongPasswords = new Map<string, { count: number; reset: number }>()
 
   /**
@@ -350,6 +399,9 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       const [row] = await sql<{ style: unknown }>`SELECT style FROM vanity.profiles WHERE id = ${id}`
       const next = mergeStyle(readStyle(row?.style), b.style)
       if (!next) fail(400, "That profile look isn't one Vanity knows. Update Vanity and try again.")
+      // A premium look has to be bought with coins first.
+      const locked = await coins.lockedLook(id, b.style as Record<string, unknown>)
+      if (locked) fail(402, `${locked.name} costs ${locked.price.toLocaleString('en-US')} coins. Get it in the store first.`, 'look_locked')
       await sql`UPDATE vanity.profiles SET style = ${JSON.stringify(next)} WHERE id = ${id}`
     }
     return c.json({ user: await account(c) })
@@ -360,6 +412,21 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const { username } = await body<{ username: string }>(c)
     if (typeof username !== 'string' || !USERNAME.test(username)) fail(400, 'Usernames are 3–20 letters, numbers or underscores.')
     const me = c.get('userId')
+    notBanned(me)
+    const [current] = await sql<{ username: string }>`SELECT username FROM vanity.profiles WHERE id = ${me}`
+    if (current?.username === username) return c.json({ user: await account(c) })
+    // Changing only the capitals of your own name is always fine; anything else is checked.
+    const sameName = current?.username.toLowerCase() === username!.toLowerCase()
+    if (!sameName) {
+      const problem = usernameProblem(username!)
+      if (problem) fail(400, problem, 'username_blocked')
+      // A name on the official list is kept for the person it is meant for.
+      if (current && (await people.unclaimedNames()).includes(username!.toLowerCase())) fail(409, 'That username is already in use.')
+    }
+    if (current && !sameName) {
+      const { usernameChangeAt } = await usernameChange(me)
+      if (usernameChangeAt) fail(429, `You can change your username again on ${new Date(usernameChangeAt).toUTCString().slice(5, 16)}.`, 'username_cooldown')
+    }
     const taken = await sql`SELECT 1 FROM vanity.profiles WHERE lower(username) = lower(${username}) AND id <> ${me}`
     if (taken.length) fail(409, 'That username is already in use.')
     try {
@@ -369,7 +436,44 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       // Lost a race with someone picking the same name.
       fail(409, 'That username is already in use.')
     }
+    // Everything else refers to the account by its id, so the new name shows everywhere at once.
+    await sql`INSERT INTO vanity.username_history (user_id, old_username, new_username, changed_at) VALUES (${me}, ${current?.username ?? null}, ${username}, to_timestamp(${clock() / 1000}))`
+    // A first username may be one on the official list: its badge is given now.
+    people.changed()
+    await people.fresh()
     return c.json({ user: await account(c) })
+  })
+
+  /**
+   * The quick check-in, every few seconds while Vanity is open: what changed for this account
+   * that should show without a restart. Its coins, its name and badges, a ban or time-out, and
+   * calls ringing for it.
+   */
+  app.get('/pulse', requireAuth, async (c) => {
+    const me = c.get('userId')
+    const [p] = await sql<{ username: string }>`SELECT username FROM vanity.profiles WHERE id = ${me}`
+    const [w] = await sql<{ balance: number }>`SELECT balance FROM vanity.coin_wallets WHERE user_id = ${me}`
+    const rings = p
+      ? await sql<{ room_id: string; from_id: string; username: string; avatar: string | null; style: unknown; chat: string | null; created_at: unknown }>`
+          SELECT g.room_id, g.from_id, f.username, f.avatar, f.style, r.chat, g.created_at
+          FROM vanity.voice_rings g JOIN vanity.voice_rooms r ON r.id = g.room_id JOIN vanity.profiles f ON f.id = g.from_id
+          WHERE g.user_id = ${me} AND g.created_at > to_timestamp(${(clock() - RING_MS) / 1000}) ORDER BY g.created_at DESC LIMIT 3`
+      : []
+    const groupIds = rings.map((r) => (r.chat?.startsWith('group:') ? r.chat.slice(6) : '')).filter(Boolean)
+    const groups = groupIds.length ? await sql<{ id: string; name: string }>`SELECT id, name FROM vanity.chat_groups WHERE id = ANY(${groupIds}::text[])` : []
+    c.header('Cache-Control', 'no-store')
+    return c.json({
+      username: p?.username ?? null,
+      ...people.rolesOf(me),
+      standing: people.standingOf(me),
+      coins: w?.balance ?? 0,
+      calls: rings.map((r) => ({
+        roomId: r.room_id,
+        from: publicUser({ id: r.from_id, username: r.username, avatar: r.avatar, style: r.style }),
+        group: r.chat?.startsWith('group:') ? (groups.find((g) => g.id === r.chat!.slice(6)) ?? null) : null,
+        at: toMs(r.created_at)
+      }))
+    })
   })
 
   /** Removes everything Vanity stores about the account (profile, friends, presence, stats). */
@@ -391,7 +495,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
         started_at = excluded.started_at, signed_off = false, updated_at = now()`
     // The app checks in here about once a minute, so the answer carries the account's official
     // badges: one granted or taken away in roles.ts reaches every running app without an update.
-    return c.json(rolesFor(c.get('username')))
+    return c.json(people.rolesOf(c.get('userId')))
   })
 
   app.delete('/presence', requireAuth, requireUser, async (c) => {
@@ -724,7 +828,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       avatar: user?.avatar ?? null,
       bio: user?.bio ?? '',
       style: readStyle(user?.style),
-      ...rolesFor(user?.username),
+      ...people.rolesOf(id),
       level: st?.level ?? 1,
       xp: st?.xp ?? 0,
       badges: Object.keys(badges),
@@ -819,6 +923,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     if (!clean) fail(400, 'Write a message first.')
     if ([...clean].length > MAX_MESSAGE) fail(400, `Messages can be up to ${MAX_MESSAGE.toLocaleString('en-US')} characters.`)
     if (!validGifText(clean)) fail(400, "That GIF can't be sent.")
+    canSpeak(me)
     const t = Date.now()
     const s = sends.get(me)
     if (!s || s.reset < t) sends.set(me, { count: 1, reset: t + 60_000 })
@@ -844,11 +949,17 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   })
 
   // ---- voice rooms (see voice.ts) ---------------------------------------------
-  const chats = groupRoutes({ sql, requireAuth, requireUser, areFriends, klipyKey, fetchFn: fetchFn ?? fetch, messageRateLimit, now })
+  const chats = groupRoutes({ sql, requireAuth, requireUser, areFriends, publicUser, canSpeak, klipyKey, fetchFn: fetchFn ?? fetch, messageRateLimit, now })
   app.route('/groups', chats.groups)
   app.route('/gifs', chats.gifs)
   app.route('/media', chats.media)
-  app.route('/voice', voiceRoutes({ sql, requireAuth, requireUser, areFriends, ice: voiceIce ?? iceConfigFromEnv({}), rateLimit: voiceRateLimit, now }))
+  app.route('/voice', voiceRoutes({ sql, requireAuth, requireUser, areFriends, publicUser, canSpeak, ice: voiceIce ?? iceConfigFromEnv({}), rateLimit: voiceRateLimit, now }))
+
+  const coins = coinRoutes({ sql, requireAuth, requireUser, stripe, fetchFn: (fetchFn ?? fetch) as typeof fetch, now: clock, origin })
+  app.route('/coins', coins.routes)
+  app.route('/stripe', coins.webhook)
+  app.route('/', commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isAdmin: (id) => people.rolesOf(id).admin, now: clock }))
+  app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))
   app.onError((err, c) => {

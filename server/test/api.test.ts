@@ -71,7 +71,7 @@ describe('/api prefix', () => {
 describe('accounts', () => {
   it('knows a signed-in account before and after it picks a username', async () => {
     const before = await call('GET', '/me', 't:u1')
-    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: DEFAULT_STYLE, statsVisibility: 'everyone', verified: false, admin: false })
+    expect(before.json.user).toEqual({ id: 'u1', email: 'u1@example.com', username: null, avatar: null, bio: '', style: DEFAULT_STYLE, statsVisibility: 'everyone', verified: false, admin: false, usernameChangedAt: null, usernameChangeAt: null, standing: { banned: false, reason: '', timeoutUntil: null } })
     // Everything social needs a username first, and says so in a way the app can act on.
     const friends = await call('GET', '/friends', 't:u1')
     expect([friends.status, friends.json.code]).toEqual([409, 'needs_username'])

@@ -1,7 +1,7 @@
 // End to end: the app's AccountService signing in at a real Better Auth server (the software
 // Neon Auth runs, configured the way Neon documents it) and talking to this server with the
 // tokens it gets (real routes, real token checks, real SQL on PGlite).
-import { VERIFIED_USERNAMES } from '../src/roles'
+import { ADMIN_USERNAMES } from '../src/roles'
 import { PGlite } from '@electric-sql/pglite'
 import { betterAuth } from 'better-auth'
 import { memoryAdapter } from 'better-auth/adapters/memory'
@@ -152,34 +152,46 @@ describe('app ↔ Neon Auth ↔ server', () => {
     expect((await me.service.guard((c) => c.friends())).friends[0].status.state).toBe('offline')
   })
 
-  it('shows a badge granted on the server within a check-in, with no app update, and takes it away the same way', async () => {
-    const { env } = await world()
+  it('shows a badge an admin gives within a check-in, with no app update, and takes it away the same way', async () => {
+    const { env, api } = await world()
     const me = vanity(env)
     const friend = vanity(env)
+    const boss = vanity(env)
+    // The starting list names an admin; the badge goes to the account that holds that name.
+    ADMIN_USERNAMES.push('TheBoss')
+    try {
+      await boss.service.signUp('boss@example.com', 'theboss', 'correct horse', true)
+    } finally {
+      ADMIN_USERNAMES.pop()
+    }
     await me.service.signUp('late@example.com', 'latecomer', 'correct horse', true)
     await friend.service.signUp('pal@example.com', 'pal', 'battery staple', true)
-    me.service.stop()
-    friend.service.stop()
+    for (const a of [me, friend, boss]) a.service.stop()
+    expect(boss.service.state()).toMatchObject({ admin: true })
     await me.service.guard((c) => c.addFriend('pal'))
     const req = await friend.service.guard((c) => c.friends())
     await friend.service.guard((c) => c.accept(req.incoming[0].id))
     expect(me.service.state()).toMatchObject({ verified: false, admin: false })
 
-    // The server's list changes while both apps are running.
-    VERIFIED_USERNAMES.push('LateComer')
-    try {
-      await me.service.heartbeat() // the app's once-a-minute check-in
-      expect(me.service.state()).toMatchObject({ verified: true, admin: false })
-      expect(me.states.at(-1)).toMatchObject({ verified: true }) // the screens were told
-      expect(me.vault.saved).toMatchObject({ verified: true }) // and it is remembered
-      // Friends see it the next time their list refreshes (every 30 seconds while it is open).
-      expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ username: 'latecomer', verified: true })
-    } finally {
-      VERIFIED_USERNAMES.pop()
-    }
+    const myId = (await me.service.guard((c) => c.me())).id
+    const asBoss = async (path: string, body: unknown): Promise<number> => (await api.fetchFn(`http://vanity.test${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await boss.service.token()}` }, body: JSON.stringify(body) })).status
+    expect(await asBoss(`/admin/users/${myId}/roles`, { verified: true })).toBe(200)
+    await me.service.heartbeat() // the app's once-a-minute check-in
+    expect(me.service.state()).toMatchObject({ verified: true, admin: false })
+    expect(me.states.at(-1)).toMatchObject({ verified: true }) // the screens were told
+    expect(me.vault.saved).toMatchObject({ verified: true }) // and it is remembered
+    // Friends see it the next time their list refreshes.
+    expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ username: 'latecomer', verified: true })
+    // The badge belongs to the account, not the name: it survives a rename, and the old name carries nothing.
+    await me.service.setUsername('late_again')
+    expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ username: 'late_again', verified: true })
+
+    expect(await asBoss(`/admin/users/${myId}/roles`, { verified: false })).toBe(200)
     await me.service.heartbeat()
     expect(me.service.state()).toMatchObject({ verified: false })
     expect((await friend.service.guard((c) => c.friends())).friends[0]).toMatchObject({ verified: false })
+    // Someone without the admin badge can't.
+    expect((await api.fetchFn(`http://vanity.test/admin/users/${myId}/roles`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await friend.service.token()}` }, body: '{"admin":true}' })).status).toBe(403)
   })
 
   it('sends every sign-in request with a trusted origin, and the password only to the auth server', async () => {

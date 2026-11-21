@@ -17,5 +17,7 @@ export function appFromEnv(env: NodeJS.ProcessEnv = process.env, extra: Pick<Par
   if (!jwks) console.warn('[vanity-api] NEON_AUTH_JWKS_URL is not set: account routes are off. On Neon, turn on Neon Auth for the branch (the deploy does this).')
   // Where Neon Auth lives: given directly, or worked out from the address of its keys.
   const authBase = env.NEON_AUTH_BASE_URL || (jwks ? jwks.replace(/\/\.well-known\/jwks\.json.*$/, '') : '')
-  return createApp({ authSignIn: authBase && authBase !== jwks ? neonAuthSignIn(authBase) : undefined, sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', klipyKey: env.KLIPY_API_KEY ?? '', voiceIce: iceConfigFromEnv(env), ...extra })
+  // Stripe, for Vanity Coins: both are secrets of the function (set by the Deploy backend workflow from GitHub secrets).
+  const stripe = env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET ? { secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET } : undefined
+  return createApp({ stripe, authSignIn: authBase && authBase !== jwks ? neonAuthSignIn(authBase) : undefined, sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', klipyKey: env.KLIPY_API_KEY ?? '', voiceIce: iceConfigFromEnv(env), ...extra })
 }

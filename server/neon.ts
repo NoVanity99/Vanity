@@ -18,6 +18,10 @@ export default defineConfig({
         STEAM_WEB_API_KEY: { value: process.env.STEAM_WEB_API_KEY, required: false, onUndefined: 'skip' },
         // GIF search in chats (https://partner.klipy.com). Optional; without it, GIFs come from people's devices only.
         KLIPY_API_KEY: { value: process.env.KLIPY_API_KEY, required: false, onUndefined: 'skip' },
+        // Vanity Coins: Stripe's secret key and the webhook signing secret (see server/README.md).
+        // Server only, passed from GitHub secrets; without them the store says buying isn't set up.
+        STRIPE_SECRET_KEY: { value: process.env.STRIPE_SECRET_KEY, required: false, onUndefined: 'skip' },
+        STRIPE_WEBHOOK_SECRET: { value: process.env.STRIPE_WEBHOOK_SECRET, required: false, onUndefined: 'skip' },
         // Optional TURN relay for voice rooms (players on strict networks). TURN_SECRET makes each
         // player a short-lived login and never leaves this function. Passed from GitHub secrets.
         TURN_URLS: { value: process.env.TURN_URLS, required: false, onUndefined: 'skip' },
