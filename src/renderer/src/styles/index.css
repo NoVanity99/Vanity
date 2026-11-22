@@ -1445,8 +1445,12 @@ html.overlay-window #root {
   color: #fcd34d;
   -webkit-text-fill-color: #fcd34d;
 }
+/* A premium look you own (bought, or included with Vanity Plus): a golden border around it. */
 [data-look-option][data-owned-premium] {
   position: relative;
+  outline: 2px solid #fcd34d;
+  outline-offset: 2px;
+  filter: drop-shadow(0 0 6px rgb(252 211 77 / 0.45));
 }
 
 /* ---- Channels (communities with rooms) ---- */
