@@ -16,6 +16,11 @@ import { FriendNotifications } from './components/FriendNotifications'
 import { ChatDock } from './components/ChatDock'
 import { useAccount } from './state/account'
 import { AuthGate, useGate } from './components/auth/AuthGate'
+import { usePulse, usePulseRefresh } from './state/pulse'
+import { CoinsPage, PurchasesPage } from './pages/CoinsPage'
+import { CallLayer } from './components/voice/CallLayer'
+import { Coins } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useFriendsRefresh } from './state/friends'
 import { useGroupsRefresh } from './state/groups'
 import { GamepadLayer } from './gamepad/GamepadLayer'
@@ -95,6 +100,9 @@ function Shell(): React.JSX.Element {
   useGroupsRefresh(account?.username)
   // Signed out, or a new account still being set up: the launcher waits behind a pop-up.
   const gate = useGate(account)
+  // The quick check-in: coins, calls ringing, a new name or badge, without a restart.
+  usePulseRefresh(account)
+  const coins = usePulse().coins
   const startPath = START_PAGES.find((p) => p.id === ui.startPage)?.path ?? '/library'
 
   // Cloud sync brought something in from another device: show it.
@@ -139,6 +147,11 @@ function Shell(): React.JSX.Element {
             </div>
           )}
           <div className="ml-auto flex items-center gap-2">
+            {coins !== null && (
+              <Link to="/coins" title="Vanity Coins: get more" className="flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-black/30 px-2.5 py-0.5 text-xs font-bold tabular-nums text-amber-200 backdrop-blur transition hover:border-amber-300/70 [-webkit-app-region:no-drag]" data-coin-chip={coins}>
+                <Coins className="size-3.5" /> {coins.toLocaleString()}
+              </Link>
+            )}
             {ui.clock !== 'off' && <Clock hour12={ui.clock === '12'} />}
             {ui.musicPlayer && <MusicPlayer />}
             <UpdateButton />
@@ -159,6 +172,8 @@ function Shell(): React.JSX.Element {
             <Route path="/voice" element={<VoicePage />} />
             <Route path="/friends/:id" element={<FriendProfilePage />} />
             <Route path="/account" element={<AccountPage />} />
+            <Route path="/account/purchases" element={<PurchasesPage />} />
+            <Route path="/coins" element={<CoinsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/downloads" element={<DownloadsPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
@@ -177,6 +192,7 @@ function Shell(): React.JSX.Element {
       <SessionRecap />
       <VibeCheck />
       <FriendNotifications />
+      <CallLayer />
       <ChatDock />
       {/* The voice bar, when the sidebar isn't showing it: hidden sidebar, or a phone. */}
       <div className={cn('pointer-events-none fixed bottom-3 left-3 z-[44] max-md:bottom-[calc(4rem+env(safe-area-inset-bottom))]', !ui.sidebarCollapsed && 'md:hidden')}>

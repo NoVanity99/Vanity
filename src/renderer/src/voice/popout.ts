@@ -1,4 +1,4 @@
-import { voice } from '@/state/voice'
+import { saveVoiceSettings, voice, voiceSettings } from '@/state/voice'
 import type { VoiceSnapshot } from './client'
 
 // A friend's shared screen in a window of its own: move it to another monitor, make it full
@@ -89,12 +89,17 @@ function fill(win: Window, peerId: string, name: string, stream: MediaStream): v
     b.onclick = onClick
     return b
   }
-  let onTop = false
-  const pin = button('Keep on top', () => {
+  // On top unless you turned it off: the choice is remembered for every stream window.
+  let onTop = voiceSettings().popOutOnTop
+  const pin = button(onTop ? 'On top ✓' : 'Keep on top', () => {
     onTop = !onTop
     pin.textContent = onTop ? 'On top ✓' : 'Keep on top'
     void window.vanity.voice.setPopOutOnTop(windowName(peerId), onTop)
+    void saveVoiceSettings({ popOutOnTop: onTop }).catch(() => {})
   })
+  pin.dataset.onTop = String(onTop)
+  pin.addEventListener('click', () => (pin.dataset.onTop = String(onTop)))
+  if (onTop) void window.vanity.voice.setPopOutOnTop(windowName(peerId), true)
   const toggleFull = (): void => {
     if (doc.fullscreenElement) void doc.exitFullscreen().catch(() => {})
     else void doc.documentElement.requestFullscreen().catch(() => {})

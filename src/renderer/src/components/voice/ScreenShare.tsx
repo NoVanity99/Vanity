@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn'
 import { loadPref, savePref } from '@/lib/storage'
 import { useVoice, voice } from '@/state/voice'
 import { popOut } from '@/voice/popout'
+import { ViewerStack } from './CallLayer'
 import { SHARE_QUALITY, type ShareQuality } from '@/voice/client'
 
 /** A live picture (a shared screen). */
@@ -170,6 +171,8 @@ export function ScreenPicker({ onClose }: { onClose: () => void }): React.JSX.El
 /** The big picture of someone's shared screen, with full screen and close. */
 export function ScreenStage({ stream, name, you, peerId, onClose }: { stream: MediaStream; name: string; you: boolean; peerId?: string; onClose: () => void }): React.JSX.Element {
   const v = useVoice()
+  // Whose screen this is: theirs, or your own (the preview of what you're sharing).
+  const sharer = you ? v.members.find((m) => m.you)?.id : peerId
   const [canPop, setCanPop] = useState(false)
   // Whether sound is coming through (a little meter next to the volume).
   const [level, setLevel] = useState(-100)
@@ -232,6 +235,8 @@ export function ScreenStage({ stream, name, you, peerId, onClose }: { stream: Me
           </button>
         </span>
       </div>
+      {/* Who is watching, bottom left. */}
+      {sharer && <ViewerStack sharerId={sharer} className="absolute bottom-3 left-4 rounded-full bg-black/55 py-1 pl-1 pr-3 backdrop-blur" />}
     </section>
   )
 }

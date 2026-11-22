@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CloudOff } from 'lucide-react'
+import { BannedCard } from './BannedCard'
 import type { AccountState } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { onboardingFor, startOnboarding, useOnboarding, type Onboarding as OnboardingState } from '@/state/onboarding'
 import { AuthForm, ChooseUsername } from './AuthForm'
 import { Onboarding } from './Onboarding'
 
-type Gate = { kind: 'auth' } | { kind: 'username' } | { kind: 'onboarding'; state: OnboardingState } | null
+type Gate = { kind: 'auth' } | { kind: 'username' } | { kind: 'banned'; reason: string } | { kind: 'onboarding'; state: OnboardingState } | null
 
 /** What stands between this person and the launcher, if anything. */
 export function gateFor(account: AccountState | null, onboarding: OnboardingState | null): Gate {
   // A build without an account service has nothing to sign in to.
   if (!account || !account.available) return null
   if (!account.signedIn) return { kind: 'auth' }
+  if (account.standing.banned) return { kind: 'banned', reason: account.standing.reason }
   if (account.needsUsername) return { kind: 'username' }
   const state = onboardingFor(onboarding, account.email)
   return state ? { kind: 'onboarding', state } : null
@@ -67,14 +69,20 @@ export function AuthGate({ account, gate }: { account: AccountState; gate: NonNu
                 <p className="font-display text-3xl font-black tracking-tight">
                   Van<span className="text-accent">ity</span>
                 </p>
-                <p className="mt-1 text-sm text-muted">{gate.kind === 'username' ? 'One more thing before you start.' : 'Log in or make an account to open your launcher.'}</p>
+                <p className="mt-1 text-sm text-muted">{gate.kind === 'banned' ? 'You can no longer use this account.' : gate.kind === 'username' ? 'One more thing before you start.' : 'Log in or make an account to open your launcher.'}</p>
               </div>
               {!online && (
                 <p className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm text-muted" data-gate-offline>
                   <CloudOff className="size-4 shrink-0" /> You're offline. Connect to the internet to log in.
                 </p>
               )}
-              {gate.kind === 'username' ? <ChooseUsername email={account.email} /> : <AuthForm expired={account.sessionExpired} onSignedUp={startOnboarding} />}
+              {gate.kind === 'banned' ? (
+                <BannedCard name={account.username ?? account.email ?? ''} reason={gate.reason} onSignOut={() => void window.vanity.account.signOut()} />
+              ) : gate.kind === 'username' ? (
+                <ChooseUsername email={account.email} />
+              ) : (
+                <AuthForm expired={account.sessionExpired} onSignedUp={startOnboarding} />
+              )}
             </div>
           )}
         </div>

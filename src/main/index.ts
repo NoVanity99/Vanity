@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { setupOverlay } from './overlay/setup'
 import type { GameOverlay } from './overlay/manager'
-import { app, BrowserWindow, dialog, globalShortcut, nativeTheme, net, Notification, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeTheme, net, Notification, protocol, shell, Tray } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -143,14 +143,57 @@ if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USE
   if (profile && !process.env.VANITY_USER_DATA) app.setPath('userData', `${app.getPath('userData')}-${profile}`)
 }
 
-// One instance only: launching Vanity again brings the open window to the front.
-if (!app.requestSingleInstanceLock()) app.quit()
-app.on('second-instance', () => {
+// "Keep running in the background": closing the window only hides it. Vanity stays reachable from
+// its icon next to the clock (click to open, right-click to quit), so calls, notifications and
+// downloads carry on. Settings → Appearance switches it off; then closing the window quits.
+let quitting = false
+let tray: Tray | null = null
+let toldAboutBackground = false
+app.on('before-quit', () => (quitting = true))
+
+function showMainWindow(): void {
   const win = getMainWindow()
   if (!win) return
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
+}
+
+/** The icon next to the clock is there exactly while the setting is on. */
+function syncTray(): void {
+  const wanted = getSettings().closeToBackground
+  if (!wanted) {
+    tray?.destroy()
+    tray = null
+    // Nothing to come back from: a hidden window is shown again.
+    const win = getMainWindow()
+    if (win && !win.isVisible()) win.show()
+    return
+  }
+  if (tray) return
+  try {
+    tray = new Tray(icon)
+    tray.setToolTip('Vanity')
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Open Vanity', click: showMainWindow },
+        { type: 'separator' },
+        { label: 'Quit Vanity', click: () => app.quit() }
+      ])
+    )
+    tray.on('click', showMainWindow)
+    tray.on('double-click', showMainWindow)
+  } catch (err) {
+    // No place for an icon on this system: closing the window quits as before.
+    console.warn('[tray] could not make the icon:', err)
+    tray = null
+  }
+}
+
+// One instance only: launching Vanity again brings the open window to the front.
+if (!app.requestSingleInstanceLock()) app.quit()
+app.on('second-instance', () => {
+  showMainWindow()
 })
 
 secureWebviews()
@@ -174,12 +217,25 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
+      // Calls ringing, coins arriving and voice keep their timing while the window is hidden or behind a game.
+      backgroundThrottling: false,
       // For the embedded Steam store (locked down in steamStoreView.ts).
       webviewTag: true
     }
   })
 
   mainWindow = win
+  syncTray()
+  win.on('close', (event) => {
+    // Really closing: quitting, an update, or the setting is off (or there is no icon to come back from).
+    if (quitting || !getSettings().closeToBackground || !tray) return
+    event.preventDefault()
+    win.hide()
+    if (!toldAboutBackground && Notification.isSupported()) {
+      toldAboutBackground = true
+      new Notification({ title: 'Vanity is still running', body: 'Find it by the clock: click the icon to open it, right-click to quit. You can change this in Settings → Appearance.', icon }).show()
+    }
+  })
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
   })
@@ -478,6 +534,7 @@ app.whenReady().then(() => {
 
   registerIpc({ pushToTalk, store, collections: tracked(createCollectionsStore(db), ['list'], () => sync?.collectionsChanged()), sync, steam, owned, installers, installWatcher, downloads, stores, legendary, downloadLog, gameWindows, tracker, metadata, media, trending, status, music, live, details, update, discord, db, account, stats: () => playStats(db!), onSettingsChanged: () => {
       applyChrome()
+      syncTray()
       overlay?.refresh()
     }
   })
@@ -528,6 +585,8 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  tray?.destroy()
+  tray = null
   pushToTalk?.stop()
   overlay?.close()
   stopScreenAudio()

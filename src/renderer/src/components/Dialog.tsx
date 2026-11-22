@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
+/** The dialogs on screen, in the order they opened. */
+const open: object[] = []
+
 const SIZES = { md: 'max-w-lg', lg: 'max-w-xl', xl: 'max-w-2xl', '2xl': 'max-w-4xl' } as const
 
 interface Props {
@@ -27,9 +30,16 @@ export function Dialog({ size = 'md', title, description, onClose, children, foo
     return () => clearTimeout(t)
   }, [])
 
+  // Escape closes the dialog on top only (a dialog opened from another one closes first).
+  const me = useRef<object>({})
+  useEffect(() => {
+    const token = me.current
+    open.push(token)
+    return () => void open.splice(open.indexOf(token), 1)
+  }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && open[open.length - 1] === me.current) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

@@ -232,6 +232,13 @@ export interface VanityApi {
     setUsername(username: string): Promise<Result<AccountState>>
     /** Sets your profile picture (a small image as a data: address; null removes it), your bio and/or your profile's look. */
     setProfile(patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: StatsVisibility }): Promise<Result<AccountState>>
+    /** Asks the server again for this account's name, badges and standing (after the quick check-in saw a change). */
+    refresh(): Promise<AccountState>
+    /**
+     * A signed-in request to the Vanity server, for the screens that talk to it directly (coins,
+     * comments, calls, admin). Only the paths in src/shared/apiPaths.ts are let through.
+     */
+    request<T = unknown>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<Result<T>>
     /** Emails a 6-digit code for choosing a new password. */
     sendResetCode(email: string): Promise<Result<true>>
     resetPassword(email: string, code: string, password: string): Promise<Result<true>>
@@ -271,7 +278,7 @@ export interface VanityApi {
     leave(): Promise<Result<true>>
     /** Checking in during a call: the room, and connection details sent to you after `after`. */
     update(after: number): Promise<Result<VoiceUpdate>>
-    state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }): Promise<Result<true>>
+    state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string }; watching?: string | null }): Promise<Result<true>>
     signal(signals: { to: string; data: VoiceSignal }[]): Promise<Result<true>>
     /** Private and locked (only whoever started the room). */
     setRoom(patch: { private?: boolean; locked?: boolean }): Promise<Result<VoiceUpdate>>
@@ -552,6 +559,8 @@ export const IPC = {
   overlayPush: 'overlay:push',
   voiceHotkeyStatus: 'voice:hotkey-status',
   accountSetProfile: 'account:set-profile',
+  accountRefresh: 'account:refresh',
+  accountRequest: 'account:request',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',
   accountDelete: 'account:delete',

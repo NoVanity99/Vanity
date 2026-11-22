@@ -1,4 +1,4 @@
-import { nameFontFamily, PROFILE_AURAS, PROFILE_BANNERS, PROFILE_EFFECTS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_FONTS, PROFILE_NAME_STYLES, PROFILE_TITLES, type ProfileStyle } from '@shared/profileStyle'
+import { lookItemId, nameFontFamily, PROFILE_AURAS, PROFILE_BANNERS, PROFILE_EFFECTS, PROFILE_FLAIRS, PROFILE_FRAMES, PROFILE_NAME_FONTS, PROFILE_NAME_STYLES, PROFILE_TITLES, type ProfileStyle } from '@shared/profileStyle'
 import { Avatar } from '@/components/Avatar'
 import { cn } from '@/lib/cn'
 
@@ -10,6 +10,12 @@ export interface LookPickerProps {
   onHover?: (patch: Partial<ProfileStyle> | null) => void
   name: string
   avatar: string | null
+  /** Premium looks this account hasn't bought, by shop id ("frame:diamond"), with their price in coins. */
+  locked?: Record<string, number>
+  /** Premium looks this account owns. */
+  owned?: ReadonlySet<string>
+  /** A locked look was clicked. */
+  onLocked?: (itemId: string, patch: Partial<ProfileStyle>) => void
 }
 
 const chip = (active: boolean): string =>
@@ -17,13 +23,17 @@ const chip = (active: boolean): string =>
 const tile = (active: boolean): string => cn('relative h-11 overflow-hidden rounded-lg border bg-surface transition hover:-translate-y-0.5', active ? 'border-accent ring-2 ring-accent/40' : 'border-border hover:border-white/25')
 
 /** What every option button shares: it is a radio, picking saves, pointing previews. */
-function option(p: LookPickerProps, key: keyof ProfileStyle, id: string): React.ButtonHTMLAttributes<HTMLButtonElement> & { 'data-look-option': string } {
+function option(p: LookPickerProps, key: keyof ProfileStyle, id: string): React.ButtonHTMLAttributes<HTMLButtonElement> & { 'data-look-option': string; 'data-price'?: string; 'data-owned-premium'?: string } {
   const patch = { [key]: id } as Partial<ProfileStyle>
+  const item = lookItemId(key, id)
+  const price = p.locked?.[item]
   return {
     type: 'button',
     role: 'radio',
     'aria-checked': p.style[key] === id,
-    onClick: () => p.onPick(patch),
+    // A premium look that isn't owned can be tried in the preview, and bought by clicking it.
+    onClick: () => (price !== undefined ? p.onLocked?.(item, patch) : p.onPick(patch)),
+    ...(price !== undefined ? { 'data-price': price.toLocaleString() } : p.owned?.has(item) ? { 'data-owned-premium': '' } : {}),
     onMouseEnter: () => p.onHover?.(patch),
     onMouseLeave: () => p.onHover?.(null),
     onFocus: () => p.onHover?.(patch),

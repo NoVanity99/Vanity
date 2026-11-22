@@ -1,6 +1,7 @@
 import type { BackendConfig } from '@shared/backend'
 import { normalizeProfileStyle, type ProfileStyle } from '../../shared/profileStyle'
-import { statsVisibilityOf, type AccountState, type StatsVisibility } from '../../shared/types'
+import { allowedApiRequest } from '../../shared/apiPaths'
+import { GOOD_STANDING, statsVisibilityOf, type AccountStanding, type AccountState, type StatsVisibility } from '../../shared/types'
 import type { LibraryStore } from '../library/store'
 import type { FetchFn } from '../metadata/http'
 import { AccountClient, type Me } from './client'
@@ -28,17 +29,23 @@ export interface SavedSession {
   statsVisibility?: StatsVisibility
   verified?: boolean
   admin?: boolean
+  usernameChangeAt?: number | null
+  standing?: AccountStanding
 }
 
 /** The parts of the server's answer that are kept with the session. */
-const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'style' | 'statsVisibility' | 'verified' | 'admin'> => ({
+const standingOf = (s: Me['standing']): AccountStanding => ({ banned: s?.banned === true, reason: typeof s?.reason === 'string' ? s.reason : '', timeoutUntil: typeof s?.timeoutUntil === 'number' ? s.timeoutUntil : null })
+
+const profileOf = (me: Me): Pick<SavedSession, 'username' | 'avatar' | 'bio' | 'style' | 'statsVisibility' | 'verified' | 'admin' | 'usernameChangeAt' | 'standing'> => ({
   username: me.username,
   avatar: me.avatar ?? null,
   bio: me.bio ?? '',
   style: normalizeProfileStyle(me.style),
   statsVisibility: statsVisibilityOf(me.statsVisibility),
   verified: me.verified === true,
-  admin: me.admin === true
+  admin: me.admin === true,
+  usernameChangeAt: typeof me.usernameChangeAt === 'number' ? me.usernameChangeAt : null,
+  standing: standingOf(me.standing)
 })
 
 /**
@@ -113,7 +120,9 @@ export class AccountService {
       style: normalizeProfileStyle(this.saved?.style),
       statsVisibility: statsVisibilityOf(this.saved?.statsVisibility),
       verified: this.saved?.verified === true,
-      admin: this.saved?.admin === true
+      admin: this.saved?.admin === true,
+      usernameChangeAt: this.saved?.usernameChangeAt && this.saved.usernameChangeAt > this.now() ? this.saved.usernameChangeAt : null,
+      standing: this.saved?.standing ?? GOOD_STANDING
     }
   }
 
@@ -226,6 +235,26 @@ export class AccountService {
     const me = await this.guard((c) => c.setProfile(patch))
     await this.update(profileOf(me))
     return this.state()
+  }
+
+  /** Asks the server again who this account is now (its name, badges and standing). */
+  async refresh(): Promise<AccountState> {
+    await this.load()
+    if (this.saved) await this.refreshProfile()
+    return this.state()
+  }
+
+  /** A request from one of the screens to the Vanity server. Only allowed paths get through. */
+  async request(method: string, path: string, body?: unknown): Promise<unknown> {
+    if (!allowedApiRequest(method, path)) throw new AccountError("Vanity can't do that from here.")
+    // A game's comments are asked for by its library id ("/games/~12/comments"): the server knows games by title.
+    const local = /^\/games\/~(\d+)\/comments/.exec(path)
+    if (local) {
+      const game = this.deps.store.get(Number(local[1]))
+      if (!game) throw new AccountError('That game is no longer in your library.')
+      path = path.replace(local[0], `/games/${encodeURIComponent(gameKey(game.name))}/comments`)
+    }
+    return this.guard((c) => c.request(method, path, method === 'GET' ? undefined : (body ?? {})))
   }
 
   async sendResetCode(email: string): Promise<void> {

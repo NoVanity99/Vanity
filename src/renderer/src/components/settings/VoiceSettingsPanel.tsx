@@ -7,6 +7,7 @@ import { isAndroid } from '@/lib/platform'
 import { useSettings } from '@/state/settings'
 import { previewVoiceSettings, saveVoiceSettings, useMicLevel, useVoice, voice } from '@/state/voice'
 import { dbToUnit } from '@/voice/detect'
+import { playStreamChime } from '@/lib/chime'
 import type { AudioDevices } from '@/voice/audio'
 import { openCamera } from '@/voice/client'
 import { StreamVideo } from '@/components/voice/ScreenShare'
@@ -346,6 +347,30 @@ export function VoiceSettingsPanel({ settings: initial }: { settings: VoiceSetti
 
       <Section title="Other">
         <Toggle checked={s.soundEffects} onChange={(on) => save({ soundEffects: on })} label="Sounds" hint="A short tone when people join or leave, and when you mute or deafen." />
+        <div data-stream-alert-settings>
+          <Toggle checked={s.streamAlert} onChange={(on) => save({ streamAlert: on })} label="Sound when someone starts streaming" hint="A chime when anyone in your call starts sharing their screen. The note with its Watch button shows either way." />
+          <div className={cn('flex items-center gap-3 px-3 pb-2.5 text-sm transition', !s.streamAlert && 'pointer-events-none opacity-45')}>
+            <span className="w-32 shrink-0 text-muted">Chime volume</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(s.streamAlertVolume * 100)}
+              onChange={(e) => previewVoiceSettings({ streamAlertVolume: Number(e.target.value) / 100 })}
+              onPointerUp={(e) => save({ streamAlertVolume: Number((e.target as HTMLInputElement).value) / 100 })}
+              onKeyUp={(e) => save({ streamAlertVolume: Number((e.target as HTMLInputElement).value) / 100 })}
+              aria-label="Stream chime volume"
+              className="h-1.5 min-w-0 flex-1 accent-[var(--color-accent)]"
+              data-stream-alert-volume
+            />
+            <span className="w-10 text-right tabular-nums text-muted">{Math.round(s.streamAlertVolume * 100)}%</span>
+            <Button onClick={() => playStreamChime(s.streamAlertVolume)} data-stream-alert-test>
+              Test
+            </Button>
+          </div>
+        </div>
+        {!isAndroid() && <Toggle checked={s.popOutOnTop} onChange={(on) => save({ popOutOnTop: on })} label="Keep popped-out streams on top" hint="A stream you pop out into its own window stays above your other windows. You can also switch it in the stream window itself." />}
         {Object.keys(s.userVolumes).length > 0 && (
           <div className="flex items-center justify-between px-3 py-2.5 text-sm">
             <span>

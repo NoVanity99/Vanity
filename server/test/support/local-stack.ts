@@ -14,6 +14,7 @@ import { createLocalJWKSet, type JSONWebKeySet } from 'jose'
 import { Hono } from 'hono'
 import { createApp, neonAuthSignIn } from '../../src/app'
 import { neonAuthVerifier } from '../../src/auth'
+import { ADMIN_USERNAMES, OWNER_USERNAMES } from '../../src/roles'
 import type { Sql } from '../../src/db'
 import { schemaStatements } from '../../src/schema'
 import { fakeSteam, KEY } from './fake-steam'
@@ -52,8 +53,15 @@ const steam = fakeSteam([
   { steamId: '76561198000000001', name: 'Shy', vanity: 'shy_one', private: true }
 ])
 
+// Pretend admins for trying the Admin tab: LOCAL_ADMINS=name1,name2 (and LOCAL_OWNER=name).
+for (const name of (process.env.LOCAL_ADMINS ?? '').split(',').filter(Boolean)) ADMIN_USERNAMES.push(name)
+if (process.env.LOCAL_OWNER) OWNER_USERNAMES.push(process.env.LOCAL_OWNER)
+
 const api = createApp({
   sql,
+  // A pretend Stripe (STRIPE_FAKE=1): checkouts get a checkout.stripe.com address, and a test signs
+  // the "paid" message itself with this secret.
+  stripe: process.env.STRIPE_FAKE ? { secretKey: 'sk_test_local', webhookSecret: 'whsec_local' } : undefined,
   // Signing in with a username: the server asks the stand-in for Neon Auth, like the real one does.
   authSignIn: neonAuthSignIn(`${base}/neondb/auth`, 'http://localhost:5173', ((url: string, init?: RequestInit) => auth.handler(new Request(url, init))) as typeof fetch),
   emailOfUser: async (id) => memory.user.find((u) => u.id === id)?.email ?? null,
@@ -61,6 +69,11 @@ const api = createApp({
   // GIF search answers like KLIPY does (KLIPY_FAKE=1), since tests can't reach it.
   klipyKey: process.env.KLIPY_FAKE ? 'local-test-key' : '',
   fetchFn: async (url: string, init?: RequestInit) => {
+    if (url.startsWith('https://api.stripe.com/v1/checkout/sessions')) {
+      const id = `cs_test_local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      console.log(`[stripe] checkout ${id} for ${new URLSearchParams(String(init?.body)).get('line_items[0][price_data][unit_amount]')} cents`)
+      return new Response(JSON.stringify({ id, url: `https://checkout.stripe.com/c/pay/${id}` }), { status: 200 })
+    }
     if (url.includes('api.klipy.com')) {
       const q = new URL(url).searchParams.get('q') ?? 'trending'
       const data = Array.from({ length: 6 }, (_, i) => ({ id: `${q}-${i}`, type: 'gif', file: { md: { gif: { url: `https://static.klipy.com/test/${q}-${i}.gif`, width: 320, height: 180 } }, sm: { gif: { url: `https://static.klipy.com/test/${q}-${i}-sm.gif`, width: 160, height: 90 } } } }))

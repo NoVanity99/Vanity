@@ -39,6 +39,38 @@ To change the key later, update the secret and run the workflow again. A deploy 
 
 The key allows 100,000 calls a day for everyone together, so the server protects it: answers are cached for 5–10 minutes (custom URL names for a day), each account may make 30 Steam requests a minute, and each account has a budget of 1,500 calls to Steam per day. Achievement totals are worked out a batch of games at a time and remembered, re-checking recently played games hourly and the rest weekly.
 
+### Vanity Coins: setting up Stripe
+
+Players buy Vanity Coins on Stripe's own payment page. The server starts that payment and is told by Stripe, in a signed message (a "webhook"), when it has gone through; only then are coins added. Two secrets are needed, and both live **only** on the server, like the Steam key. Until they are set, the store in the app says buying isn't switched on (everything else about coins works, including coins an admin gives).
+
+Use **test mode** first (Stripe calls it a sandbox): nothing is charged.
+
+1. Create an account at <https://dashboard.stripe.com> and make sure the **Test mode** switch (top right) is on.
+2. **Secret key:** Developers → **API keys** → *Secret key* → Reveal. It starts with `sk_test_`.
+3. **Webhook:** Developers → **Webhooks** → *Add endpoint*.
+   - Endpoint URL: the Vanity server's address followed by `/stripe/webhook`, for example `https://br-damp-pine-bdkamz55-vanity.compute.c-8.us-east-2.aws.neon.tech/stripe/webhook` (the address is `apiUrl` in `src/shared/backend.ts`).
+   - Events to send: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`.
+   - After saving, open the endpoint and reveal its **Signing secret**. It starts with `whsec_`.
+4. In this repository: **Settings** → **Secrets and variables** → **Actions** → add `STRIPE_SECRET_KEY` (from step 2) and `STRIPE_WEBHOOK_SECRET` (from step 3).
+5. **Actions** → **Deploy backend** → **Run workflow**.
+
+**Try a purchase:** in Vanity, click your coin balance → pick a bundle → on Stripe's page pay with the test card `4242 4242 4242 4242`, any future expiry date, any 3-digit CVC and any postcode. Within a few seconds the balance in Vanity goes up by itself, and Account → Purchase history shows it. To try a refund, open the payment in the Stripe dashboard and click *Refund*: the coins come off again. `4000 0000 0000 0259` is a test card whose payment gets disputed (a chargeback).
+
+**Going live:** switch the dashboard out of test mode, make a live secret key (`sk_live_`) and a live webhook endpoint with the same URL and events, replace the two GitHub secrets, and deploy again. Stripe will ask for your business and bank details first. Publish a short terms and refund policy before selling to real players.
+
+**Prices and bundles** are in `server/src/coinBundles.ts`: edit, push, and the store shows them (no app update). What coins buy, and for how much, is in the same file.
+
+How the money side is kept safe:
+
+- The app only names a bundle. The price and the number of coins come from the server's own list.
+- Coins are added only for a `checkout.session.completed` message whose signature matches the webhook secret, for a checkout this server started, and for the amount it asked.
+- Every change is a row in `vanity.coin_ledger` (purchase, spend, refund, chargeback, reversal, admin) that is never edited. `(kind, ref)` is unique, so a repeated Stripe message or a double click can't count twice. The balance is the running total of those rows.
+- A refund takes the same share of the coins back; a chargeback takes back what is left of that purchase (a balance can go below zero if the coins were already spent); a dispute won gives them back.
+
+### Admins
+
+`server/src/roles.ts` is only the starting list: each name on it is turned into a badge on the account that holds the name, once, and from then on the badge belongs to that account whatever it is renamed to. After that, badges are given and taken in the app (Settings → Admin), and removing a name from the file changes nothing. Everything an admin does is checked on the server and written to `vanity.admin_log`.
+
 ### Things to know
 
 - **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*. [Resend](https://resend.com) works there (it offers SMTP): it needs a Resend account and a domain you own, verified in Resend. Its key is typed into the Neon console only: it never goes in the app, this repository or a `.env` file.
@@ -66,7 +98,19 @@ Send `Authorization: Bearer <Neon Auth token>` on everything except the first tw
 | POST | `/auth/sign-in` | `{ username, password }` → `{ user, setCookie, jwt }`: signs in at Neon Auth for someone who typed their username. Public; rate-limited per IP and per username (10 wrong passwords per 10 minutes). `401` with one fixed message for every failure. The password is passed on over https and never stored or logged |
 | GET | `/me` | `{ user: { id, email, username } }`; `username` is null until one is picked |
 | POST | `/emails/check` | `{ email }` → `{ inUse }`: whether an email already has an account (true/false), or `null` when Neon Auth's own tables can't be read from the server. Public and rate-limited; the sign-up form uses it. Neon Auth itself refuses a second account for an email either way |
-| PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case |
+| PUT | `/me/username` | `{ username }`: picks or changes it. 3–20 letters, numbers or `_`, unique ignoring case, no blocked or reserved words. A change is allowed once every 30 days and kept in `vanity.username_history` |
+| GET | `/pulse` | The quick check-in every few seconds: this account's coins, name, badges, ban or time-out, and calls ringing for it |
+| GET | `/coins` | The store: balance, bundles, what coins buy, what is owned |
+| POST | `/coins/checkout` | `{ bundleId }` → `{ url }`: starts a Stripe Checkout |
+| POST | `/coins/buy` | `{ itemId }`: spends coins |
+| GET | `/coins/history` | The account's ledger, newest first |
+| POST | `/stripe/webhook` | Messages from Stripe (no token: the signature is the proof) |
+| GET, POST | `/games/:key/comments` | A game's comments (newest first, `?before=`), and posting one |
+| PATCH, DELETE | `/comments/:id` | Edit or delete your own comment (admins can delete any) |
+| POST | `/comments/:id/report` | Report a comment to the admins |
+| POST | `/voice/call` | `{ friendId }` or `{ groupId }`: starts that chat's call and rings the others, or joins it |
+| POST | `/voice/rings/:roomId/decline` | Stops a call ringing for you |
+| * | `/admin/…` | The admin tools (admin badge required) |
 | PUT | `/me/profile` | `{ avatar?, bio?, style? }`: the profile picture (a small PNG/JPEG/WebP as a `data:` address, about 40 KB at most; `null` removes it) a bio of up to 200 characters, and the profile's look: `style` is `{ banner?, frame?, nameStyle?, flair? }`, each an id from the fixed lists in `src/profileStyle.ts` (anything else is refused). Fields left out stay as they are |
 | DELETE | `/me` | Removes the Vanity profile, friends, presence and stats |
 | POST | `/sync` | Cloud-saved progress: the device sends what it knows (per-device counters, choices with timestamps, days, badges, collections, settings) and gets the merged result back. Rules are in `src/sync.ts`. Rate-limited per account |

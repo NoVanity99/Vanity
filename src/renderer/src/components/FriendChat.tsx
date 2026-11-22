@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { ArrowUp, AudioLines, CheckCheck, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatMessage, Friend } from '@shared/types'
 import { cn } from '@/lib/cn'
+import { LinkText } from '@/components/chat/LinkText'
 import { useNavigate } from 'react-router-dom'
 import { ChatComposer } from '@/components/chat/ChatComposer'
 import { ChatGif } from '@/components/chat/ChatGif'
@@ -216,7 +217,7 @@ export function FriendChat({
                           m.mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-surface-2 text-text'
                         )}
                       >
-                        {m.text}
+                        <LinkText text={m.text} />
                         <span className={cn('ml-2 inline-block translate-y-0.5 text-[10px] tabular-nums', m.mine ? 'text-white/70' : 'text-muted')}>{timeOf(m.at)}</span>
                         {!m.mine && isVoiceInvite(m.text) && (
                           <button

@@ -11,6 +11,7 @@ import { watchChat } from '@/state/friends'
 import { refreshGroups } from '@/state/groups'
 import { ChatComposer } from './ChatComposer'
 import { ChatGif } from './ChatGif'
+import { LinkText } from './LinkText'
 
 const POLL_MS = 3000
 
@@ -185,7 +186,7 @@ export function GroupChat({ group, header, className }: { group: Group; header?:
                         </span>
                       ) : (
                         <div title={m.at ? new Date(m.at).toLocaleString() : undefined} className={cn('whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed', mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-surface-2 text-text')}>
-                          {m.text}
+                          <LinkText text={m.text} />
                           <span className={cn('ml-2 inline-block translate-y-0.5 text-[10px] tabular-nums', mine ? 'text-white/70' : 'text-muted')}>{timeOf(m.at)}</span>
                         </div>
                       )}

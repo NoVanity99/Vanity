@@ -13,9 +13,9 @@ const windows = new Map<string, BrowserWindow>()
 export function streamWindowOptions(opener: BrowserWindow): BrowserWindowConstructorOptions {
   // getLastWebPreferences exists at run time but is missing from Electron's type list.
   const wc = opener.webContents as WebContents & { getLastWebPreferences(): WebPreferences | null }
-  const { preload, sandbox, contextIsolation, nodeIntegration } = wc.getLastWebPreferences() ?? {}
+  const { preload, sandbox, contextIsolation, nodeIntegration, backgroundThrottling } = wc.getLastWebPreferences() ?? {}
   return {
-    webPreferences: { preload, sandbox, contextIsolation, nodeIntegration },
+    webPreferences: { preload, sandbox, contextIsolation, nodeIntegration, backgroundThrottling },
     width: 1280,
     height: 760,
     minWidth: 320,

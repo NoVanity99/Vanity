@@ -6,7 +6,7 @@ import { createApp, USERNAME_COOLDOWN_MS } from '../src/app'
 import { COIN_BUNDLES, SHOP_ITEMS } from '../src/coinBundles'
 import { validStripeSignature } from '../src/coins'
 import type { Sql } from '../src/db'
-import { ADMIN_USERNAMES } from '../src/roles'
+import { ADMIN_USERNAMES, OWNER_USERNAMES } from '../src/roles'
 import { schemaStatements } from '../src/schema'
 import { maskProfanity, usernameProblem } from '../src/words'
 import { dmChat as sharedDmChat, RING_MS as SHARED_RING_MS } from '../../src/shared/voiceProtocol'
@@ -530,6 +530,99 @@ describe('admin tools', () => {
     await call('POST', `/admin/users/${a.id}/timeout`, boss.token, { minutes: 0 })
     expect((await call('POST', `/friends/${b.id}/messages`, a.token, { text: 'again' })).status).toBe(201)
     expect((await call('POST', `/admin/users/${a.id}/timeout`, boss.token, { minutes: 999_999 })).status).toBe(400)
+  })
+
+  it("stops admins acting against each other; only the owner can, and nothing gives the owner away", async () => {
+    OWNER_USERNAMES.push('TopDog')
+    ADMIN_USERNAMES.push('TopDog', 'AdminTwo')
+    let top: { token: string; id: string }, two: { token: string; id: string }
+    try {
+      top = await register('TopDog')
+      two = await register('AdminTwo')
+    } finally {
+      OWNER_USERNAMES.pop()
+      ADMIN_USERNAMES.splice(-2)
+    }
+    const boss = await admin()
+    const a = await register('alice')
+    await call('POST', '/games/g:hades/comments', two.token, { text: 'from admin two' })
+    const comment = (await call('GET', '/games/g:hades/comments', a.token)).json.comments[0].id
+
+    // One admin against another: every harmful action is refused, with the same words.
+    const harmful: [string, string, unknown?][] = [['POST', 'ban', { reason: 'x' }], ['POST', 'timeout', { minutes: 10 }], ['POST', 'roles', { admin: false }], ['POST', 'coins', { amount: -5 }], ['POST', 'reset-profile'], ['POST', 'username', { username: 'renamed_1' }], ['POST', 'delete-comments'], ['POST', 'kick-voice'], ['DELETE', '']]
+    for (const victim of [two!, top!]) {
+      for (const [m, path, b] of harmful) {
+        const r = await call(m, `/admin/users/${victim.id}${path ? `/${path}` : ''}`, boss.token, m === 'DELETE' ? undefined : (b ?? {}))
+        expect([victim.id, path, r.status, r.json?.error]).toEqual([victim.id, path, 403, "You can't do that to another admin."])
+      }
+    }
+    expect((await call('DELETE', `/comments/${comment}`, boss.token)).status).toBe(403)
+    await call('POST', `/comments/${comment}/report`, a.token, {})
+    expect((await call('POST', `/admin/reports/${comment}`, boss.token, { remove: true })).status).toBe(403)
+    // Kind things are still fine between admins: coins, a badge, looking.
+    expect((await call('POST', `/admin/users/${two!.id}/coins`, boss.token, { amount: 50 })).status).toBe(200)
+    expect((await call('POST', `/admin/users/${two!.id}/roles`, boss.token, { verified: true })).status).toBe(200)
+    expect((await call('POST', `/admin/users/${two!.id}/roles`, boss.token, { verified: false })).status).toBe(403)
+    expect((await call('GET', `/admin/users/${two!.id}/view`, boss.token)).status).toBe(200)
+    // And ordinary accounts are moderated as before.
+    expect((await call('POST', `/admin/users/${a.id}/timeout`, boss.token, { minutes: 10 })).status).toBe(204)
+
+    // The owner can do all of it to an admin.
+    expect((await call('POST', `/admin/users/${two!.id}/timeout`, top!.token, { minutes: 10 })).status).toBe(204)
+    expect((await call('DELETE', `/comments/${comment}`, top!.token)).status).toBe(204)
+    expect((await call('POST', `/admin/users/${two!.id}/roles`, top!.token, { admin: false })).json).toEqual({ verified: true, admin: false })
+    expect((await call('POST', `/admin/users/${boss.id}/ban`, top!.token, { reason: 'Abuse of admin tools' })).status).toBe(204)
+    expect((await call('GET', '/admin/overview', boss.token)).status).toBe(403)
+
+    // Nothing the server sends says who the owner is: they look like any other admin.
+    const seen = JSON.stringify([
+      (await call('GET', '/me', top!.token)).json,
+      (await call('GET', '/pulse', top!.token)).json,
+      (await call('GET', `/admin/users/${top!.id}`, top!.token)).json.user,
+      (await call('GET', '/admin/users', top!.token)).json.users,
+      (await call('GET', '/admin/overview', top!.token)).json
+    ])
+    expect(seen).not.toMatch(/owner|super/i)
+    expect((await call('GET', '/me', top!.token)).json.user).toMatchObject({ admin: true, verified: false })
+    // It stays with the account through a rename, and the old name gives it to nobody.
+    await call('PUT', '/me/username', top!.token, { username: 'top_dog_2' })
+    expect((await call('PUT', '/me/username', 't:copycat', { username: 'TopDog' })).status).toBe(200)
+    await call('POST', `/admin/users/copycat/roles`, top!.token, { admin: true })
+    expect((await call('POST', `/admin/users/${top!.id}/ban`, 't:copycat', {})).status).toBe(403)
+    expect((await call('POST', '/admin/users/copycat/ban', top!.token, {})).status).toBe(204)
+  })
+
+  it('makes test users to try things on, and shows what an account sees', async () => {
+    const boss = await admin()
+    const a = await register('alice')
+    expect((await call('POST', '/admin/test-users', a.token)).status).toBe(403)
+    const t = (await call('POST', '/admin/test-users', boss.token)).json
+    expect(t.id).toMatch(/^test-/)
+    expect(t.username).toMatch(/^test_\d{5}$/)
+    // Listed for admins (marked as a test), never found by players, and nobody can sign in as it.
+    expect((await call('GET', `/admin/users?q=${t.username}`, boss.token)).json.users[0]).toMatchObject({ username: t.username, test: true, email: null })
+    expect((await call('GET', `/users/search?q=test_`, a.token)).json.users).toEqual([])
+    expect((await call('POST', '/auth/sign-in', undefined, { username: t.username, password: 'anything-at-all' })).status).not.toBe(200)
+
+    const view = async (): Promise<any> => (await call('GET', `/admin/users/${t.id}/view`, boss.token)).json
+    expect(await view()).toMatchObject({ user: { username: t.username }, coins: 0, banned: null, speaking: null, test: true })
+    await call('POST', `/admin/users/${t.id}/coins`, boss.token, { amount: 750 })
+    await call('POST', `/admin/users/${t.id}/timeout`, boss.token, { minutes: 30 })
+    let v = await view()
+    expect(v).toMatchObject({ coins: 750, banned: null })
+    expect(v.speaking).toMatch(/^You're timed out and can't do that until /)
+    expect(v.ledger[0]).toMatchObject({ kind: 'admin', amount: 750 })
+    await call('POST', `/admin/users/${t.id}/ban`, boss.token, { reason: 'Testing the ban screen' })
+    v = await view()
+    expect(v.banned).toBe('This account has been banned: Testing the ban screen')
+    expect(v.standing).toMatchObject({ banned: true, reason: 'Testing the ban screen' })
+    // It works for real accounts too, and shows exactly what they are told.
+    await call('POST', `/admin/users/${a.id}/ban`, boss.token, { reason: 'Spam' })
+    expect((await call('GET', `/admin/users/${a.id}/view`, boss.token)).json.banned).toBe((await call('GET', '/friends', a.token)).json.error)
+
+    await call('POST', '/admin/test-users', boss.token)
+    expect((await call('POST', '/admin/test-users/clear', boss.token)).json).toEqual({ removed: 2 })
+    expect((await call('GET', '/admin/users', boss.token)).json.users.map((u: { username: string }) => u.username).sort()).toEqual(['TestBoss', 'alice'])
   })
 
   it('resets a profile, renames, clears the username wait, removes comments and deletes an account', async () => {

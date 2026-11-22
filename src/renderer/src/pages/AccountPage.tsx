@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CloudOff, LogOut, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { CloudOff, Coins, History, LogOut, Pencil, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { ChangeUsername } from '@/components/account/ChangeUsername'
 import { STATS_VISIBILITY_LABELS, type AccountState, type StatsVisibility } from '@shared/types'
 import { Avatar } from '@/components/Avatar'
 import { Button, Dialog } from '@/components/Dialog'
@@ -52,6 +53,7 @@ export function AccountPage(): React.JSX.Element {
   const toast = useToast()
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [renaming, setRenaming] = useState(false)
   const [online, setOnline] = useState(() => navigator.onLine)
 
   useEffect(() => {
@@ -74,6 +76,12 @@ export function AccountPage(): React.JSX.Element {
         {!online && (
           <p className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
             <CloudOff className="size-4 shrink-0" /> You're offline. Your library still works; account features come back when you reconnect.
+          </p>
+        )}
+
+        {account.standing.timeoutUntil && (
+          <p className="flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100" data-timed-out>
+            You're timed out until {new Date(account.standing.timeoutUntil).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}: you can't send messages, comment or use voice until then.
           </p>
         )}
 
@@ -106,6 +114,9 @@ export function AccountPage(): React.JSX.Element {
                 </p>
                 <ProfileTitle title={account.style.title} className="mb-1" />
                 {account.email && <p className="truncate text-sm text-muted">{account.email}</p>}
+                <button onClick={() => setRenaming(true)} className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-accent underline-offset-4 hover:underline" data-change-username-open>
+                  <Pencil className="size-3" /> Change username
+                </button>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-400">
                   <ShieldCheck className="size-3.5 shrink-0" /> Your playtime and what you're playing are shared with your friends.
                 </p>
@@ -116,6 +127,12 @@ export function AccountPage(): React.JSX.Element {
             <div className="relative mt-6 flex flex-wrap gap-3">
               <Button variant="primary" onClick={() => navigate('/friends')}>
                 <Users className="size-4" /> Friends
+              </Button>
+              <Button onClick={() => navigate('/coins')} data-account-coins>
+                <Coins className="size-4 text-amber-300" /> Get Coins
+              </Button>
+              <Button onClick={() => navigate('/account/purchases')} data-account-purchases>
+                <History className="size-4" /> Purchase history
               </Button>
               <Button onClick={() => window.vanity.account.signOut().then(() => toast('Signed out'))}>
                 <LogOut className="size-4" /> Sign out
@@ -135,6 +152,7 @@ export function AccountPage(): React.JSX.Element {
         </div>
       </div>
 
+      {renaming && account.username && <ChangeUsername account={account} onClose={() => setRenaming(false)} />}
       {confirmDelete && (
         <Dialog
           title="Delete your account?"

@@ -7,6 +7,12 @@ import { LOOK_SECTIONS } from '@/components/profile/lookSections'
 import { PicturePicker } from '@/components/profile/PicturePicker'
 import { ProfileCard } from '@/components/profile/ProfileCard'
 import { useToast } from '@/state/toasts'
+import { useNavigate } from 'react-router-dom'
+import { Coins } from 'lucide-react'
+import { Dialog } from '@/components/Dialog'
+import { usePulse } from '@/state/pulse'
+import { buyItem, useShop } from '@/state/shop'
+import { LookPreview } from '@/pages/CoinsPage'
 
 export const MAX_BIO = 200
 
@@ -41,6 +47,15 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
     setPicked((p) => ({ ...p, ...patch }))
     void save('look', { style: patch }, null).finally(() => setPicked({}))
   }
+
+  // Premium looks: what they cost comes from the server; the ones not bought yet show their price.
+  const shop = useShop()
+  const coins = usePulse().coins ?? shop?.balance ?? 0
+  const navigate = useNavigate()
+  const owned = new Set(shop?.owned ?? [])
+  const locked = Object.fromEntries((shop?.items ?? []).filter((i) => !owned.has(i.id)).map((i) => [i.id, i.price]))
+  const [buying, setBuying] = useState<{ id: string; patch: Partial<ProfileStyle> } | null>(null)
+  const buyingItem = buying ? shop?.items.find((i) => i.id === buying.id) : undefined
 
   const length = [...bio.trim()].length
   const changed = bio.trim() !== account.bio
@@ -102,7 +117,7 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
         {LOOK_SECTIONS.map(({ key, title, Picker }) => (
           <div key={key} data-look-section={key}>
             <p className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-widest text-muted">{title}</p>
-            <Picker style={style} onPick={pickLook} onHover={setHover} name={account.username ?? '?'} avatar={account.avatar} />
+            <Picker style={style} onPick={pickLook} onHover={setHover} name={account.username ?? '?'} avatar={account.avatar} locked={locked} owned={owned} onLocked={(id, patch) => setBuying({ id, patch })} />
           </div>
         ))}
       </div>
@@ -110,6 +125,50 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
         <p role="alert" className="animate-pop-in mt-3 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
           {error}
         </p>
+      )}
+      {buying && buyingItem && (
+        <Dialog
+          title={`Get ${buyingItem.name}?`}
+          description={coins >= buyingItem.price ? `A premium look for ${buyingItem.price.toLocaleString()} Vanity Coins. You have ${coins.toLocaleString()}. It's yours for good.` : `A premium look for ${buyingItem.price.toLocaleString()} Vanity Coins. You have ${coins.toLocaleString()}.`}
+          onClose={() => setBuying(null)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setBuying(null)}>
+                Cancel
+              </Button>
+              {coins >= buyingItem.price ? (
+                <Button
+                  variant="primary"
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    setBusy('look')
+                    const problem = await buyItem(buying.id)
+                    setBusy(null)
+                    if (problem) return toast(problem, 'error')
+                    toast(`${buyingItem.name} is yours`)
+                    const patch = buying.patch
+                    setBuying(null)
+                    pickLook(patch)
+                  }}
+                  data-confirm-buy
+                >
+                  <Coins className="size-4" /> Spend {buyingItem.price.toLocaleString()} coins and wear it
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={() => navigate('/coins')} data-get-coins>
+                  <Coins className="size-4" /> Get Coins
+                </Button>
+              )}
+            </>
+          }
+        >
+          <div className="space-y-3 p-6">
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <LookPreview itemId={buying.id} name={account.username ?? 'You'} avatar={account.avatar} large />
+            </div>
+            <p className="text-sm text-muted">Coins that are spent can't be turned back into money.</p>
+          </div>
+        </Dialog>
       )}
     </div>
   )

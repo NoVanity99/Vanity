@@ -32,6 +32,12 @@ export interface VoiceSettings {
   autoGainControl: boolean
   /** Short sounds when people join or leave and when you mute or deafen. */
   soundEffects: boolean
+  /** A sound (and a note with a Watch button) when someone in your call starts sharing their screen. */
+  streamAlert: boolean
+  /** How loud that sound is, 0 to 1. */
+  streamAlertVolume: number
+  /** A popped-out stream window stays above other windows (you can switch it off in the window). */
+  popOutOnTop: boolean
   /** Per-person volume and mute, by Vanity account id. */
   userVolumes: Record<string, PeerVolume>
 }
@@ -52,6 +58,10 @@ export const DEFAULT_VOICE: VoiceSettings = {
   echoCancellation: true,
   autoGainControl: true,
   soundEffects: true,
+  streamAlert: true,
+  streamAlertVolume: 0.6,
+  // On unless someone turns it off: anyone who never touched it gets it on.
+  popOutOnTop: true,
   userVolumes: {}
 }
 
@@ -96,6 +106,9 @@ export function normalizeVoice(stored: unknown): VoiceSettings {
     echoCancellation: bool(v.echoCancellation, d.echoCancellation),
     autoGainControl: bool(v.autoGainControl, d.autoGainControl),
     soundEffects: bool(v.soundEffects, d.soundEffects),
+    streamAlert: bool(v.streamAlert, d.streamAlert),
+    streamAlertVolume: num(v.streamAlertVolume, 0, 1, d.streamAlertVolume),
+    popOutOnTop: bool(v.popOutOnTop, d.popOutOnTop),
     userVolumes: volumes
   }
 }

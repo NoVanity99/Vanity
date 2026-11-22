@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   font: DEFAULT_FONT,
   ambientBackground: true,
   minimizeWhilePlaying: false,
+  closeToBackground: true,
   musicFolder: null,
   musicVolume: 0.5,
   accountServerUrl: '',

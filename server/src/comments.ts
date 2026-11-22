@@ -17,7 +17,8 @@ interface CommentDeps {
   publicUser: PublicUserFn
   /** Throws when the account is banned or timed out. */
   canSpeak(userId: string): void
-  isAdmin(userId: string): boolean
+  /** Whether this account may remove that author's comment as an admin. */
+  mayModerate(userId: string, authorId: string): boolean
   now: () => number
   /** Comments one account may post per minute, and per hour. */
   perMinute?: number
@@ -29,7 +30,7 @@ type Row = { id: string | number; game_key: string; user_id: string; body: strin
 /** One paragraph break at most, no control characters, no trailing space. */
 const tidy = (text: string): string => text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
 
-export function commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isAdmin, now, perMinute = 4, perHour = 30 }: CommentDeps): Hono<Env> {
+export function commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, mayModerate, now, perMinute = 4, perHour = 30 }: CommentDeps): Hono<Env> {
   const app = new Hono<Env>()
   const signedIn = [requireAuth, requireUser] as const
 
@@ -101,7 +102,7 @@ export function commentRoutes({ sql, requireAuth, requireUser, publicUser, canSp
     const me = c.get('userId')
     const row = await one(idOf(c.req.param('id')))
     if (!row) return c.body(null, 204)
-    if (row.user_id !== me && !isAdmin(me)) fail(403, 'You can only delete your own comments.')
+    if (row.user_id !== me && !mayModerate(me, row.user_id)) fail(403, 'You can only delete your own comments.')
     await sql`DELETE FROM vanity.game_comments WHERE id = ${Number(row.id)}`
     return c.body(null, 204)
   })

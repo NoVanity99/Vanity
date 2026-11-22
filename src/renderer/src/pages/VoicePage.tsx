@@ -9,6 +9,7 @@ import { Button } from '@/components/Dialog'
 import { UserName } from '@/components/UserName'
 import { QUALITY_WORDS, QualityBars, VoiceButtons } from '@/components/voice/VoiceBits'
 import { ScreenPicker, ScreenStage, StreamVideo } from '@/components/voice/ScreenShare'
+import { RingingNote, ViewerStack } from '@/components/voice/CallLayer'
 import { cn } from '@/lib/cn'
 import { isAndroid } from '@/lib/platform'
 import { savePref } from '@/lib/storage'
@@ -518,6 +519,7 @@ export function VoicePage(): React.JSX.Element {
               )
             })}
 
+            <RingingNote />
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4" data-voice-members>
               {v.members.map((m, i) => (
                 <MemberTile key={m.id} m={m} index={i} camera={m.you ? v.localCamera : m.camera ? v.cameras[m.id] : null} onMenu={(mm, x, y) => setMenu({ m: mm, x, y })} watching={v.watching === m.id} onWatch={() => voice.watch(v.watching === m.id ? null : m.id)} />
@@ -533,6 +535,10 @@ export function VoicePage(): React.JSX.Element {
             {v.localVideo && showPreview && (
               <div className="fixed bottom-24 right-6 z-30 w-72 overflow-hidden rounded-2xl border border-white/15 shadow-2xl shadow-black/60" data-share-preview>
                 <StreamVideo stream={v.localVideo} className="aspect-video w-full" />
+                {(() => {
+                  const me = v.members.find((m) => m.you)?.id
+                  return me ? <ViewerStack sharerId={me} max={4} className="bg-surface/95 px-3 pt-2" /> : null
+                })()}
                 <div className="flex items-center gap-2 bg-surface/95 px-3 py-2 text-xs">
                   <span className="flex items-center gap-1 rounded bg-accent px-1 py-px text-[9px] font-black uppercase tracking-wider text-white">
                     <Radio className="size-2.5" /> Live

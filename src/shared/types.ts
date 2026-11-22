@@ -191,6 +191,8 @@ export interface Settings {
   ambientBackground: boolean
   /** Minimise Vanity's window while a game is running. */
   minimizeWhilePlaying: boolean
+  /** Closing the window keeps Vanity running in the background (calls, notifications, downloads carry on); quit from the icon by the clock. On unless switched off. Windows only. */
+  closeToBackground: boolean
   /** Folder the mini music player plays from. */
   musicFolder: string | null
   /** Music volume, 0–1. */
@@ -384,7 +386,18 @@ export interface AccountState {
   /** Official badges. Only Vanity's server grants them. */
   verified: boolean
   admin: boolean
+  /** When the username can next be changed (ms), or null when it can be changed now. */
+  usernameChangeAt: number | null
+  /** Set by Vanity's admins: banned, or timed out (no messages, comments or voice) until a time. */
+  standing: AccountStanding
 }
+
+export interface AccountStanding {
+  banned: boolean
+  reason: string
+  timeoutUntil: number | null
+}
+export const GOOD_STANDING: AccountStanding = { banned: false, reason: '', timeoutUntil: null }
 
 /** What everyone may see of another account. */
 export interface PublicUser {

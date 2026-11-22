@@ -416,7 +416,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       join: (roomId) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))),
       leave: () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)),
       update: (after) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))),
-      state: (s) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: false, camera: s?.camera === true, streams: { camera: text(s?.streams?.camera, 64) || undefined } })), true as const)),
+      state: (s) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: false, camera: s?.camera === true, streams: { camera: text(s?.streams?.camera, 64) || undefined }, watching: text(s?.watching, 80) || null })), true as const)),
       signal: (signals) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, 40) : [])), true as const)),
       setRoom: (p) => wrap(() => account.guard((c) => c.voiceSetRoom({ ...(typeof p?.private === 'boolean' ? { private: p.private } : {}), ...(typeof p?.locked === 'boolean' ? { locked: p.locked } : {}) }))),
       invite: (userId) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)),
@@ -445,6 +445,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
       availability: (input) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })),
       setUsername: (u) => wrap(() => account.setUsername(text(u))),
       setProfile: (patch) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.statsVisibility === 'everyone' || patch?.statsVisibility === 'friends' || patch?.statsVisibility === 'private' ? { statsVisibility: patch.statsVisibility } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })),
+      refresh: () => account.refresh(),
+      request: (method, path, body) => wrap(() => account.request(method, path, body)) as never,
       sendResetCode: (email) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)),
       resetPassword: (email, code, p) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)),
       deleteAccount: () => wrap(() => account.deleteAccount())

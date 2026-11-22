@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS vanity.roles (
   verified  boolean NOT NULL DEFAULT false,
   admin     boolean NOT NULL DEFAULT false
 );
+ALTER TABLE vanity.roles ADD COLUMN IF NOT EXISTS owner boolean NOT NULL DEFAULT false;
 -- Names from roles.ts that have been turned into a badge on an account once. Never applied twice,
 -- so a name that is later given up can't hand its badge to whoever takes it next.
 CREATE TABLE IF NOT EXISTS vanity.role_seeds (

@@ -20,6 +20,8 @@ export interface Me {
   statsVisibility?: string
   verified: boolean
   admin: boolean
+  usernameChangeAt?: number | null
+  standing?: { banned?: boolean; reason?: string; timeoutUntil?: number | null }
 }
 
 /**
@@ -66,6 +68,8 @@ export class AccountClient {
     return data as T
   }
 
+  /** A request from one of the app's screens (the caller has checked the path is an allowed one). */
+  request = <T>(method: string, path: string, body?: unknown) => this.call<T>(method, path, body)
   usernameAvailable = async (username: string) => (await this.call<{ available: boolean }>('GET', `/usernames/${encodeURIComponent(username)}`, undefined, false)).available
   /** True/false when the server knows; null when it can't tell (Neon Auth then decides at sign-up). */
   emailInUse = async (email: string) => (await this.call<{ inUse: boolean | null }>('POST', '/emails/check', { email }, false)).inUse ?? null
@@ -133,7 +137,7 @@ export class AccountClient {
   voiceJoin = (roomId: string) => this.call<VoiceUpdate>('POST', `/voice/rooms/${encodeURIComponent(roomId)}/join`)
   voiceLeave = () => this.call<void>('POST', '/voice/leave')
   voiceUpdate = (after: number) => this.call<VoiceUpdate>('GET', `/voice/update?after=${Math.max(0, Math.trunc(after) || 0)}`)
-  voiceState = (s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }) => this.call<void>('POST', '/voice/state', s)
+  voiceState = (s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string }; watching?: string | null }) => this.call<void>('POST', '/voice/state', s)
   voiceSignal = (signals: { to: string; data: VoiceSignal }[]) => this.call<void>('POST', '/voice/signal', { signals })
   voiceSetRoom = (patch: { private?: boolean; locked?: boolean }) => this.call<VoiceUpdate>('PATCH', '/voice/room', patch)
   voiceInvite = (userId: string) => this.call<void>('POST', '/voice/invite', { userId })

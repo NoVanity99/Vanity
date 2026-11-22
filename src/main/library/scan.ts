@@ -1,3 +1,4 @@
+import { normalizeExePath } from '../../shared/scanBlock'
 import type { DetectedGame, GameCandidate, ScanProgress, ScanSummary, Settings } from '@shared/types'
 import { pathExists } from '../util/fs'
 import { scanners } from '../scanners'
@@ -29,17 +30,24 @@ export function filterCandidates(
   library: Pick<DetectedGame, 'source' | 'externalId' | 'installPath' | 'executablePath'>[],
   ignoredExecutables: string[]
 ): GameCandidate[] {
-  const ignored = new Set(ignoredExecutables.map((p) => p.toLowerCase()))
+  // The block list is matched on the whole path, in one comparable form.
+  const ignored = new Set(ignoredExecutables.map(normalizeExePath))
+  const blocked = (exe: string): boolean => ignored.has(normalizeExePath(exe))
   const knownExes = new Set(library.flatMap((g) => (g.executablePath ? [g.executablePath.toLowerCase()] : [])))
   const launcherFolders = library
     .filter((g) => g.source !== 'custom' && g.source !== 'manual' && g.installPath)
     .map((g) => g.installPath!)
 
-  return candidates.filter((c) => {
+  return candidates.flatMap((found) => {
+    // A blocked file is never offered, not even as one of a folder's other choices. If the
+    // suggested file is blocked but the folder has another program, that one is suggested instead.
+    const exes = [found.executablePath!, ...found.alternatives].filter((e) => !blocked(e))
+    if (!exes.length) return []
+    const c = exes[0] === found.executablePath && exes.length === found.alternatives.length + 1 ? found : { ...found, executablePath: exes[0], alternatives: exes.slice(1) }
     const exe = c.executablePath!.toLowerCase()
-    if (ignored.has(exe) || knownExes.has(exe)) return false
-    if (library.some((g) => g.source === 'custom' && g.externalId === c.externalId)) return false
-    return !launcherFolders.some((folder) => isSameOrInside(c.installPath!, folder) || isSameOrInside(folder, c.installPath!))
+    if (knownExes.has(exe)) return []
+    if (library.some((g) => g.source === 'custom' && g.externalId === c.externalId)) return []
+    return launcherFolders.some((folder) => isSameOrInside(c.installPath!, folder) || isSameOrInside(folder, c.installPath!)) ? [] : [c]
   })
 }
 

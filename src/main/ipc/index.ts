@@ -1,3 +1,4 @@
+import { blockExe } from '../../shared/scanBlock'
 import type { PushToTalkHotkey } from '../voice/hotkeys'
 import { pickScreen, screenSources } from '../voice/screen'
 import { canShareScreenAudio, startScreenAudio, stopScreenAudio } from '../voice/screenAudio'
@@ -255,9 +256,9 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
       executablePath: c.executablePath
     }))
     if (rejected.length) {
-      const ignored = new Set(getSettings().ignoredExecutables)
-      for (const c of rejected) if (c.executablePath) ignored.add(c.executablePath)
-      await updateSettings({ ignoredExecutables: [...ignored] })
+      let ignored = getSettings().ignoredExecutables
+      for (const c of rejected) if (c.executablePath) ignored = blockExe(ignored, c.executablePath)
+      await updateSettings({ ignoredExecutables: ignored })
     }
     const added = store.upsert(toAdd, { restore: true }).games
     metadata.enqueue(added.map((g) => g.id))
@@ -388,7 +389,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.voiceJoin, (_e, roomId: string) => wrap(() => account.guard((c) => c.voiceJoin(text(roomId, 64)))))
   ipcMain.handle(IPC.voiceLeave, () => wrap(async () => (await account.guard((c) => c.voiceLeave()), true as const)))
   ipcMain.handle(IPC.voiceUpdate, (_e, after: number) => wrap(() => account.guard((c) => c.voiceUpdate(Number(after) || 0))))
-  ipcMain.handle(IPC.voiceState, (_e, s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: s?.sharing === true, camera: s?.camera === true, streams: { screen: text(s?.streams?.screen, 64) || undefined, camera: text(s?.streams?.camera, 64) || undefined } })), true as const)))
+  ipcMain.handle(IPC.voiceState, (_e, s: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string }; watching?: string | null }) => wrap(async () => (await account.guard((c) => c.voiceState({ muted: s?.muted === true, deafened: s?.deafened === true, sharing: s?.sharing === true, camera: s?.camera === true, streams: { screen: text(s?.streams?.screen, 64) || undefined, camera: text(s?.streams?.camera, 64) || undefined }, watching: text(s?.watching, 80) || null })), true as const)))
   ipcMain.handle(IPC.voiceSignal, (_e, signals: { to: string; data: VoiceSignal }[]) => wrap(async () => (await account.guard((c) => c.voiceSignal(Array.isArray(signals) ? signals.slice(0, MAX_SIGNALS_PER_SEND) : [])), true as const)))
   ipcMain.handle(IPC.voiceSetRoom, (_e, p: { private?: boolean; locked?: boolean }) => wrap(() => account.guard((c) => c.voiceSetRoom({ private: flag(p?.private), locked: flag(p?.locked) }))))
   ipcMain.handle(IPC.voiceInvite, (_e, userId: string) => wrap(async () => (await account.guard((c) => c.voiceInvite(text(userId))), true as const)))
@@ -406,6 +407,8 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
   ipcMain.handle(IPC.accountAvailability, (_e, input: { username?: string; email?: string }) => account.availability({ username: text(input?.username), email: text(input?.email, 320) }).catch(() => ({ username: null, email: null })))
   ipcMain.handle(IPC.accountSetUsername, (_e, u: string) => wrap(() => account.setUsername(text(u))))
   ipcMain.handle(IPC.accountSetProfile, (_e, patch: { avatar?: string | null; bio?: string; style?: Partial<ProfileStyle>; statsVisibility?: string }) => wrap(() => account.setProfile({ ...(patch?.avatar === null ? { avatar: null } : typeof patch?.avatar === 'string' ? { avatar: text(patch.avatar, 60_000) } : {}), ...(typeof patch?.bio === 'string' ? { bio: text(patch.bio, 400) } : {}), ...(patch?.statsVisibility === 'everyone' || patch?.statsVisibility === 'friends' || patch?.statsVisibility === 'private' ? { statsVisibility: patch.statsVisibility } : {}), ...(patch?.style && typeof patch.style === 'object' ? { style: stylePatch(patch.style) } : {}) })))
+  ipcMain.handle(IPC.accountRefresh, () => account.refresh())
+  ipcMain.handle(IPC.accountRequest, (_e, method: string, path: string, body: unknown) => wrap(() => account.request(method, path, body)))
   ipcMain.handle(IPC.accountSendResetCode, (_e, email: string) => wrap(async () => (await account.sendResetCode(text(email, 320)), true as const)))
   ipcMain.handle(IPC.accountResetPassword, (_e, email: string, code: string, p: string) => wrap(async () => (await account.resetPassword(text(email, 320), text(code, 20), text(p)), true as const)))
   ipcMain.handle(IPC.accountDelete, () => wrap(() => account.deleteAccount()))

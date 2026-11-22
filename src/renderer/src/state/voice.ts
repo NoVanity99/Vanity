@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_VOICE, type PeerVolume, type VoiceSettings } from '@shared/voiceSettings'
 import { VoiceClient, type VoiceSnapshot } from '@/voice/client'
+import type { VoiceUpdate, VoiceUser } from '@shared/voiceProtocol'
+import { playStreamChime } from '@/lib/chime'
 import type { Result } from '@shared/ipc'
 import { saveSettings } from './settings'
 
@@ -10,6 +12,13 @@ import { saveSettings } from './settings'
  */
 
 let settings: VoiceSettings = DEFAULT_VOICE
+
+const streamStartListeners = new Set<(member: { id: string; user: VoiceUser }) => void>()
+/** Told when someone else in your call starts sharing their screen. */
+export function onStreamStart(listener: (member: { id: string; user: VoiceUser }) => void): () => void {
+  streamStartListeners.add(listener)
+  return () => void streamStartListeners.delete(listener)
+}
 
 /** The chat message an invite sends; the chat shows a Join button under it. */
 export const VOICE_INVITE_TEXT = '🎧 Join me in voice on Vanity'
@@ -30,6 +39,7 @@ export const voice = new VoiceClient({
   api: {
     start: (opts) => data(window.vanity.voice.start(opts)),
     join: (roomId) => data(window.vanity.voice.join(roomId)),
+    call: (target) => data(window.vanity.account.request<VoiceUpdate>('POST', '/voice/call', target)),
     leave: async () => void (await data(window.vanity.voice.leave())),
     update: (after) => data(window.vanity.voice.update(after)),
     state: async (s) => void (await data(window.vanity.voice.state(s))),
@@ -43,6 +53,11 @@ export const voice = new VoiceClient({
     onScreenAudioEnded: (cb) => window.vanity.voice.onScreenAudioEnded(cb)
   },
   settings: () => settings,
+  onStreamStart: (member) => {
+    // The chime here; the note with its Watch button is shown by whoever listens (StreamAlerts).
+    if (settings.streamAlert) playStreamChime(settings.streamAlertVolume)
+    for (const l of streamStartListeners) l(member)
+  },
   saveVolume: (userId, volume) => {
     pendingVolumes[userId] = volume
     const userVolumes = { ...settings.userVolumes }

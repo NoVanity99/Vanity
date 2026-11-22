@@ -113,6 +113,23 @@ try {
     const mine = await auth('GET', '/get-session', { cookie })
     step('other sessions can be signed out, and this one stays', revoke.status === 200 && other.json === null && mine.json?.user?.id === userId, `HTTP ${revoke.status}, other session ${other.json === null ? 'ended' : 'still alive'}`)
   }
+  // The quick check-in, coins and comments (the newest copy of the server only).
+  let pulse = await api('GET', '/pulse', jwt)
+  for (let i = 0; i < 12 && pulse.status === 404; i++) {
+    await new Promise((r) => setTimeout(r, 5000))
+    pulse = await api('GET', '/pulse', jwt)
+  }
+  step('the quick check-in answers (coins, calls, standing)', pulse.status === 200 && pulse.json?.coins === 0 && Array.isArray(pulse.json?.calls) && pulse.json?.standing?.banned === false, `HTTP ${pulse.status} ${pulse.text.slice(0, 160)}`)
+  const store = await api('GET', '/coins', jwt)
+  step('the coin store lists its bundles', store.status === 200 && store.json?.bundles?.length > 0 && store.json?.balance === 0, `HTTP ${store.status}`)
+  console.log(store.json?.purchasesEnabled ? 'note  buying coins is ON (Stripe keys are set)' : 'note  buying coins is off: add the STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET repository secrets and deploy again (see server/README.md)')
+  const forged = await fetch(API + '/stripe/webhook', { method: 'POST', headers: { 'stripe-signature': 't=1,v1=00' }, body: '{"id":"evt_smoke","type":"checkout.session.completed","data":{"object":{}}}' })
+  step('a made-up message from "Stripe" is refused', forged.status === 400 || forged.status === 503, `HTTP ${forged.status}`)
+  step('nobody can give themselves coins or use the admin tools', (await api('POST', '/coins/buy', jwt, { itemId: 'frame:diamond' })).status === 402 && (await api('GET', '/admin/users', jwt)).status === 403)
+  const posted = await api('POST', '/games/g:vanity-deploy-check/comments', jwt, { text: `Deploy check ${tag}` })
+  const listed = await api('GET', '/games/g:vanity-deploy-check/comments', jwt)
+  step('a game comment can be posted and read', posted.status === 201 && listed.json?.comments?.some((c) => c.id === posted.json?.comment?.id), `HTTP ${posted.status} ${posted.text.slice(0, 160)}`)
+  if (posted.json?.comment?.id) step('and deleted again', (await api('DELETE', `/comments/${posted.json.comment.id}`, jwt)).status === 204)
   // Right after a deploy, some requests still reach the previous copy of the server for a few
   // seconds. It doesn't know this route yet (404): give the new copy a moment before judging.
   let profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })

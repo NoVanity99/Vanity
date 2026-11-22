@@ -28,6 +28,8 @@ export interface VoiceMember {
   volume: number
   localMuted: boolean
   link: PeerLink | null
+  /** Whose shared screen they're watching (a member id), or null. */
+  watching: string | null
 }
 
 export interface VoiceRoomInfo {
@@ -35,6 +37,10 @@ export interface VoiceRoomInfo {
   hostId: string
   private: boolean
   locked: boolean
+  /** A call started from a chat ("dm:…" or "group:<id>"); null or missing for a room from the Voice page. */
+  chat?: string | null
+  /** People the call is still ringing for. */
+  ringing?: VoiceUser[]
 }
 
 /** How sharp and smooth a shared screen is. More of either uses more upload, for each person watching. */
@@ -88,9 +94,11 @@ export interface VoiceSnapshot {
 export interface VoiceApi {
   start(opts: { private?: boolean; locked?: boolean }): Promise<VoiceUpdate>
   join(roomId: string): Promise<VoiceUpdate>
+  /** Calls a friend or a group chat (or joins the call that chat already has). */
+  call(target: { friendId?: string; groupId?: string }): Promise<VoiceUpdate>
   leave(): Promise<void>
   update(after: number): Promise<VoiceUpdate>
-  state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string } }): Promise<void>
+  state(state: { muted: boolean; deafened: boolean; sharing: boolean; camera: boolean; streams: { screen?: string; camera?: string }; watching?: string | null }): Promise<void>
   signal(signals: { to: string; data: VoiceSignal }[]): Promise<void>
   setRoom(patch: { private?: boolean; locked?: boolean }): Promise<VoiceUpdate>
   invite(userId: string): Promise<void>
@@ -108,6 +116,8 @@ export interface VoiceDeps {
   settings(): VoiceSettings
   /** Saves someone's volume for you (by their Vanity account id). */
   saveVolume(userId: string, volume: PeerVolume | null): void
+  /** Someone else in the call started sharing their screen. */
+  onStreamStart?: (member: { id: string; user: VoiceUser }) => void
   /** Builds the transport (the mesh now; a media server later). */
   transport?: (events: ConstructorParameters<typeof MeshTransport>[0]) => VoiceTransport
 }
@@ -232,6 +242,11 @@ export class VoiceClient {
   async join(roomId: string): Promise<void> {
     if (this.snap.room?.id === roomId && this.inRoom) return
     await this.begin(roomId, () => this.deps.api.join(roomId))
+  }
+
+  /** Calls a friend or a group chat from its chat (joins the call if it is already going). */
+  async call(target: { friendId?: string; groupId?: string }): Promise<void> {
+    await this.begin(null, () => this.deps.api.call(target))
   }
 
   leave(): void {
@@ -511,6 +526,8 @@ export class VoiceClient {
   watch(peerId: string | null): void {
     this.set({ watching: peerId && this.peers.get(peerId)?.sharing ? peerId : null })
     this.applyStreamVolumes()
+    // Everyone in the call sees who is watching.
+    this.sendState()
   }
 
   /** Settings changed: devices, volumes, sensitivity, processing. */
@@ -786,7 +803,9 @@ export class VoiceClient {
     for (const m of others) {
       const known = this.peers.get(m.id)
       if (known) {
-        Object.assign(known, { user: m.user, muted: m.muted, deafened: m.deafened, sharing: m.sharing, camera: m.camera, streams: m.streams, connected: m.connected, joinedAt: m.joinedAt })
+        // Started sharing since the last look (not on the first look at a call you just joined).
+        if (m.sharing && !known.sharing && !first) this.deps.onStreamStart?.({ id: m.id, user: m.user })
+        Object.assign(known, { user: m.user, muted: m.muted, deafened: m.deafened, sharing: m.sharing, camera: m.camera, streams: m.streams, connected: m.connected, joinedAt: m.joinedAt, watching: m.watching ?? null })
         if (!m.sharing && this.snap.watching === m.id) this.set({ watching: null })
       } else {
         this.peers.set(m.id, { ...m, speaking: false, link: null, detector: new SpeechDetector(REMOTE_SPEAKING_DB, 20, 300) })
@@ -810,7 +829,7 @@ export class VoiceClient {
     this.sortVideos()
     const r = u.room
     this.lastRoomId = r.id
-    this.set({ room: { id: r.id, hostId: r.hostId, private: r.private, locked: r.locked }, isHost: r.hostId === u.you })
+    this.set({ room: { id: r.id, hostId: r.hostId, private: r.private, locked: r.locked, chat: r.chat ?? null, ringing: r.ringing ?? [] }, isHost: r.hostId === u.you })
     this.emitMembers()
   }
 
@@ -841,7 +860,7 @@ export class VoiceClient {
     const send = (): void => {
       this.stateTimer = null
       if (!this.inRoom) return
-      void this.deps.api.state({ muted: this.snap.muted, deafened: this.snap.deafened, sharing: !!this.snap.sharing, camera: !!this.cameraTrack, streams: this.transport?.streamIds() ?? {} }).catch(() => {})
+      void this.deps.api.state({ muted: this.snap.muted, deafened: this.snap.deafened, sharing: !!this.snap.sharing, camera: !!this.cameraTrack, streams: this.transport?.streamIds() ?? {}, watching: this.snap.watching }).catch(() => {})
     }
     if (now) send()
     else this.stateTimer = setTimeout(send, 150)
@@ -864,13 +883,14 @@ export class VoiceClient {
         speaking: this.snap.speaking,
         volume: 1,
         localMuted: false,
-        link: null
+        link: null,
+        watching: this.snap.watching
       })
     }
     const others = [...this.peers.values()].sort((a, b) => a.joinedAt - b.joinedAt)
     for (const p of others) {
       const v = override[p.user.id] ?? this.volumeFor(p.user.id)
-      members.push({ id: p.id, user: p.user, you: false, host: hostId === p.id, muted: p.muted, deafened: p.deafened, sharing: p.sharing, camera: p.camera, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link })
+      members.push({ id: p.id, user: p.user, you: false, host: hostId === p.id, muted: p.muted, deafened: p.deafened, sharing: p.sharing, camera: p.camera, connected: p.connected, speaking: p.speaking, volume: v.volume, localMuted: v.muted, link: p.link , watching: p.watching ?? null })
     }
     const links = others.map((p) => p.link).filter((l): l is PeerLink => !!l && l.state === 'connected')
     const rtts = links.map((l) => l.rttMs).filter((r): r is number => r !== null)

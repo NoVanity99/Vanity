@@ -1,5 +1,5 @@
 import type { Sql } from './db'
-import { ADMIN_USERNAMES, VERIFIED_USERNAMES, type Roles } from './roles'
+import { ADMIN_USERNAMES, OWNER_USERNAMES, VERIFIED_USERNAMES, type Roles } from './roles'
 
 export interface Standing {
   banned: boolean
@@ -26,6 +26,7 @@ const ms = (v: unknown): number | null => (v instanceof Date ? v.getTime() : typ
 export function createPeople(sql: Sql, now: () => number = Date.now) {
   let roles = new Map<string, Roles>()
   let standing = new Map<string, Standing>()
+  let owners = new Set<string>()
   let loadedAt = 0
   let loading: Promise<void> | null = null
 
@@ -46,11 +47,28 @@ export function createPeople(sql: Sql, now: () => number = Date.now) {
     }
   }
 
+  /** The same once-only rule for the accounts that can overrule admins (kept under its own name, so it applies to an account that already has its badges). */
+  async function seedOwners(): Promise<void> {
+    const keys = OWNER_USERNAMES.map((n) => `owner:${n.toLowerCase()}`)
+    if (!keys.length) return
+    const done = new Set((await sql<{ name: string }>`SELECT name FROM vanity.role_seeds WHERE name = ANY(${keys}::text[])`).map((r) => r.name))
+    const waiting = keys.filter((k) => !done.has(k)).map((k) => k.slice(6))
+    if (!waiting.length) return
+    // The account that was given the admin badge under that name, wherever it is called now.
+    const holders = await sql<{ id: string; name: string }>`SELECT s.user_id AS id, s.name FROM vanity.role_seeds s JOIN vanity.profiles p ON p.id = s.user_id WHERE s.name = ANY(${waiting}::text[])`
+    for (const h of holders) {
+      const claimed = await sql`INSERT INTO vanity.role_seeds (name, user_id) VALUES (${`owner:${h.name}`}, ${h.id}) ON CONFLICT DO NOTHING RETURNING name`
+      if (claimed.length) await sql`INSERT INTO vanity.roles (user_id, owner) VALUES (${h.id}, true) ON CONFLICT (user_id) DO UPDATE SET owner = true`
+    }
+  }
+
   async function load(): Promise<void> {
     await seed()
-    const r = await sql<{ user_id: string; verified: boolean; admin: boolean }>`SELECT user_id, verified, admin FROM vanity.roles WHERE verified OR admin`
+    await seedOwners()
+    const r = await sql<{ user_id: string; verified: boolean; admin: boolean; owner: boolean }>`SELECT user_id, verified, admin, owner FROM vanity.roles WHERE verified OR admin OR owner`
     const m = await sql<{ user_id: string; banned: boolean; reason: string; timeout_until: unknown }>`SELECT user_id, banned, reason, timeout_until FROM vanity.moderation WHERE banned OR timeout_until > now()`
     roles = new Map(r.map((x) => [x.user_id, { verified: x.verified, admin: x.admin }]))
+    owners = new Set(r.filter((x) => x.owner).map((x) => x.user_id))
     standing = new Map(m.map((x) => [x.user_id, { banned: x.banned, reason: x.reason, timeoutUntil: ms(x.timeout_until) }]))
     loadedAt = now()
   }
@@ -67,6 +85,13 @@ export function createPeople(sql: Sql, now: () => number = Date.now) {
       loadedAt = 0
     },
     rolesOf: (id: string | null | undefined): Roles => (id ? (roles.get(id) ?? NONE) : NONE),
+    /** Can overrule admins. Used only for deciding what is allowed; never sent to an app. */
+    isOwner: (id: string): boolean => owners.has(id),
+    /**
+     * Whether `actor` may do something unwelcome to `target`: admins can't to each other.
+     * (Anyone may to themselves, where the action itself allows it.)
+     */
+    mayActAgainst: (actor: string, target: string): boolean => actor === target || owners.has(actor) || !((roles.get(target)?.admin ?? false) || owners.has(target)),
     standingOf(id: string): Standing {
       const s = standing.get(id)
       if (!s) return FINE

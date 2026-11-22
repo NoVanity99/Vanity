@@ -1,11 +1,14 @@
+import { AdminPanel } from '@/components/settings/AdminPanel'
+import { useAccount } from '@/state/account'
+import { exeName, unblockExe } from '@shared/scanBlock'
 import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
-import { ArrowDownToLine, AudioLines, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, AudioLines, Ban, ShieldAlert, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
 import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
 import { applyFont, applyTheme } from '@/lib/theme'
-import { saveSettings } from '@/state/settings'
+import { saveSettings, useSettings } from '@/state/settings'
 import { Button } from '@/components/Dialog'
 import { CustomizeSettings } from '@/components/settings/CustomizeSettings'
 import { VoiceSettingsPanel } from '@/components/settings/VoiceSettingsPanel'
@@ -26,14 +29,16 @@ import { loadPref, savePref } from '@/lib/storage'
 const SHOW_API_KEYS = false
 
 /** Settings are split into a few short pages instead of one long one. */
-type SettingsTab = 'look' | 'customize' | 'voice' | 'library' | 'playing' | 'updates'
+type SettingsTab = 'look' | 'customize' | 'voice' | 'library' | 'playing' | 'updates' | 'admin'
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: LucideIcon }[] = [
   { id: 'look', label: 'Appearance', icon: Palette },
   { id: 'customize', label: 'Customize', icon: SlidersHorizontal },
   { id: 'voice', label: 'Voice', icon: AudioLines },
   { id: 'library', label: 'Library', icon: Library },
   { id: 'playing', label: 'Playing', icon: Gamepad2 },
-  { id: 'updates', label: 'Updates', icon: ArrowDownToLine }
+  { id: 'updates', label: 'Updates', icon: ArrowDownToLine },
+  // Only shown to Vanity's admins (and the server checks the badge on everything it does).
+  { id: 'admin', label: 'Admin', icon: ShieldAlert }
 ]
 
 /** A credential field that saves when it loses focus or on Enter. */
@@ -313,6 +318,11 @@ export function SettingsPage(): React.JSX.Element {
     savePref('settings-tab', { tab: next })
   }
   const updates = pendingCount(useUpdate())
+  const isAdmin = useAccount()?.admin === true
+  // The Admin tab is only there for admins: anyone else who had it open lands on the first tab.
+  useEffect(() => {
+    if (tab === 'admin' && !isAdmin) setTabState('look')
+  }, [tab, isAdmin])
 
   async function checkKeys(): Promise<void> {
     setChecking(true)
@@ -328,6 +338,11 @@ export function SettingsPage(): React.JSX.Element {
   useEffect(() => {
     window.vanity.settings.get().then(setSettings, (err) => toast(`Could not load settings: ${err}`, 'error'))
   }, [toast])
+  // Settings changed somewhere else while this page is open (the scan window, another device) show here too.
+  const live = useSettings()
+  useEffect(() => {
+    if (live) setSettings(live)
+  }, [live])
 
   async function save(patch: Partial<Settings>, confirmation?: string): Promise<void> {
     try {
@@ -358,7 +373,7 @@ export function SettingsPage(): React.JSX.Element {
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
         <div role="tablist" aria-label="Settings sections" className="sticky top-0 z-10 -mx-2 flex gap-1 max-md:mx-0 overflow-x-auto rounded-2xl border border-border bg-surface/90 p-1.5 backdrop-blur [scrollbar-width:none]">
-          {SETTINGS_TABS.map((t) => {
+          {SETTINGS_TABS.filter((t) => t.id !== 'admin' || isAdmin).map((t) => {
             const Icon = t.icon
             const active = tab === t.id
             return (
@@ -460,6 +475,11 @@ export function SettingsPage(): React.JSX.Element {
           <div className="-mx-3 mt-6 border-t border-border pt-3">
             <Toggle label="Ambient background glow" checked={settings.ambientBackground !== false} onChange={(v) => save({ ambientBackground: v })} />
             {!android && (
+              <div data-close-to-background>
+                <Toggle label="Keep Vanity running in the background when I close it" hint="Closing the window only hides it, so calls, messages and downloads carry on. Open it again from the Vanity icon by the clock; right-click that icon to quit." checked={settings.closeToBackground !== false} onChange={(v) => save({ closeToBackground: v })} />
+              </div>
+            )}
+            {!android && (
               <Toggle
                 label="Minimise Vanity while a game is running"
                 checked={!!settings.minimizeWhilePlaying}
@@ -530,6 +550,8 @@ export function SettingsPage(): React.JSX.Element {
         {android && <PlaytimeSection />}
           </div>
         )}
+
+        {tab === 'admin' && isAdmin && <AdminPanel />}
 
         {tab === 'updates' && (
           <>
@@ -618,15 +640,39 @@ export function SettingsPage(): React.JSX.Element {
               <Button onClick={addFolder}>
                 <FolderPlus className="size-4" /> Add folder
               </Button>
-              {settings.ignoredExecutables.length > 0 && (
-                <button
-                  className="text-sm text-muted transition hover:text-text"
-                  onClick={() => save({ ignoredExecutables: [] }, 'Declined items will be suggested again on the next scan')}
-                >
-                  Reset {settings.ignoredExecutables.length} declined item{settings.ignoredExecutables.length > 1 ? 's' : ''}
-                </button>
-              )}
             </div>
+          </Section>
+        )}
+
+        {tab === 'library' && !isAndroid() && (
+          <Section title="Scan Block List" description="Files the scanner always skips: the ones you chose “Always ignore” for, or unticked, in scan results. Remove one and the next scan suggests it again.">
+            {settings.ignoredExecutables.length === 0 ? (
+              <p className="text-sm text-muted" data-block-list="empty">
+                Nothing is blocked. When a scan finds a file that isn't a game, right-click it and choose “Always ignore this file”.
+              </p>
+            ) : (
+              <>
+                <ul className="mb-4 max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border [scrollbar-width:thin]" data-block-list={settings.ignoredExecutables.length}>
+                  {settings.ignoredExecutables.map((f) => (
+                    <li key={f} className="flex items-center gap-3 bg-surface-2 px-4 py-2.5 text-sm" data-blocked-file={f}>
+                      <Ban className="size-4 shrink-0 text-muted" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{exeName(f)}</span>
+                        <span className="block truncate text-xs text-muted" title={f}>
+                          {f}
+                        </span>
+                      </span>
+                      <Button onClick={() => save({ ignoredExecutables: unblockExe(settings.ignoredExecutables, f) }, `${exeName(f)} will be suggested again on the next scan`)} data-unblock>
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                <Button onClick={() => save({ ignoredExecutables: [] }, 'The block list is empty: everything will be suggested again on the next scan')} data-unblock-all>
+                  <Trash2 className="size-4" /> Clear all ({settings.ignoredExecutables.length})
+                </Button>
+              </>
+            )}
           </Section>
         )}
 

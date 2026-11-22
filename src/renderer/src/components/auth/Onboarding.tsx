@@ -10,6 +10,7 @@ import { ProfileCard } from '@/components/profile/ProfileCard'
 import { cn } from '@/lib/cn'
 import { setOnboarding, type Onboarding as State } from '@/state/onboarding'
 import { useToast } from '@/state/toasts'
+import { useShop } from '@/state/shop'
 
 /** Step 1 is the sign-up form, step 2 the picture and bio, then one step per part of the look. */
 export const ONBOARDING_STEPS = 2 + LOOK_SECTIONS.length
@@ -37,6 +38,10 @@ export function Onboarding({ account, state }: { account: AccountState; state: S
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hover, setHover] = useState<Partial<ProfileStyle> | null>(null)
+
+  // Premium looks show their price here too; they are bought later, from Account.
+  const shop = useShop()
+  const locked = Object.fromEntries((shop?.items ?? []).filter((i) => !shop?.owned.includes(i.id)).map((i) => [i.id, i.price]))
 
   const step = Math.min(ONBOARDING_STEPS, Math.max(2, state.step))
   const section = step >= 3 ? LOOK_SECTIONS[step - 3] : null
@@ -93,7 +98,7 @@ export function Onboarding({ account, state }: { account: AccountState; state: S
 
       <div className="-mx-1 mt-4 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]">
         {section ? (
-          <section.Picker style={style} onPick={(patch) => update({ style: { ...state.style, ...patch } })} onHover={setHover} name={name || '?'} avatar={account.avatar} />
+          <section.Picker style={style} onPick={(patch) => update({ style: { ...state.style, ...patch } })} onHover={setHover} name={name || '?'} avatar={account.avatar} locked={locked} onLocked={() => setError('That one is a premium look. You can get it later with Vanity Coins, from Account.')} />
         ) : (
           <>
             <PicturePicker

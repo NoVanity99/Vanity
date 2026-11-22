@@ -10,6 +10,8 @@ import { useAccount } from '@/state/account'
 import { closeChat, groupChatId, isGroupChat, minimizeChat, refreshChatFriends, setChatOwner, useOpenChats, type OpenChat } from '@/state/chats'
 import { useGroups } from '@/state/groups'
 import { GroupChat } from '@/components/chat/GroupChat'
+import { CallButton } from '@/components/voice/CallLayer'
+import { useMyId } from '@/state/pulse'
 import { GroupSettingsDialog } from '@/components/chat/GroupDialogs'
 import type { GroupChat as Group } from '@shared/groups'
 import { useFriends } from '@/state/friends'
@@ -74,6 +76,7 @@ export function ChatDock(): React.JSX.Element | null {
 }
 
 function ChatPopup({ chat, friend, phoneHidden }: { chat: OpenChat; friend: Friend | undefined; phoneHidden: boolean }): React.JSX.Element {
+  const myId = useMyId()
   const navigate = useNavigate()
   const f = { ...chat.friend, ...(friend ?? {}) }
   const unread = friend?.unread ?? 0
@@ -135,6 +138,7 @@ function ChatPopup({ chat, friend, phoneHidden }: { chat: OpenChat; friend: Frie
               <button onClick={() => minimizeChat(f.id)} className="flex min-w-0 flex-1 items-center text-left" title="Minimize">
                 {who}
               </button>
+              <CallButton friendId={f.id} myId={myId} className={iconButton} />
               <button onClick={() => navigate(`/friends/${f.id}`)} aria-label={`Open ${f.username}'s profile`} title="Open their profile" className={iconButton}>
                 <UserRound className="size-4" />
               </button>
@@ -208,6 +212,7 @@ function GroupPopup({ chat, group, phoneHidden }: { chat: OpenChat; group: Group
             <button onClick={() => minimizeChat(id)} className="flex min-w-0 flex-1 items-center text-left" title="Minimize">
               {who}
             </button>
+            <CallButton groupId={group.id} className={iconButton} />
             <button onClick={() => setSettings(true)} aria-label="Group settings" title="People, name, leave" className={iconButton} data-group-settings>
               <Settings2 className="size-4" />
             </button>

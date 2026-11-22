@@ -21,6 +21,7 @@ const settings = (keys: boolean): Settings =>
     font: 'system',
     ambientBackground: true,
     minimizeWhilePlaying: false,
+    closeToBackground: true,
     musicFolder: null,
     musicVolume: 0.5,
   accountServerUrl: '',

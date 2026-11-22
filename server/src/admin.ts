@@ -21,7 +21,13 @@ interface AdminDeps {
   grant(userId: string, amount: number, kind: LedgerKind, ref: string, note?: string): Promise<number | null>
   now: () => number
   logAdmin(adminId: string, action: string, targetId: string | null, detail?: string): Promise<void>
+  /** What stops this account from signing in (banned), and from posting or calling (banned or timed out): the words they are shown, or null. */
+  problems(userId: string): { banned: string | null; speaking: string | null }
+  usernameChangeAt(userId: string): Promise<number | null>
 }
+
+/** Accounts made from the Admin tab to try things on. Nobody can sign in to one. */
+export const TEST_ID = 'test-'
 
 const USERNAME = /^[A-Za-z0-9_]{3,20}$/
 const PAGE = 30
@@ -31,7 +37,7 @@ const MAX_COINS = 1_000_000
 
 type UserRow = { id: string; username: string; avatar: string | null; style: unknown; created_at: unknown; last_seen: unknown; online: boolean; game_name: string | null; balance: number | null; level: number | null }
 
-export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin }: AdminDeps): Hono<Env> {
+export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin, problems, usernameChangeAt }: AdminDeps): Hono<Env> {
   const app = new Hono<Env>()
   app.use('*', requireAuth, requireUser, requireAdmin)
 
@@ -53,12 +59,17 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     playing: r.online ? r.game_name : null,
     coins: r.balance ?? 0,
     level: r.level ?? 1,
-    standing: people.standingOf(r.id)
+    standing: people.standingOf(r.id),
+    test: r.id.startsWith(TEST_ID)
   })
   const target = async (id: string): Promise<{ id: string; username: string }> => {
     const [p] = await sql<{ id: string; username: string }>`SELECT id, username FROM vanity.profiles WHERE id = ${id}`
     if (!p) fail(404, 'That account no longer exists.')
     return p!
+  }
+  /** Admins can't act against each other. The words are the same whoever the other admin is. */
+  const guard = (me: string, targetId: string): void => {
+    if (!people.mayActAgainst(me, targetId)) fail(403, "You can't do that to another admin.", 'protected')
   }
   const after = async (): Promise<void> => {
     people.changed()
@@ -155,7 +166,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const me = c.get('userId')
     const t = await target(c.req.param('id'))
     if (t.id === me) fail(400, "You can't ban yourself.")
-    if (people.rolesOf(t.id).admin) fail(400, 'Take their admin badge away first.')
+    guard(me, t.id)
     const reason = String((await body<{ reason: string }>(c)).reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 200)
     await sql`INSERT INTO vanity.moderation (user_id, banned, reason, updated_at) VALUES (${t.id}, true, ${reason}, now())
       ON CONFLICT (user_id) DO UPDATE SET banned = true, reason = excluded.reason, updated_at = now()`
@@ -182,7 +193,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const minutes = Math.trunc(Number((await body<{ minutes: number }>(c)).minutes))
     if (!Number.isFinite(minutes) || minutes < 0 || minutes > MAX_TIMEOUT_MIN) fail(400, 'A time-out can be up to 30 days.')
     if (minutes > 0 && t.id === me) fail(400, "You can't time yourself out.")
-    if (minutes > 0 && people.rolesOf(t.id).admin) fail(400, 'Take their admin badge away first.')
+    if (minutes > 0) guard(me, t.id)
     const until = minutes > 0 ? (now() + minutes * 60_000) / 1000 : null
     await sql`INSERT INTO vanity.moderation (user_id, timeout_until, updated_at) VALUES (${t.id}, CASE WHEN ${until}::float8 IS NULL THEN NULL ELSE to_timestamp(${until}::float8) END, now())
       ON CONFLICT (user_id) DO UPDATE SET timeout_until = excluded.timeout_until, updated_at = now()`
@@ -200,6 +211,8 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const current = people.rolesOf(t.id)
     const next = { verified: typeof b.verified === 'boolean' ? b.verified : current.verified, admin: typeof b.admin === 'boolean' ? b.admin : current.admin }
     if (t.id === me && current.admin && !next.admin) fail(400, "You can't take your own admin badge away. Ask another admin.")
+    // Taking a badge away from another admin is acting against them; giving one is not.
+    if ((current.admin && !next.admin) || (current.verified && !next.verified)) guard(me, t.id)
     await sql`INSERT INTO vanity.roles (user_id, verified, admin) VALUES (${t.id}, ${next.verified}, ${next.admin})
       ON CONFLICT (user_id) DO UPDATE SET verified = excluded.verified, admin = excluded.admin`
     await logAdmin(me, 'badges', t.id, `verified: ${next.verified}, admin: ${next.admin}`)
@@ -213,6 +226,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const t = await target(c.req.param('id'))
     const b = await body<{ amount: number; note: string }>(c)
     const amount = Math.trunc(Number(b.amount))
+    if (amount < 0) guard(me, t.id)
     if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > MAX_COINS) fail(400, `Enter a number of coins between 1 and ${MAX_COINS.toLocaleString('en-US')} (or negative to take coins away).`)
     const note = String(b.note ?? '').replace(/\s+/g, ' ').trim().slice(0, 200)
     const [admin] = await sql<{ username: string }>`SELECT username FROM vanity.profiles WHERE id = ${me}`
@@ -224,6 +238,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   /** Clears the picture, bio and look (for a profile that breaks the rules). */
   app.post('/users/:id/reset-profile', async (c) => {
     const t = await target(c.req.param('id'))
+    guard(c.get('userId'), t.id)
     await sql`UPDATE vanity.profiles SET avatar = NULL, bio = '', style = ${JSON.stringify(DEFAULT_STYLE)} WHERE id = ${t.id}`
     await logAdmin(c.get('userId'), 'reset profile', t.id)
     return c.body(null, 204)
@@ -232,6 +247,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   /** Renames an account (for a name that breaks the rules). Doesn't count towards their own 30 days. */
   app.post('/users/:id/username', async (c) => {
     const t = await target(c.req.param('id'))
+    guard(c.get('userId'), t.id)
     const username = String((await body<{ username: string }>(c)).username ?? '').trim()
     if (!USERNAME.test(username)) fail(400, 'Usernames are 3–20 letters, numbers or underscores.')
     const taken = await sql`SELECT 1 FROM vanity.profiles WHERE lower(username) = lower(${username}) AND id <> ${t.id}`
@@ -253,6 +269,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   /** Removes every comment an account wrote. */
   app.post('/users/:id/delete-comments', async (c) => {
     const t = await target(c.req.param('id'))
+    guard(c.get('userId'), t.id)
     const gone = await sql`DELETE FROM vanity.game_comments WHERE user_id = ${t.id} RETURNING id`
     await logAdmin(c.get('userId'), 'delete comments', t.id, `${gone.length} removed`)
     return c.json({ removed: gone.length })
@@ -261,6 +278,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   /** Takes them out of the voice room they're in. */
   app.post('/users/:id/kick-voice', async (c) => {
     const t = await target(c.req.param('id'))
+    guard(c.get('userId'), t.id)
     await sql`DELETE FROM vanity.voice_members WHERE user_id = ${t.id}`
     await logAdmin(c.get('userId'), 'kick from voice', t.id)
     return c.body(null, 204)
@@ -271,11 +289,72 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const me = c.get('userId')
     const t = await target(c.req.param('id'))
     if (t.id === me) fail(400, 'Delete your own account from the Account page.')
-    if (people.rolesOf(t.id).admin) fail(400, 'Take their admin badge away first.')
+    guard(me, t.id)
     await sql`DELETE FROM vanity.profiles WHERE id = ${t.id}`
     await logAdmin(me, 'delete account', t.id, t.username)
     await after()
     return c.body(null, 204)
+  })
+
+  /**
+   * Makes a throwaway account to try the admin tools on (ban it, time it out, give it coins) and
+   * look at the result with "See what they see". Nobody can sign in to it, and other players
+   * don't find it in search.
+   */
+  app.post('/test-users', async (c) => {
+    const [n] = await sql<{ n: number }>`SELECT COUNT(*)::int AS n FROM vanity.profiles WHERE id LIKE ${TEST_ID + '%'}`
+    if ((n?.n ?? 0) >= 25) fail(409, 'There are 25 test users already. Remove some first.')
+    for (let tries = 0; tries < 8; tries++) {
+      const id = `${TEST_ID}${Math.random().toString(36).slice(2, 12)}`
+      const username = `test_${Math.floor(10000 + Math.random() * 90000)}`
+      const made = await sql<{ id: string }>`INSERT INTO vanity.profiles (id, username, bio) SELECT ${id}, ${username}, 'A test account made by an admin.'
+        WHERE NOT EXISTS (SELECT 1 FROM vanity.profiles WHERE lower(username) = lower(${username})) RETURNING id`
+      if (!made.length) continue
+      await sql`INSERT INTO vanity.username_history (user_id, old_username, new_username, by_admin) VALUES (${id}, NULL, ${username}, true)`
+      await logAdmin(c.get('userId'), 'make test user', id, username)
+      return c.json({ id, username }, 201)
+    }
+    return fail(409, "Couldn't make a test user. Try again.")
+  })
+
+  /** Removes every test user. */
+  app.post('/test-users/clear', async (c) => {
+    const gone = await sql`DELETE FROM vanity.profiles WHERE id LIKE ${TEST_ID + '%'} RETURNING id`
+    await sql`DELETE FROM vanity.coin_wallets WHERE user_id LIKE ${TEST_ID + '%'}`
+    await logAdmin(c.get('userId'), 'remove test users', null, `${gone.length} removed`)
+    await after()
+    return c.json({ removed: gone.length })
+  })
+
+  /**
+   * What an account's own copy of Vanity shows right now: who it is, its coins, and the exact
+   * words it gets if it is banned or timed out. For the "See what they see" pop-up.
+   */
+  app.get('/users/:id/view', async (c) => {
+    const id = c.req.param('id')
+    const [p] = await sql<{ id: string; username: string; avatar: string | null; style: unknown; bio: string }>`SELECT id, username, avatar, style, bio FROM vanity.profiles WHERE id = ${id}`
+    if (!p) fail(404, 'That account no longer exists.')
+    const [w] = await sql<{ balance: number }>`SELECT balance FROM vanity.coin_wallets WHERE user_id = ${id}`
+    const owned = await sql<{ item_id: string }>`SELECT item_id FROM vanity.shop_owned WHERE user_id = ${id}`
+    const ledger = await sql<{ id: string | number; kind: string; amount: number; note: string; created_at: unknown }>`SELECT id, kind, amount, note, created_at FROM vanity.coin_ledger WHERE user_id = ${id} ORDER BY id DESC LIMIT 10`
+    const [n] = await sql<{ friends: number; requests: number; unread: number }>`
+      SELECT (SELECT COUNT(*) FROM vanity.friendships WHERE status = 'accepted' AND (requester_id = ${id} OR addressee_id = ${id}))::int AS friends,
+        (SELECT COUNT(*) FROM vanity.friendships WHERE status = 'pending' AND addressee_id = ${id})::int AS requests,
+        (SELECT COUNT(*) FROM vanity.messages WHERE recipient_id = ${id} AND read_at IS NULL)::int AS unread`
+    const stop = problems(id)
+    return c.json({
+      user: { ...publicUser(p!), bio: p!.bio },
+      standing: people.standingOf(id),
+      coins: w?.balance ?? 0,
+      owned: owned.map((o) => o.item_id),
+      ledger: ledger.map((l) => ({ id: Number(l.id), kind: l.kind, amount: l.amount, note: l.note, at: toMs(l.created_at) })),
+      counts: n,
+      usernameChangeAt: await usernameChangeAt(id),
+      // The words their app shows. `banned` replaces the whole launcher; `speaking` is the answer to sending a message, commenting or calling.
+      banned: stop.banned,
+      speaking: stop.speaking,
+      test: id.startsWith(TEST_ID)
+    })
   })
 
   /** Reported comments that nobody has dealt with yet, most reported first. */
@@ -304,6 +383,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const id = /^\d{1,15}$/.test(c.req.param('commentId')) ? Number(c.req.param('commentId')) : fail(404, 'That comment is gone.')
     const { remove } = await body<{ remove: boolean }>(c)
     const [gc] = await sql<{ user_id: string; body: string }>`SELECT user_id, body FROM vanity.game_comments WHERE id = ${id}`
+    if (remove === true && gc) guard(c.get('userId'), gc.user_id)
     if (remove === true) await sql`DELETE FROM vanity.game_comments WHERE id = ${id}`
     else await sql`UPDATE vanity.comment_reports SET resolved_at = now() WHERE comment_id = ${id} AND resolved_at IS NULL`
     await logAdmin(c.get('userId'), remove === true ? 'remove comment' : 'keep comment', gc?.user_id ?? null, (gc?.body ?? '').slice(0, 200))

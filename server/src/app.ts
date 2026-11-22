@@ -226,6 +226,18 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const until = people.standingOf(id).timeoutUntil
     if (until) fail(403, `You're timed out and can't do that until ${new Date(until).toUTCString().replace(' GMT', ' UTC')}.`, 'timed_out')
   }
+  /** The words a banned or timed-out account is shown (for the admins' "See what they see"). */
+  const problems = (id: string): { banned: string | null; speaking: string | null } => {
+    const said = (fn: (id: string) => void): string | null => {
+      try {
+        fn(id)
+        return null
+      } catch (err) {
+        return err instanceof HTTPException ? err.message : 'Not allowed.'
+      }
+    }
+    return { banned: said(notBanned), speaking: said(canSpeak) }
+  }
   const requireAdmin: MiddlewareHandler<Env> = async (c, next) => {
     if (!people.rolesOf(c.get('userId')).admin) fail(403, 'Only Vanity admins can do that.')
     await next()
@@ -463,6 +475,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const groups = groupIds.length ? await sql<{ id: string; name: string }>`SELECT id, name FROM vanity.chat_groups WHERE id = ANY(${groupIds}::text[])` : []
     c.header('Cache-Control', 'no-store')
     return c.json({
+      id: me,
       username: p?.username ?? null,
       ...people.rolesOf(me),
       standing: people.standingOf(me),
@@ -871,7 +884,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const me = c.get('userId')
     const rows = await sql<{ id: string; username: string; avatar: string | null; style: unknown }>`
       SELECT id, username, avatar, style FROM vanity.profiles
-      WHERE lower(username) LIKE ${q.toLowerCase().replace(/_/g, '\\_') + '%'} AND id <> ${me}
+      WHERE lower(username) LIKE ${q.toLowerCase().replace(/_/g, '\\_') + '%'} AND id <> ${me} AND id NOT LIKE 'test-%'
       ORDER BY (lower(username) = ${q.toLowerCase()}) DESC, length(username), username LIMIT 10`
     return c.json({ users: rows.map((r) => publicUser(r)) })
   })
@@ -958,8 +971,8 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   const coins = coinRoutes({ sql, requireAuth, requireUser, stripe, fetchFn: (fetchFn ?? fetch) as typeof fetch, now: clock, origin })
   app.route('/coins', coins.routes)
   app.route('/stripe', coins.webhook)
-  app.route('/', commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isAdmin: (id) => people.rolesOf(id).admin, now: clock }))
-  app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin }))
+  app.route('/', commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, mayModerate: (id, author) => people.rolesOf(id).admin && people.mayActAgainst(id, author), now: clock }))
+  app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin, problems, usernameChangeAt: async (id) => (await usernameChange(id)).usernameChangeAt }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))
   app.onError((err, c) => {

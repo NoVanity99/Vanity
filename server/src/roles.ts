@@ -12,6 +12,12 @@ export const VERIFIED_USERNAMES = ['SBCVanity', 'Max', 'chefdal', 'deggy', 'soup
 /** The gold crown: this account runs Vanity. */
 export const ADMIN_USERNAMES = ['SBCVanity', 'chefdal', 'soupystew']
 
+/**
+ * Who can overrule admins. Admins can't ban, time out, demote or otherwise act against each
+ * other; an account named here can. It is never shown anywhere in the app or sent to it.
+ */
+export const OWNER_USERNAMES = ['SBCVanity']
+
 export interface Roles {
   verified: boolean
   admin: boolean

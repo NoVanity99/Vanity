@@ -3,6 +3,22 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.29.0 (2026-11-22)
+- New: **Vanity Coins.** Your balance is in the top bar; click it for **Get Coins**, with four bundles paid for on Stripe's secure page in your browser. Coins arrive by themselves once the payment has gone through, with no restart. **Account → Purchase history** lists everything that came or went. (Buying is on Windows for now; coins you have work on Android too. Buying is switched on once Vanity's Stripe keys are set.)
+- New: **premium profile looks** to spend coins on: 3 banners, 3 frames, 2 auras, 2 name effects, a banner effect and 3 titles. The Get Coins page shows each one as it will really look on you; in Account they carry a price tag until you own them. Everything that was free stays free.
+- New: **change your username** (Account → Change username), once every 30 days. The new name shows everywhere for everyone within seconds: friends lists, chats, old messages, comments and calls. Names are checked for rude words, and official-looking names are reserved.
+- New: **voice calls from chats.** A call button in every direct chat and group chat. The other side gets a ringing pop-up with Accept and Decline; the call bar stays with you while you browse. (Up to 6 people per call for now.)
+- New: **"started streaming" alert.** When someone in your call shares their screen you hear a chime and get a note with a **Watch** button. Settings → Voice has a switch and a volume for the chime.
+- New: **who's watching a stream**: small overlapping pictures on the stream (hover for the name), "+N" when there are many, and a full list. It updates as people come and go.
+- New: **comments on every game's page**, shared by everyone who has that game. Post, edit and delete your own, report someone else's. Newest first, more load as you scroll. Rude words are starred out and there's a limit on how fast you can post.
+- New: **Scan Block List.** In scan results, right-click a file (or use its button) and choose **Always ignore this file**. Settings → Library lists every ignored file with its full path, with Remove and Clear all.
+- New: **links in chats are clickable** and open in your web browser.
+- New: **Vanity keeps running in the background when you close it** (on by default), so calls and messages still reach you. Open it again from the Vanity icon by the clock; right-click that icon to quit. Switch it off in Settings → Appearance.
+- New for admins: **Settings → Admin.** Every account with search and filters; add or take coins (usable at once), time out, ban and unban, badges, rename, reset a profile, remove comments, delete an account; reported comments; a log of what admins did; **Create test user**, and **See what they see** to preview exactly what an account is shown (for example the ban screen). Admins can't act against other admins.
+- Changed: a popped-out stream window now **stays on top by default**. You can still switch it off in the window, and your choice is remembered.
+- Changed: official badges now belong to the account, not the name, so they survive a username change and can't be picked up by taking someone's old name.
+- Fixed: pressing Escape in a dialog opened from another dialog closed both.
+
 ## 0.28.0 (2026-11-21)
 - New: **a log-in pop-up.** The first time Vanity opens, and whenever nobody is signed in, a small pop-up sits over a dimmed, blurred launcher with **Log In** and **Sign Up**. It can't be closed or clicked around until you're signed in. (If you're already signed in, nothing changes, and you stay signed in without internet.)
 - New: **log in with your username or your email**, whichever you remember.

@@ -1309,3 +1309,142 @@ html.overlay-window #root {
     transform: translateX(var(--overlay-from, 24px));
   }
 }
+
+/* ---- Premium looks (bought with Vanity Coins; prices in server/src/coinBundles.ts) ---- */
+.profile-banner[data-banner='obsidian'] {
+  background-image: linear-gradient(135deg, transparent 0 46%, rgb(167 139 250 / 0.35) 49%, transparent 52%), linear-gradient(35deg, transparent 0 62%, rgb(56 189 248 / 0.22) 65%, transparent 68%),
+    linear-gradient(120deg, rgb(15 12 30 / 0.9), rgb(49 46 129 / 0.55) 55%, rgb(2 6 23 / 0.9));
+}
+.profile-banner[data-banner='hologram'] {
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 4px), linear-gradient(110deg, rgb(34 211 238 / 0.45), rgb(232 121 249 / 0.4) 35%, rgb(163 230 53 / 0.3) 65%, rgb(96 165 250 / 0.45));
+  background-size: auto, 220% 100%;
+  animation: premium-slide 9s ease-in-out infinite alternate;
+}
+.profile-banner[data-banner='dragonfire'] {
+  background-image: radial-gradient(60% 120% at 15% 110%, rgb(253 224 71 / 0.5), transparent 60%), radial-gradient(70% 130% at 85% 120%, rgb(239 68 68 / 0.55), transparent 62%),
+    linear-gradient(170deg, rgb(69 10 10 / 0.75), rgb(194 65 12 / 0.5) 60%, rgb(250 204 21 / 0.3));
+}
+@keyframes premium-slide {
+  from {
+    background-position: 0 0, 0% 0;
+  }
+  to {
+    background-position: 0 0, 100% 0;
+  }
+}
+.avatar-frame[data-frame='diamond'] {
+  --frame: conic-gradient(from 0deg, #e0f2fe, #7dd3fc, #ffffff, #a5b4fc, #e0f2fe, #67e8f9, #ffffff, #e0f2fe);
+  --frame-glow: rgb(186 230 253 / 0.75);
+}
+.avatar-frame[data-frame='inferno'] {
+  --frame: conic-gradient(from 0deg, #450a0a, #dc2626, #f97316, #fde047, #f97316, #dc2626, #450a0a);
+  --frame-glow: rgb(249 115 22 / 0.8);
+}
+.avatar-frame[data-frame='celestial'] {
+  --frame: conic-gradient(from 0deg, #1e1b4b, #fde68a, #7c3aed, #f0abfc, #1e1b4b, #fde68a, #312e81, #1e1b4b);
+  --frame-glow: rgb(253 230 138 / 0.6);
+}
+.avatar-frame[data-frame='diamond']::before,
+.avatar-frame[data-frame='inferno']::before,
+.avatar-frame[data-frame='celestial']::before {
+  animation: frame-spin 4s linear infinite;
+}
+.name-fx[data-name='chrome'] {
+  --name: linear-gradient(90deg, #6b7280, #f9fafb, #9ca3af, #ffffff, #6b7280, #e5e7eb, #6b7280);
+  animation: name-flow 3s linear infinite;
+}
+.name-fx[data-name='hologram'] {
+  --name: linear-gradient(90deg, #22d3ee, #e879f9, #a3e635, #60a5fa, #22d3ee);
+  animation: name-flow 2.5s linear infinite;
+}
+.avatar-aura[data-aura='vortex']::before {
+  inset: calc(var(--aura-gap) * -6);
+  background: conic-gradient(from 0deg, transparent 0 10%, #a78bfa 25%, transparent 40%, #22d3ee 60%, transparent 75%, #f0abfc 90%, transparent);
+  filter: blur(4px);
+  animation: aura-spin 1.6s linear infinite;
+}
+.avatar-aura[data-aura='vortex']::after {
+  inset: calc(var(--aura-gap) * -9);
+  border: 1px solid rgb(167 139 250 / 0.35);
+  border-left-color: transparent;
+  border-right-color: transparent;
+  animation: aura-spin 5s linear infinite reverse;
+}
+.avatar-aura[data-aura='lightning']::before {
+  inset: calc(var(--aura-gap) * -5);
+  background: conic-gradient(from 20deg, transparent 0 8%, #fef08a 9% 11%, transparent 12% 38%, #e0f2fe 39% 41%, transparent 42% 69%, #fde047 70% 72%, transparent 73%);
+  filter: drop-shadow(0 0 5px #fde047);
+  animation: aura-spin 0.9s steps(7) infinite;
+}
+.avatar-aura[data-aura='lightning']::after {
+  inset: calc(var(--aura-gap) * -3);
+  box-shadow: 0 0 12px 2px rgb(253 224 71 / 0.55);
+  animation: premium-flicker 1.3s steps(3) infinite;
+}
+@keyframes premium-flicker {
+  50% {
+    opacity: 0.35;
+  }
+}
+.profile-banner[data-fx='meteors']::after {
+  background-image: linear-gradient(135deg, transparent 0 46%, rgb(255 255 255 / 0.85) 49.5%, rgb(125 211 252 / 0.5) 50.5%, transparent 54%);
+  background-size: 140px 140px;
+  background-repeat: repeat;
+  mask-image: radial-gradient(60px 60px at 30% 20%, black, transparent 70%), radial-gradient(70px 70px at 75% 60%, black, transparent 70%);
+  animation: premium-meteors 2.4s linear infinite;
+}
+@keyframes premium-meteors {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 140px 140px;
+  }
+}
+
+/* A call ringing: a green ring that pulses outwards. */
+.call-ringing {
+  animation: call-ring 1.2s ease-out infinite;
+}
+@keyframes call-ring {
+  from {
+    box-shadow: 0 0 0 0 rgb(52 211 153 / 0.7);
+  }
+  to {
+    box-shadow: 0 0 0 14px rgb(52 211 153 / 0);
+  }
+}
+/* A premium look that hasn't been bought: its price in the corner. */
+[data-look-option][data-price] {
+  position: relative;
+}
+[data-look-option][data-price]::after {
+  content: '🪙 ' attr(data-price);
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  z-index: 2;
+  border-radius: 9999px;
+  background: #1c1917;
+  border: 1px solid rgb(252 211 77 / 0.6);
+  color: #fcd34d;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 5px;
+  white-space: nowrap;
+  -webkit-text-fill-color: #fcd34d;
+}
+[data-look-option][data-owned-premium]::after {
+  content: '★';
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  z-index: 2;
+  font-size: 11px;
+  color: #fcd34d;
+  -webkit-text-fill-color: #fcd34d;
+}
+[data-look-option][data-owned-premium] {
+  position: relative;
+}

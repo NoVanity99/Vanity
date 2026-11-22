@@ -1,3 +1,4 @@
+import { GameComments } from '@/components/game/GameComments'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, BookOpen, Clock, Eye, FolderOpen, HardDrive, Image, Info, MoreHorizontal, PlayCircle, RefreshCw, Star, Timer, Trophy, Users, Wand2, Wrench } from 'lucide-react'
@@ -504,6 +505,7 @@ export function GameDetailPage(): React.JSX.Element {
             </p>
           </aside>
         </div>
+        <GameComments gameId={game.id} />
       </div>
       {menu}
       {dialog === 'match' && <MatchDialog game={game} onClose={() => setDialog(null)} />}
