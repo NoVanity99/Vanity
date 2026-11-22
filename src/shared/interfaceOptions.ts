@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { id: 'trending', label: 'Trending' },
   { id: 'store', label: 'Steam Store' },
   { id: 'friends', label: 'Friends' },
+  { id: 'channels', label: 'Channels' },
   { id: 'voice', label: 'Voice' },
   { id: 'recent', label: 'Recently Played' },
   { id: 'favorites', label: 'Favorites' },
@@ -16,7 +17,7 @@ export const NAV_ITEMS = [
 export type NavItemId = (typeof NAV_ITEMS)[number]['id']
 
 /** Every sidebar tab that can be moved (press and hold, then drag), in the default order. */
-export const TAB_ORDER_DEFAULT = ['library', 'trending', 'store', 'voice', 'friends', 'recent', 'favorites', 'stats', 'profile', 'downloads'] as const
+export const TAB_ORDER_DEFAULT = ['library', 'trending', 'store', 'voice', 'friends', 'channels', 'recent', 'favorites', 'stats', 'profile', 'downloads'] as const
 export type TabId = (typeof TAB_ORDER_DEFAULT)[number]
 
 /** A saved order, cleaned: known tabs once each, in the saved order, with any new ones at the end. */

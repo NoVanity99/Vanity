@@ -1,6 +1,7 @@
 import { VoiceBar } from '@/components/voice/VoiceBar'
 import { useVoice } from '@/state/voice'
 import { useFriends } from '@/state/friends'
+import { useMyCommunities } from '@/state/communities'
 import { useGroups } from '@/state/groups'
 import { clampSidebarWidth, NAV_ITEMS, SIDEBAR_WIDTH, type InterfaceOptions, TAB_ORDER_DEFAULT, type NavItemId, type TabId } from '@shared/interfaceOptions'
 import { useTabDrag } from './useTabDrag'
@@ -12,7 +13,7 @@ import { UserName } from '@/components/UserName'
 import { useDownloads } from '@/state/downloads'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { AudioLines, Award, BarChart3, Download, Clock, Eye, EyeOff, Flame, SlidersHorizontal, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, RotateCcw, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
+import { MessagesSquare, AudioLines, Award, BarChart3, Download, Clock, Eye, EyeOff, Flame, SlidersHorizontal, Gamepad2, Layers, LayoutGrid, PanelLeftClose, Plus, RotateCcw, Search, Settings, ShoppingBag, Star, Tv, UserCircle2, Users, type LucideIcon } from 'lucide-react'
 import { createCollection, useCollections } from '@/state/collections'
 import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
@@ -226,6 +227,8 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
   const friendsOnline = friendList?.friends.filter((f) => f.status.state !== 'offline').length
   const groupList = useGroups()
   const friendsUnread = (friendList?.friends.reduce((sum, f) => sum + (f.unread ?? 0), 0) ?? 0) + (groupList?.reduce((sum, g) => sum + g.unread, 0) ?? 0) || undefined
+  // Unread messages across the Channels you're in.
+  const channelsUnread = useMyCommunities()?.reduce((sum, c) => sum + c.unread, 0) || undefined
   const shows = (id: NavItemId): boolean => !ui.hiddenNav.includes(id)
   // People in your voice room (shown next to Voice while you're in one).
   const voiceState = useVoice()
@@ -278,6 +281,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
     store: !isAndroid() && shows('store') ? <NavItem to="/store" icon={ShoppingBag} label="Steam Store" animation="swing" onMenu={menuFor('store')} /> : null,
     voice: shows('voice') ? <NavItem to="/voice" icon={AudioLines} label="Voice" count={voiceCount || undefined} countTone="online" animation="bounce" onMenu={menuFor('voice')} /> : null,
     friends: shows('friends') ? <NavItem to="/friends" icon={Users} label="Friends" count={friendsOnline} countTone="online" badge={friendsUnread} animation="wave" onMenu={menuFor('friends')} /> : null,
+    channels: shows('channels') ? <NavItem to="/channels" icon={MessagesSquare} label="Channels" badge={channelsUnread} animation="wave" onMenu={menuFor('channels')} /> : null,
     recent: shows('recent') ? <NavItem to="/recent" icon={Clock} label="Recently Played" animation="rewind" onMenu={menuFor('recent')} /> : null,
     favorites: shows('favorites') ? <NavItem to="/favorites" icon={Star} label="Favorites" count={count(visible.filter((g) => g.favorite).length)} animation="star" onMenu={menuFor('favorites')} /> : null,
     stats: shows('stats') ? <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" onMenu={menuFor('stats')} /> : null,

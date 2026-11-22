@@ -3,6 +3,16 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.31.0 (2026-11-22)
+- New: **the Channels tab.** A Channel is a place for a group to hang out, with its own channels to talk in, sorted into categories you can fold shut. Your Channels sit as a strip of icons down the left, with a dot and a count when there is something new. On Windows and Android.
+- New: **Create Channel**, in three short steps: pick a starting point (Gaming Group, Friends, Community or Start from Scratch), give it a name, picture and banner, and choose who can find it. A preview shows how it will look before you create it.
+- New: **Open, Private and Hidden.** Open Channels show in Discover and anyone can join. Private ones show with a lock: people ask to join and you approve them. Hidden ones are never shown in Discover or search; the only way in is an invite code. Vanity's servers enforce this, so nobody outside a Private or Hidden Channel can read its messages.
+- New: **Discover**, with search by name or description, and **Join with a code** for invites.
+- New: **chat in every channel**: replies, emoji reactions, GIFs, clickable links, editing and deleting your own messages, with other people's messages arriving within a couple of seconds. Channel names keep their spaces, capitals and emoji ("Late Night Gaming 🎮").
+- New: **roles**: Owner, Admin, Moderator and Member. **Channel settings** (the gear) covers the name, picture, banner and who can find it; adding, renaming, moving and deleting channels and categories; members with roles, kick and ban; invite codes with an expiry and a use limit; join requests; bans; handing the Channel to someone else; and deleting it.
+- New: **a member list** beside the chat showing who is online, and Vanity **reopens the Channel and channel you were last in**, on any PC you sign in on.
+- Coming next for Channels: pictures and files in messages, custom roles with colours, @mentions, typing indicators and sending while offline.
+
 ## 0.30.0 (2026-11-22)
 - New: **Vanity Plus**, a membership for $5 a month that includes every premium look in the store, with nothing to buy one by one. Subscribe from the top of the **Get Coins** page (on Stripe's secure page, in your browser); it shows in Vanity by itself a few seconds after paying. **Manage** opens Stripe's page to change your card, see invoices or cancel. If you cancel you keep Plus until the end of the month you paid for; after that, looks that came with Plus come off your profile, and anything you bought with coins stays yours. (Subscribing is on Windows for now, and is switched on once Vanity's Stripe keys are set.)
 - New for admins: give an account Vanity Plus for 7 days, 30 days or a year from Settings → Admin.

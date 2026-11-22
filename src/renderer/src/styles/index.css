@@ -1448,3 +1448,106 @@ html.overlay-window #root {
 [data-look-option][data-owned-premium] {
   position: relative;
 }
+
+/* ---- Channels (communities with rooms) ---- */
+/* Placeholders that shimmer while real content loads. */
+.skeleton {
+  background: linear-gradient(100deg, rgb(255 255 255 / 0.04) 30%, rgb(255 255 255 / 0.1) 50%, rgb(255 255 255 / 0.04) 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+/* Thin scrollbars that only show their thumb. */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.12);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.thin-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.24);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+/* The strip of community icons: a circle that becomes a rounded square, with a pill beside it. */
+.strip-item {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.strip-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 0;
+  border-radius: 0 4px 4px 0;
+  background: var(--color-text);
+  transform: translateY(-50%);
+  transition: height 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.strip-item[data-unread='true']::before {
+  height: 8px;
+}
+.strip-item:hover::before {
+  height: 20px;
+}
+.strip-item[data-active='true']::before {
+  height: 36px;
+  background: var(--color-accent);
+}
+.strip-icon {
+  border-radius: 9999px;
+  transition:
+    border-radius 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+.strip-item:hover .strip-icon,
+.strip-item[data-active='true'] .strip-icon {
+  border-radius: 16px;
+}
+.strip-item:hover .strip-icon {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.45);
+}
+/* A message arriving. */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.message-in {
+  animation: message-in 200ms ease-out;
+}
+/* Switching rooms or communities: the pane fades up. */
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.pane-in {
+  animation: pane-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-motion='reduced'] .strip-icon,
+html[data-motion='reduced'] .strip-item::before {
+  transition: none;
+}

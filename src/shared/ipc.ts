@@ -238,7 +238,7 @@ export interface VanityApi {
      * A signed-in request to the Vanity server, for the screens that talk to it directly (coins,
      * comments, calls, admin). Only the paths in src/shared/apiPaths.ts are let through.
      */
-    request<T = unknown>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<Result<T>>
+    request<T = unknown>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<Result<T>>
     /** Emails a 6-digit code for choosing a new password. */
     sendResetCode(email: string): Promise<Result<true>>
     resetPassword(email: string, code: string, password: string): Promise<Result<true>>

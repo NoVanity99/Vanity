@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Flame, LayoutGrid, Menu, Users, type LucideIcon } from 'lucide-react'
+import { Flame, LayoutGrid, Menu, MessagesSquare, Users, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const ITEMS: { to: string; icon: LucideIcon; label: string }[] = [
   { to: '/library', icon: LayoutGrid, label: 'Library' },
   { to: '/trending', icon: Flame, label: 'Trending' },
   { to: '/friends', icon: Users, label: 'Friends' },
-  { to: '/stats', icon: BarChart3, label: 'Stats' }
+  { to: '/channels', icon: MessagesSquare, label: 'Channels' }
 ]
 
 /** Phone navigation: the main tabs along the bottom, with Menu opening everything else. */

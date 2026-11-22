@@ -23,6 +23,8 @@ import { Coins } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useFriendsRefresh } from './state/friends'
 import { useGroupsRefresh } from './state/groups'
+import { useCommunitiesRefresh } from './state/communities'
+import { ChannelsPage } from './pages/ChannelsPage'
 import { GamepadLayer } from './gamepad/GamepadLayer'
 import { Sidebar } from './components/Sidebar'
 import { BottomNav } from './components/BottomNav'
@@ -98,6 +100,7 @@ function Shell(): React.JSX.Element {
   const account = useAccount()
   useFriendsRefresh(account?.username)
   useGroupsRefresh(account?.username)
+  useCommunitiesRefresh(account?.username)
   // Signed out, or a new account still being set up: the launcher waits behind a pop-up.
   const gate = useGate(account)
   // The quick check-in: coins, calls ringing, a new name or badge, without a restart.
@@ -157,7 +160,8 @@ function Shell(): React.JSX.Element {
             <UpdateButton />
           </div>
         </div>
-        <div key={location.pathname} className="h-full animate-[page-in_220ms_ease-out]">
+        {/* Moving around inside Channels keeps the page as it is (its own panes do the animating). */}
+        <div key={location.pathname.startsWith('/channels') ? '/channels' : location.pathname} className="h-full animate-[page-in_220ms_ease-out]">
           <Routes>
             <Route path="/library" element={<LibraryPage view="all" />} />
             <Route path="/trending" element={<TrendingPage />} />
@@ -169,6 +173,9 @@ function Shell(): React.JSX.Element {
             <Route path="/wrapped" element={<WrappedPage />} />
             <Route path="/big" element={<BigPicturePage />} />
             <Route path="/friends" element={<FriendsPage />} />
+            <Route path="/channels" element={<ChannelsPage />} />
+            <Route path="/channels/:communityId" element={<ChannelsPage />} />
+            <Route path="/channels/:communityId/:channelId" element={<ChannelsPage />} />
             <Route path="/voice" element={<VoicePage />} />
             <Route path="/friends/:id" element={<FriendProfilePage />} />
             <Route path="/account" element={<AccountPage />} />

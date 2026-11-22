@@ -9,7 +9,7 @@ const VIEW = 260
 const MAX_ZOOM = 4
 
 /** Drag the picture and zoom until the circle shows what you want. */
-function CropDialog({ img, onDone, onClose }: { img: HTMLImageElement; onDone: (crop: Crop) => void; onClose: () => void }): React.JSX.Element {
+export function CropDialog({ img, onDone, onClose }: { img: HTMLImageElement; onDone: (crop: Crop) => void; onClose: () => void }): React.JSX.Element {
   // How many screen pixels one picture pixel takes when the whole short side just fits.
   const fit = VIEW / Math.min(img.naturalWidth, img.naturalHeight)
   const [zoom, setZoom] = useState(1)
