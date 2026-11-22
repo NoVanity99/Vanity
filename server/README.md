@@ -43,15 +43,15 @@ The key allows 100,000 calls a day for everyone together, so the server protects
 
 Players buy Vanity Coins on Stripe's own payment page. The server starts that payment and is told by Stripe, in a signed message (a "webhook"), when it has gone through; only then are coins added. Two secrets are needed, and both live **only** on the server, like the Steam key. Until they are set, the store in the app says buying isn't switched on (everything else about coins works, including coins an admin gives).
 
-Use **test mode** first (Stripe calls it a sandbox): nothing is charged.
+Use a **sandbox** first: a Stripe test environment where nothing is charged. In the dashboard, open the account menu (top left) → *Sandboxes* → create one for Vanity, and do the steps below inside it. (The older shared "Test mode" switch works too.)
 
 1. Create an account at <https://dashboard.stripe.com> and make sure the **Test mode** switch (top right) is on.
-2. **Secret key:** Developers → **API keys** → *Secret key* → Reveal. It starts with `sk_test_`.
+2. **API key:** Developers → **API keys** → *Create restricted key*. Give it **Write** on *Checkout Sessions* and nothing else, and copy it (it starts with `rk_test_`). A restricted key is what Stripe recommends: if it ever leaked it could only start checkouts, not move money or read customers. (The full *Secret key*, `sk_test_…`, also works.)
 3. **Webhook:** Developers → **Webhooks** → *Add endpoint*.
    - Endpoint URL: the Vanity server's address followed by `/stripe/webhook`, for example `https://br-damp-pine-bdkamz55-vanity.compute.c-8.us-east-2.aws.neon.tech/stripe/webhook` (the address is `apiUrl` in `src/shared/backend.ts`).
    - Events to send: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`.
    - After saving, open the endpoint and reveal its **Signing secret**. It starts with `whsec_`.
-4. In this repository: **Settings** → **Secrets and variables** → **Actions** → add `STRIPE_SECRET_KEY` (from step 2) and `STRIPE_WEBHOOK_SECRET` (from step 3).
+4. In this repository: **Settings** → **Secrets and variables** → **Actions** → add `STRIPE_SECRET_KEY` (the key from step 2) and `STRIPE_WEBHOOK_SECRET` (from step 3). Never put either in a file, in the app, or in a chat.
 5. **Actions** → **Deploy backend** → **Run workflow**.
 
 **Try a purchase:** in Vanity, click your coin balance → pick a bundle → on Stripe's page pay with the test card `4242 4242 4242 4242`, any future expiry date, any 3-digit CVC and any postcode. Within a few seconds the balance in Vanity goes up by itself, and Account → Purchase history shows it. To try a refund, open the payment in the Stripe dashboard and click *Refund*: the coins come off again. `4000 0000 0000 0259` is a test card whose payment gets disputed (a chargeback).
