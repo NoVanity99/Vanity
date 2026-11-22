@@ -24,6 +24,9 @@ interface AdminDeps {
   /** What stops this account from signing in (banned), and from posting or calling (banned or timed out): the words they are shown, or null. */
   problems(userId: string): { banned: string | null; speaking: string | null }
   usernameChangeAt(userId: string): Promise<number | null>
+  /** Gives Vanity Plus for a number of days without payment (0 takes the gift away). */
+  giftPlus(userId: string, days: number): Promise<void>
+  plusOf(userId: string): Promise<{ active: boolean; subscribed: boolean; status: string; renewsAt: number | null; giftedUntil: number | null }>
 }
 
 /** Accounts made from the Admin tab to try things on. Nobody can sign in to one. */
@@ -37,7 +40,7 @@ const MAX_COINS = 1_000_000
 
 type UserRow = { id: string; username: string; avatar: string | null; style: unknown; created_at: unknown; last_seen: unknown; online: boolean; game_name: string | null; balance: number | null; level: number | null }
 
-export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin, problems, usernameChangeAt }: AdminDeps): Hono<Env> {
+export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin, problems, usernameChangeAt, giftPlus, plusOf }: AdminDeps): Hono<Env> {
   const app = new Hono<Env>()
   app.use('*', requireAuth, requireUser, requireAdmin)
 
@@ -153,6 +156,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const log = await sql<{ action: string; detail: string; created_at: unknown; admin: string | null }>`SELECT l.action, l.detail, l.created_at, a.username AS admin FROM vanity.admin_log l LEFT JOIN vanity.profiles a ON a.id = l.admin_id WHERE l.target_id = ${id} ORDER BY l.id DESC LIMIT 20`
     return c.json({
       user: { ...shape(r!, await emailOf(id)), bio: r!.bio },
+      plus: await plusOf(id),
       counts: n,
       steam: steam ? { name: steam.display_name, profileUrl: steam.profile_url } : null,
       owned: owned.map((o) => o.item_id),
@@ -233,6 +237,17 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     const balance = await grant(t.id, amount, 'admin', `${me}:${now()}:${Math.random().toString(36).slice(2, 10)}`, note || `${amount > 0 ? 'Added' : 'Removed'} by ${admin?.username ?? 'an admin'}`)
     await logAdmin(me, 'coins', t.id, `${amount > 0 ? '+' : ''}${amount}${note ? `: ${note}` : ''}`)
     return c.json({ balance })
+  })
+
+  /** Gives Vanity Plus for some days without payment, or (0 days) takes such a gift away. A paid membership is not touched. */
+  app.post('/users/:id/plus', async (c) => {
+    const t = await target(c.req.param('id'))
+    const days = Math.trunc(Number((await body<{ days: number }>(c)).days))
+    if (!Number.isFinite(days) || days < 0 || days > 3650) fail(400, 'Enter a number of days from 0 to 3650.')
+    if (days === 0) guard(c.get('userId'), t.id)
+    await giftPlus(t.id, days)
+    await logAdmin(c.get('userId'), days ? 'gift Plus' : 'end Plus gift', t.id, days ? `${days} days` : '')
+    return c.json(await plusOf(t.id))
   })
 
   /** Clears the picture, bio and look (for a profile that breaks the rules). */

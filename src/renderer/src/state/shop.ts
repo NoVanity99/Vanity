@@ -13,7 +13,24 @@ export interface ShopItem {
   name: string
 }
 /** The coin store as the server describes it: prices live there, so they can change without an update. */
+/** Vanity Plus: the monthly membership that includes every premium look. */
+export interface PlusState {
+  active: boolean
+  /** Paying through Stripe (not a gift from an admin). */
+  subscribed: boolean
+  status: string
+  renewsAt: number | null
+  /** Cancelled: it runs until renewsAt and then stops. */
+  endsAtPeriodEnd: boolean
+  giftedUntil: number | null
+  canManage: boolean
+  name: string
+  priceCents: number
+  interval: string
+}
+
 export interface Shop {
+  plus?: PlusState
   balance: number
   purchasesEnabled: boolean
   currency: string

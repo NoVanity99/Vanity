@@ -329,6 +329,23 @@ CREATE TABLE IF NOT EXISTS vanity.shop_owned (
   PRIMARY KEY (user_id, item_id)
 );
 
+-- Vanity Plus: one row per account that ever subscribed (or was given Plus by an admin).
+-- status is Stripe's own word for the subscription; event_at is the time of the newest Stripe
+-- message applied, so an older one arriving late can't undo a newer one.
+CREATE TABLE IF NOT EXISTS vanity.plus_members (
+  user_id               text PRIMARY KEY,
+  stripe_customer       text,
+  subscription_id       text,
+  status                text NOT NULL DEFAULT 'none',
+  period_end            timestamptz,
+  cancel_at_period_end  boolean NOT NULL DEFAULT false,
+  comp_until            timestamptz,
+  event_at              bigint NOT NULL DEFAULT 0,
+  updated_at            timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS plus_members_customer ON vanity.plus_members (stripe_customer);
+CREATE INDEX IF NOT EXISTS plus_members_subscription ON vanity.plus_members (subscription_id);
+
 -- Comments on a game's page, one thread per game (game_key: the game's normalised title).
 CREATE TABLE IF NOT EXISTS vanity.game_comments (
   id          bigserial PRIMARY KEY,

@@ -4,13 +4,13 @@
 
 const ALLOWED = [
   /^\/pulse$/,
-  /^\/coins(\/(checkout|buy|history))?$/,
+  /^\/coins(\/(checkout|buy|history|plus\/checkout|plus\/portal))?$/,
   /^\/games\/[^/?#\s]{1,200}\/comments$/,
   /^\/comments\/\d{1,15}(\/report)?$/,
   /^\/voice\/call$/,
   /^\/voice\/rings\/[\w-]{1,64}\/decline$/,
   /^\/admin\/(overview|users|reports|log|test-users|test-users\/clear)$/,
-  /^\/admin\/users\/[\w-]{1,80}(\/(ban|unban|timeout|roles|coins|reset-profile|username|clear-cooldown|delete-comments|kick-voice|view))?$/,
+  /^\/admin\/users\/[\w-]{1,80}(\/(ban|unban|timeout|roles|coins|reset-profile|username|clear-cooldown|delete-comments|kick-voice|view|plus))?$/,
   /^\/admin\/reports\/\d{1,15}$/
 ]
 const METHODS = ['GET', 'POST', 'PATCH', 'DELETE']

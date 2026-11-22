@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.30.0 (2026-11-22)
+- New: **Vanity Plus**, a membership for $5 a month that includes every premium look in the store, with nothing to buy one by one. Subscribe from the top of the **Get Coins** page (on Stripe's secure page, in your browser); it shows in Vanity by itself a few seconds after paying. **Manage** opens Stripe's page to change your card, see invoices or cancel. If you cancel you keep Plus until the end of the month you paid for; after that, looks that came with Plus come off your profile, and anything you bought with coins stays yours. (Subscribing is on Windows for now, and is switched on once Vanity's Stripe keys are set.)
+- New for admins: give an account Vanity Plus for 7 days, 30 days or a year from Settings → Admin.
+
 ## 0.29.0 (2026-11-22)
 - New: **Vanity Coins.** Your balance is in the top bar; click it for **Get Coins**, with four bundles paid for on Stripe's secure page in your browser. Coins arrive by themselves once the payment has gone through, with no restart. **Account → Purchase history** lists everything that came or went. (Buying is on Windows for now; coins you have work on Android too. Buying is switched on once Vanity's Stripe keys are set.)
 - New: **premium profile looks** to spend coins on: 3 banners, 3 frames, 2 auras, 2 name effects, a banner effect and 3 titles. The Get Coins page shows each one as it will really look on you; in Account they carry a price tag until you own them. Everything that was free stays free.

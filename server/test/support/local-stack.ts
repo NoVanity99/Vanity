@@ -69,6 +69,7 @@ const api = createApp({
   // GIF search answers like KLIPY does (KLIPY_FAKE=1), since tests can't reach it.
   klipyKey: process.env.KLIPY_FAKE ? 'local-test-key' : '',
   fetchFn: async (url: string, init?: RequestInit) => {
+    if (url === 'https://api.stripe.com/v1/billing_portal/sessions') return new Response(JSON.stringify({ id: 'bps_local', url: 'https://billing.stripe.com/p/session/local' }), { status: 200 })
     if (url.startsWith('https://api.stripe.com/v1/checkout/sessions')) {
       const id = `cs_test_local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       console.log(`[stripe] checkout ${id} for ${new URLSearchParams(String(init?.body)).get('line_items[0][price_data][unit_amount]')} cents`)

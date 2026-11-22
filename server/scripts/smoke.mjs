@@ -132,6 +132,12 @@ try {
   step('the quick check-in answers (coins, calls, standing)', pulse.status === 200 && pulse.json?.coins === 0 && Array.isArray(pulse.json?.calls) && pulse.json?.standing?.banned === false, `HTTP ${pulse.status} ${pulse.text.slice(0, 160)}`)
   const store = await settled(() => api('GET', '/coins', jwt))
   step('the coin store lists its bundles', store.status === 200 && store.json?.bundles?.length > 0 && store.json?.balance === 0, `HTTP ${store.status}`)
+  let plusStore = store
+  for (let i = 0; i < 18 && plusStore.status === 200 && !plusStore.json?.plus; i++) {
+    await new Promise((done) => setTimeout(done, 5000))
+    plusStore = await api('GET', '/coins', jwt)
+  }
+  step('Vanity Plus is offered, and a new account is not a member', plusStore.json?.plus?.active === false && plusStore.json?.plus?.priceCents > 0, JSON.stringify(plusStore.json?.plus ?? null).slice(0, 160))
   console.log(store.json?.purchasesEnabled ? 'note  buying coins is ON (Stripe keys are set)' : 'note  buying coins is off: add the STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET repository secrets and deploy again (see server/README.md)')
   const forged = await settled(() => fetch(API + '/stripe/webhook', { method: 'POST', headers: { 'stripe-signature': 't=1,v1=00' }, body: '{"id":"evt_smoke","type":"checkout.session.completed","data":{"object":{}}}' }))
   step('a made-up message from "Stripe" is refused', forged.status === 400 || forged.status === 503, `HTTP ${forged.status}`)

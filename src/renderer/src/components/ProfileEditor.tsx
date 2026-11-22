@@ -53,6 +53,8 @@ export function ProfileEditor({ account }: { account: AccountState }): React.JSX
   const coins = usePulse().coins ?? shop?.balance ?? 0
   const navigate = useNavigate()
   const owned = new Set(shop?.owned ?? [])
+  // Vanity Plus includes every premium look: nothing carries a price.
+  if (shop?.plus?.active) for (const i of shop.items) owned.add(i.id)
   const locked = Object.fromEntries((shop?.items ?? []).filter((i) => !owned.has(i.id)).map((i) => [i.id, i.price]))
   const [buying, setBuying] = useState<{ id: string; patch: Partial<ProfileStyle> } | null>(null)
   const buyingItem = buying ? shop?.items.find((i) => i.id === buying.id) : undefined

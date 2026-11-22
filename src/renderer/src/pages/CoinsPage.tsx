@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, Check, Coins, ExternalLink, History, Loader2, Lock, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Check, Coins, Crown, Settings2, ExternalLink, History, Loader2, Lock, ShieldCheck, Sparkles } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { Button, Dialog } from '@/components/Dialog'
 import { ProfileTitle, UserName } from '@/components/UserName'
@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { isAndroid } from '@/lib/platform'
 import { useAccount } from '@/state/account'
 import { checkPulse, usePulse } from '@/state/pulse'
-import { buyItem, formatPrice, refreshShop, useShop, type CoinBundle, type ShopItem } from '@/state/shop'
+import { buyItem, formatPrice, refreshShop, useShop, type CoinBundle, type PlusState, type ShopItem } from '@/state/shop'
 import { useToast } from '@/state/toasts'
 
 const n = (v: number): string => v.toLocaleString()
@@ -63,6 +63,57 @@ export function LookPreview({ itemId, name, avatar, large }: { itemId: string; n
   )
 }
 
+const day = (at: number): string => new Date(at).toLocaleDateString(undefined, { dateStyle: 'long' })
+
+/** Vanity Plus: what it is, what it costs, and (for a member) when it renews, with Stripe's page to manage it. */
+function PlusCard({ plus, currency, canBuy, busy, opening, onOpen }: { plus: PlusState; currency: string; canBuy: boolean; busy: boolean; opening: string | null; onOpen: (kind: 'checkout' | 'portal') => void }): React.JSX.Element {
+  const price = `${formatPrice(plus.priceCents, currency)} a ${plus.interval}`
+  return (
+    <section className="relative overflow-clip rounded-3xl border border-amber-300/40 bg-surface p-6 shadow-xl shadow-amber-500/5" data-plus={plus.active ? 'active' : 'off'}>
+      <div className="profile-banner opacity-80" data-banner="hologram" />
+      <div className="relative flex flex-wrap items-center gap-5">
+        <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 to-amber-600 text-black shadow-lg shadow-amber-500/30">
+          <Crown className="size-8" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-2 font-display text-2xl font-black">
+            {plus.name}
+            {plus.active && <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">Member</span>}
+          </p>
+          {plus.active ? (
+            <p className="mt-0.5 text-sm text-text/85" data-plus-status>
+              {plus.subscribed
+                ? plus.status === 'past_due'
+                  ? "Your last payment didn't go through. Stripe is trying again: update your card under Manage to keep Plus."
+                  : plus.endsAtPeriodEnd && plus.renewsAt
+                    ? `Cancelled. You keep Plus until ${day(plus.renewsAt)}.`
+                    : plus.renewsAt
+                      ? `Every premium look is included. Renews on ${day(plus.renewsAt)} for ${price}.`
+                      : 'Every premium look is included.'
+                : plus.giftedUntil
+                  ? `A gift from Vanity: every premium look is included until ${day(plus.giftedUntil)}.`
+                  : 'Every premium look is included.'}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-sm text-text/85">
+              Every premium look in the store, included, for <span className="font-bold text-amber-200">{price}</span>. Cancel any time.
+            </p>
+          )}
+        </div>
+        {plus.subscribed || (plus.canManage && plus.active) ? (
+          <Button className="h-11 px-5" disabled={busy} onClick={() => onOpen('portal')} title="Change your card, see invoices, or cancel, on Stripe's page" data-plus-manage>
+            {opening === 'plus-portal' ? <Loader2 className="size-4 animate-spin" /> : <Settings2 className="size-4" />} Manage
+          </Button>
+        ) : !plus.active || !plus.subscribed ? (
+          <Button variant="primary" className="h-11 bg-gradient-to-r from-amber-400 to-amber-500 px-5 font-bold text-black hover:brightness-110" disabled={!canBuy || busy} onClick={() => onOpen('checkout')} data-plus-subscribe>
+            {opening === 'plus-checkout' ? <Loader2 className="size-4 animate-spin" /> : <Crown className="size-4" />} {plus.giftedUntil ? `Keep it for ${price}` : `Get Plus · ${price}`}
+          </Button>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
 /** The balance, big. */
 function Balance({ coins }: { coins: number }): React.JSX.Element {
   return (
@@ -97,6 +148,7 @@ export function CoinsPage(): React.JSX.Element {
   const [waiting, setWaiting] = useState(false)
   const [buying, setBuying] = useState<ShopItem | null>(null)
   const [busy, setBusy] = useState(false)
+  const [plusWaiting, setPlusWaiting] = useState(false)
 
   useEffect(() => void refreshShop(), [])
   // While a payment page is open, look for the coins every couple of seconds.
@@ -133,6 +185,36 @@ export function CoinsPage(): React.JSX.Element {
     setWaiting(true)
   }
 
+  /** Opens Stripe's page to subscribe, or to manage (card, invoices, cancel). */
+  const openPlus = async (kind: 'checkout' | 'portal'): Promise<void> => {
+    setOpening(`plus-${kind}`)
+    const r = await window.vanity.account.request<{ url: string }>('POST', `/coins/plus/${kind}`).catch(() => null)
+    setOpening(null)
+    if (!r || r.error !== undefined) return toast(r?.error ?? "Couldn't open the page.", 'error')
+    if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(r.data.url)) return toast("Couldn't open the page.", 'error')
+    window.open(r.data.url, '_blank')
+    setPlusWaiting(true)
+  }
+  // After a Plus page was opened, look again every few seconds for a while: the membership shows by itself.
+  useEffect(() => {
+    if (!plusWaiting) return
+    const timer = setInterval(() => void refreshShop(), 3000)
+    const stop = setTimeout(() => setPlusWaiting(false), 15 * 60_000)
+    return () => {
+      clearInterval(timer)
+      clearTimeout(stop)
+    }
+  }, [plusWaiting])
+  const plusActive = shop?.plus?.active === true
+  const wasPlus = useRef(plusActive)
+  useEffect(() => {
+    if (plusActive && !wasPlus.current && plusWaiting) {
+      toast('Welcome to Vanity Plus! Every premium look is yours to wear.')
+      setPlusWaiting(false)
+    }
+    wasPlus.current = plusActive
+  }, [plusActive]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!account?.username) return <div className="h-full" />
   return (
     <div className="h-full overflow-y-auto" data-coins-page>
@@ -143,6 +225,8 @@ export function CoinsPage(): React.JSX.Element {
             <History className="size-4" /> Purchase history
           </Link>
         </div>
+
+        {shop?.plus && <PlusCard plus={shop.plus} currency={shop.currency} canBuy={!phone && shop.purchasesEnabled} busy={opening !== null} onOpen={(kind) => void openPlus(kind)} opening={opening} />}
 
         <Balance coins={balance} />
 
@@ -186,7 +270,7 @@ export function CoinsPage(): React.JSX.Element {
         {shop && shop.items.length > 0 && (
           <section data-coin-shop>
             <h2 className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted">Spend them on</h2>
-            <p className="mb-3 text-sm text-muted">Premium looks for your profile. Once bought they're yours for good: wear them from Account → Profile look.</p>
+            <p className="mb-3 text-sm text-muted">{plusActive ? 'Premium looks for your profile. They are all included with your Vanity Plus: wear them from Account → Profile look.' : "Premium looks for your profile. Once bought they're yours for good: wear them from Account → Profile look. Or get them all with Vanity Plus."}</p>
             <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-3 max-lg:grid-cols-2">
               {shop.items.map((i) => {
                 const owned = shop.owned.includes(i.id)
@@ -201,6 +285,10 @@ export function CoinsPage(): React.JSX.Element {
                       {owned ? (
                         <span className="mt-auto flex h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-400/10 text-xs font-semibold text-emerald-400">
                           <Check className="size-3.5" /> Owned
+                        </span>
+                      ) : plusActive ? (
+                        <span className="mt-auto flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-300/10 text-xs font-semibold text-amber-200" data-included>
+                          <Crown className="size-3.5" /> Included with Plus
                         </span>
                       ) : (
                         <Button className="mt-auto h-9 w-full text-xs" onClick={() => setBuying(i)} data-buy-item={i.id}>

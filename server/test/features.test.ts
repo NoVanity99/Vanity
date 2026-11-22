@@ -50,8 +50,8 @@ async function admin(): Promise<{ token: string; id: string }> {
   }
 }
 /** A message from Stripe, signed the way Stripe signs them. */
-async function stripeEvent(type: string, object: Record<string, unknown>, opts: { id?: string; secret?: string; at?: number } = {}): Promise<{ status: number; json: any }> {
-  const payload = JSON.stringify({ id: opts.id ?? `evt_${Math.random().toString(36).slice(2)}`, type, data: { object } })
+async function stripeEvent(type: string, object: Record<string, unknown>, opts: { id?: string; secret?: string; at?: number; created?: number } = {}): Promise<{ status: number; json: any }> {
+  const payload = JSON.stringify({ id: opts.id ?? `evt_${Math.random().toString(36).slice(2)}`, type, created: opts.created ?? Math.floor((Date.now() + clock) / 1000), data: { object } })
   const t = Math.floor((opts.at ?? Date.now() + clock) / 1000)
   const sig = createHmac('sha256', opts.secret ?? WHSEC).update(`${t}.${payload}`).digest('hex')
   const res = await app.request('/stripe/webhook', { method: 'POST', headers: { 'stripe-signature': `t=${t},v1=${sig}`, 'content-type': 'application/json' }, body: payload })
@@ -83,6 +83,10 @@ beforeEach(async () => {
     now: () => Date.now() + clock,
     stripe: { secretKey: 'sk_test_123', webhookSecret: WHSEC },
     fetchFn: (async (url: string, init?: RequestInit) => {
+      if (String(url) === 'https://api.stripe.com/v1/billing_portal/sessions') {
+        stripeCalls.push(new URLSearchParams(String(init?.body)))
+        return new Response(JSON.stringify({ id: 'bps_1', url: 'https://billing.stripe.com/p/session/test_1' }), { status: 200 })
+      }
       if (!String(url).startsWith('https://api.stripe.com/v1/checkout/sessions')) throw new Error(`unexpected request to ${url}`)
       expect((init?.headers as Record<string, string>).authorization).toBe('Bearer sk_test_123')
       stripeCalls.push(new URLSearchParams(String(init?.body)))
@@ -222,6 +226,107 @@ describe('Vanity Coins', () => {
     expect(validStripeSignature(body, `t=${t},v1=${good}`, WHSEC, (t + 600) * 1000)).toBe(false)
     expect(validStripeSignature(body, `t=${t},v1=${good}`, '', t * 1000)).toBe(false)
     for (const h of [undefined, '', 'v1=' + good, `t=${t}`, 'garbage']) expect(validStripeSignature(body, h, WHSEC, t * 1000)).toBe(false)
+  })
+})
+
+describe('Vanity Plus', () => {
+  const sub = (userId: string, patch: Record<string, unknown> = {}) => ({ id: 'sub_1', customer: 'cus_1', status: 'active', cancel_at_period_end: false, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) + 30 * 86_400 }] }, metadata: { user_id: userId }, ...patch })
+  const plus = async (token: string) => (await call('GET', '/coins', token)).json.plus
+  const frame = async (token: string) => (await call('GET', '/me', token)).json.user.style.frame
+
+  it('is a $5 monthly subscription that includes every premium look', async () => {
+    const a = await register('alice')
+    expect(await plus(a.token)).toMatchObject({ active: false, status: 'none', priceCents: 500, interval: 'month', name: 'Vanity Plus', canManage: false })
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'diamond' } })).status).toBe(402)
+
+    const r = await call('POST', '/coins/plus/checkout', a.token)
+    expect(r.json.url).toMatch(/^https:\/\/checkout\.stripe\.com\//)
+    const asked = stripeCalls.at(-1)!
+    expect(Object.fromEntries(asked)).toMatchObject({ mode: 'subscription', 'line_items[0][price_data][unit_amount]': '500', 'line_items[0][price_data][recurring][interval]': 'month', 'line_items[0][price_data][product_data][name]': 'Vanity Plus', 'subscription_data[metadata][user_id]': a.id, success_url: 'https://vanity.test/coins/done?plus=1' })
+    expect(asked.has('payment_method_types')).toBe(false)
+    // Opening the page gives nothing; neither does a forged message.
+    expect((await plus(a.token)).active).toBe(false)
+    expect((await stripeEvent('customer.subscription.created', sub(a.id), { secret: 'whsec_wrong' })).status).toBe(400)
+    expect((await plus(a.token)).active).toBe(false)
+
+    // Stripe says the checkout went through, then describes the subscription.
+    const session = new URL(r.json.url).pathname.split('/').pop()!
+    await stripeEvent('checkout.session.completed', { id: session, mode: 'subscription', payment_status: 'paid', customer: 'cus_1', subscription: 'sub_1', metadata: { user_id: a.id, kind: 'plus' } })
+    expect(await plus(a.token)).toMatchObject({ active: true, subscribed: true, canManage: true })
+    expect(await balance(a.token)).toBe(0) // a membership is not a coin purchase
+    await stripeEvent('customer.subscription.created', sub(a.id))
+    const now = await plus(a.token)
+    expect(now).toMatchObject({ active: true, status: 'active', endsAtPeriodEnd: false })
+    expect(now.renewsAt).toBeGreaterThan(Date.now() + 29 * 86_400_000)
+
+    // Every premium look can be worn; nothing needs buying (and coins can't be wasted on it).
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'diamond', aura: 'vortex', title: 'Legend' } })).json.user.style).toMatchObject({ frame: 'diamond', aura: 'vortex', title: 'Legend' })
+    expect((await call('POST', '/coins/buy', a.token, { itemId: 'frame:diamond' })).json.code).toBe('included_in_plus')
+    expect((await call('POST', '/coins/plus/checkout', a.token)).json.code).toBe('already_plus')
+
+    // "Manage" opens Stripe's own page for that customer.
+    const portal = await call('POST', '/coins/plus/portal', a.token)
+    expect(portal.json.url).toBe('https://billing.stripe.com/p/session/test_1')
+    expect(stripeCalls.at(-1)!.get('customer')).toBe('cus_1')
+  })
+
+  it('follows renewals, failed payments, cancelling and the end', async () => {
+    const a = await register('alice')
+    const b = await register('bob')
+    const t = Math.floor(Date.now() / 1000)
+    await stripeEvent('customer.subscription.created', sub(a.id), { created: t })
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'diamond', banner: 'aurora' } })).status).toBe(200)
+    expect(await frame(a.token)).toBe('diamond')
+    // Bob owns Diamond outright (an admin gave him coins): his stays whatever happens to a membership.
+    const boss = await admin()
+    await call('POST', `/admin/users/${b.id}/coins`, boss.token, { amount: 400 })
+    await call('POST', '/coins/buy', b.token, { itemId: 'frame:diamond' })
+    await call('PUT', '/me/profile', b.token, { style: { frame: 'diamond' } })
+
+    // A payment fails and Stripe retries: still a member meanwhile.
+    expect((await stripeEvent('customer.subscription.updated', sub(a.id, { status: 'past_due' }), { created: t + 10 })).status).toBe(200)
+    expect(await plus(a.token)).toMatchObject({ active: true, status: 'past_due' })
+    expect(await frame(a.token)).toBe('diamond')
+    // Paid after all; then they cancel: it runs to the end of the month they paid for.
+    await stripeEvent('customer.subscription.updated', sub(a.id, { cancel_at_period_end: true }), { created: t + 20 })
+    expect(await plus(a.token)).toMatchObject({ active: true, endsAtPeriodEnd: true })
+    expect(await frame(a.token)).toBe('diamond')
+    // A message that was held up and arrives late doesn't undo the newer one.
+    await stripeEvent('customer.subscription.updated', sub(a.id, { status: 'past_due' }), { created: t + 15 })
+    expect(await plus(a.token)).toMatchObject({ status: 'active', endsAtPeriodEnd: true })
+    expect(await frame(a.token)).toBe('diamond')
+
+    // The end: Plus stops, and the looks that came with it come off. Free ones and bought ones stay.
+    await stripeEvent('customer.subscription.deleted', sub(a.id, { status: 'canceled' }), { created: t + 30 })
+    await stripeEvent('customer.subscription.deleted', sub(a.id, { status: 'canceled' }), { created: t + 30 })
+    expect(await plus(a.token)).toMatchObject({ active: false, status: 'canceled', canManage: true })
+    expect((await call('GET', '/me', a.token)).json.user.style).toMatchObject({ frame: 'none', banner: 'aurora' })
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'diamond' } })).status).toBe(402)
+    expect(await frame(b.token)).toBe('diamond')
+
+    // Joining again reuses the same Stripe customer; a late message about the old one changes nothing.
+    await call('POST', '/coins/plus/checkout', a.token)
+    expect(stripeCalls.at(-1)!.get('customer')).toBe('cus_1')
+    await stripeEvent('customer.subscription.created', sub(a.id, { id: 'sub_2' }), { created: t + 40 })
+    await stripeEvent('customer.subscription.deleted', sub(a.id, { status: 'canceled' }), { created: t + 50 })
+    expect(await plus(a.token)).toMatchObject({ active: true, status: 'active' })
+    // A subscription message without the account on it is matched by its customer.
+    await stripeEvent('customer.subscription.updated', { ...sub(a.id, { id: 'sub_2', cancel_at_period_end: true }), metadata: {} }, { created: t + 60 })
+    expect((await plus(a.token)).endsAtPeriodEnd).toBe(true)
+  })
+
+  it('can be given by an admin for a while, and runs out by itself', async () => {
+    const boss = await admin()
+    const a = await register('alice')
+    expect((await call('POST', `/admin/users/${a.id}/plus`, a.token, { days: 30 })).status).toBe(403)
+    expect((await call('POST', `/admin/users/${a.id}/plus`, boss.token, { days: 7 })).json).toMatchObject({ active: true, subscribed: false })
+    expect(await plus(a.token)).toMatchObject({ active: true, subscribed: false, canManage: false })
+    expect((await call('PUT', '/me/profile', a.token, { style: { frame: 'inferno' } })).status).toBe(200)
+    expect((await call('GET', `/admin/users/${a.id}`, boss.token)).json.plus).toMatchObject({ active: true })
+    clock += 8 * 86_400_000
+    expect((await plus(a.token)).active).toBe(false)
+    expect(await frame(a.token)).toBe('none') // taken off when the app next looks at the store
+    for (const days of [-1, 99999, 'x']) expect((await call('POST', `/admin/users/${a.id}/plus`, boss.token, { days })).status).toBe(400)
   })
 })
 

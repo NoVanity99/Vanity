@@ -26,6 +26,18 @@ export const COIN_BUNDLES: CoinBundle[] = [
 ]
 
 /**
+ * Vanity Plus: a monthly membership (a Stripe subscription). While it is active, everything in
+ * SHOP_ITEMS below is included, with nothing to buy. Change the price here; people already
+ * subscribed keep the price they signed up at until they cancel and join again.
+ */
+export const VANITY_PLUS = {
+  name: 'Vanity Plus',
+  /** In the smallest unit of COIN_CURRENCY (500 = $5.00). */
+  priceCents: 500,
+  interval: 'month' as const
+}
+
+/**
  * Things that cost coins. For now: premium profile looks. The id is "<part>:<look id>", where the
  * look id is one from profileStyle.ts. Everything not listed here is free.
  * Later, items for Vanity's own games go in this list too, under their own prefix ("game:…").

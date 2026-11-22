@@ -26,6 +26,7 @@ type Detail = {
   usernames: { from: string | null; to: string; byAdmin: boolean; at: number | null }[]
   ledger: LedgerRow[]
   log: { action: string; detail: string; admin: string | null; at: number | null }[]
+  plus?: { active: boolean; subscribed: boolean; status: string; renewsAt: number | null; giftedUntil: number | null }
 }
 type View = { user: PublicUser & { bio: string }; standing: AccountStanding; coins: number; owned: string[]; ledger: LedgerRow[]; counts: { friends: number; requests: number; unread: number }; usernameChangeAt: number | null; banned: string | null; speaking: string | null; test: boolean }
 type Report = { commentId: number; gameKey: string; text: string; at: number | null; user: PublicUser; reports: number; reasons: string[] }
@@ -267,6 +268,19 @@ function UserDialog({ id, myName, onClose, onChanged }: { id: string; myName: st
                 <Coins className="size-4 text-amber-300" /> {amount < 0 ? `Take ${n(Math.abs(amount))} coins` : `Add ${amount > 0 ? n(amount) : ''} coins`}
               </Button>
               <p className="mt-1 text-xs text-muted">They can use them straight away; their balance updates by itself in a few seconds. A negative amount takes coins away.</p>
+            </div>
+
+            <div data-admin-plus>
+              <p className={label}>Vanity Plus</p>
+              <p className="mb-2 text-xs text-muted" data-admin-plus-state>
+                {d.plus?.subscribed ? `Paying member (${d.plus.status})${d.plus.renewsAt ? `, renews ${when(d.plus.renewsAt)}` : ''}.` : d.plus?.giftedUntil ? `Gifted until ${when(d.plus.giftedUntil)}.` : 'Not a member.'}
+              </p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {([['7 days', 7], ['30 days', 30], ['1 year', 365]] as const).map(([text, days]) => (
+                  <Button key={days} className="px-1 text-xs" disabled={busy} onClick={() => void run(`Gave Vanity Plus for ${text}`, () => post('plus', { days }))} data-admin-plus-days={days}>{text}</Button>
+                ))}
+                <Button className="px-1 text-xs" disabled={busy || !d.plus?.giftedUntil} onClick={() => void run('Plus gift ended', () => post('plus', { days: 0 }))}>End gift</Button>
+              </div>
             </div>
 
             <div data-admin-timeouts>
