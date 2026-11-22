@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.32.3 (2026-11-22)
+- Changed: on Windows, move a sidebar tab by **clicking and dragging** it, with no need to hold first. A plain click still opens the tab. (On Android it is still touch and hold, then drag, so swiping keeps scrolling.)
+
 ## 0.32.2 (2026-11-22)
 - Changed: when you check for updates and there is nothing new, Vanity now says **"You are on the up to date version"** (with your version number) instead of "No releases found on GitHub". The same wording is used in Settings → Updates.
 

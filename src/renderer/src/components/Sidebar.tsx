@@ -397,7 +397,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       )}
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pt-1 [scrollbar-width:thin]">
-        {/* The tabs, in your order: press and hold one, then drag it to move it. */}
+        {/* The tabs, in your order: click and drag one to move it (touch and hold first on a phone). */}
         <div className="space-y-1" data-tab-list>
           {shownTabs.map((id, i) => (
             <div

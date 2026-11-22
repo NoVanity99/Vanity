@@ -16,7 +16,7 @@ export const NAV_ITEMS = [
 ] as const
 export type NavItemId = (typeof NAV_ITEMS)[number]['id']
 
-/** Every sidebar tab that can be moved (press and hold, then drag), in the default order. */
+/** Every sidebar tab that can be moved (click and drag; on a phone, touch and hold first), in the default order. */
 export const TAB_ORDER_DEFAULT = ['library', 'trending', 'store', 'voice', 'friends', 'channels', 'recent', 'favorites', 'stats', 'profile', 'downloads'] as const
 export type TabId = (typeof TAB_ORDER_DEFAULT)[number]
 

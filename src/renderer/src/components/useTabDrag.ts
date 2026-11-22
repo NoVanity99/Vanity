@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { moveTab, type TabId } from '@shared/interfaceOptions'
 
 const HOLD_MS = 300
-/** Moving this far before the hold is up means scrolling or a click, not a drag. */
+/** With a mouse, moving this far with the button down starts a drag. On a touch screen, moving this far before the hold is up means scrolling, not a drag. */
 const SLOP_PX = 6
 
 export interface TabDrag {
@@ -15,9 +15,9 @@ export interface TabDrag {
 }
 
 /**
- * Press and hold a sidebar tab, then drag it up or down to move it. A quick click still opens
- * the tab, and a quick move still scrolls; only a hold starts a drag. The new order is passed to
- * `onDrop` (which saves it).
+ * Moves a sidebar tab up or down. With a mouse (Windows): click and drag, no waiting; a click
+ * without moving still opens the tab. On a touch screen (Android): press and hold, then drag,
+ * so that a quick swipe still scrolls. The new order is passed to `onDrop` (which saves it).
  */
 export function useTabDrag(order: TabId[], visible: TabId[], onDrop: (next: TabId[]) => void): TabDrag {
   const [dragging, setDragging] = useState<TabDrag['dragging']>(null)
@@ -39,7 +39,8 @@ export function useTabDrag(order: TabId[], visible: TabId[], onDrop: (next: TabI
         let started = false
         let tops: number[] = []
         let step = 0
-        const timer = setTimeout(() => {
+        const mouse = e.pointerType === 'mouse'
+        const begin = (): void => {
           started = true
           const items = [...(list?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])]
           tops = items.map((x) => x.getBoundingClientRect().top + x.offsetHeight / 2)
@@ -49,14 +50,17 @@ export function useTabDrag(order: TabId[], visible: TabId[], onDrop: (next: TabI
           } catch {
             // Released meanwhile.
           }
-          navigator.vibrate?.(15)
+          if (!mouse) navigator.vibrate?.(15)
           setDragging({ id, dy: 0, to: index, from: index, step })
-        }, HOLD_MS)
+        }
+        const timer = mouse ? undefined : setTimeout(begin, HOLD_MS)
         const move = (ev: PointerEvent): void => {
           const dy = ev.clientY - startY
           if (!started) {
-            if (Math.abs(dy) > SLOP_PX) stop()
-            return
+            if (Math.abs(dy) <= SLOP_PX) return
+            // A mouse starts dragging as soon as it moves; a finger that moves early is scrolling.
+            if (!mouse) return stop()
+            begin()
           }
           ev.preventDefault()
           const y = tops[index] + dy
