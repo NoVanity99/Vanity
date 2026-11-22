@@ -15,6 +15,14 @@ export interface CoinBundle {
   tag?: string
 }
 
+/**
+ * What kind of product this is, for sales tax (a Stripe "product tax code"). Stripe needs one on
+ * every product when it handles tax for you (Managed Payments, or Stripe Tax). This is Stripe's
+ * general category for digital services delivered online. The full list is at
+ * https://docs.stripe.com/tax/tax-codes; ask your accountant if another fits better.
+ */
+export const STRIPE_TAX_CODE = 'txcd_10000000'
+
 /** Three-letter currency code, lower case, as Stripe wants it. */
 export const COIN_CURRENCY = 'usd'
 

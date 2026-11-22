@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { body, fail, toMs, type Env } from './app'
-import { COIN_BUNDLES, COIN_CURRENCY, SHOP_ITEMS, VANITY_PLUS } from './coinBundles'
+import { COIN_BUNDLES, COIN_CURRENCY, SHOP_ITEMS, STRIPE_TAX_CODE, VANITY_PLUS } from './coinBundles'
 import { DEFAULT_STYLE, readStyle } from './profileStyle'
 import type { Sql } from './db'
 
@@ -193,7 +193,8 @@ export function coinRoutes({ sql, requireAuth, requireUser, stripe, fetchFn, now
       'line_items[0][quantity]': '1',
       'line_items[0][price_data][currency]': COIN_CURRENCY,
       'line_items[0][price_data][unit_amount]': String(bundle!.priceCents),
-      'line_items[0][price_data][product_data][name]': `${bundle!.coins.toLocaleString('en-US')} Vanity Coins`
+      'line_items[0][price_data][product_data][name]': `${bundle!.coins.toLocaleString('en-US')} Vanity Coins`,
+      'line_items[0][price_data][product_data][tax_code]': STRIPE_TAX_CODE
     })
     let res: Response
     try {
@@ -243,6 +244,7 @@ export function coinRoutes({ sql, requireAuth, requireUser, stripe, fetchFn, now
         'line_items[0][price_data][unit_amount]': String(VANITY_PLUS.priceCents),
         'line_items[0][price_data][recurring][interval]': VANITY_PLUS.interval,
         'line_items[0][price_data][product_data][name]': VANITY_PLUS.name,
+        'line_items[0][price_data][product_data][tax_code]': STRIPE_TAX_CODE,
         // Someone who subscribed before keeps the same Stripe customer (their card and invoices).
         ...(plus.customer ? { customer: plus.customer } : {})
       })
@@ -361,8 +363,10 @@ export function coinRoutes({ sql, requireAuth, requireUser, stripe, fetchFn, now
     if (session.payment_status !== 'paid') return
     const [order] = await sql<Order>`SELECT session_id, user_id, coins, amount_cents, currency, status, refunded_coins FROM vanity.coin_orders WHERE session_id = ${String(session.id)}`
     if (!order) return console.error('[coins] paid checkout with no order here:', session.id)
-    // The amount Stripe took must be what was asked.
-    if (session.amount_total !== order.amount_cents || String(session.currency).toLowerCase() !== order.currency) return console.error('[coins] paid amount differs from the order:', session.id)
+    // The price Stripe charged must be what was asked. Tax, when Stripe adds it, is on top of that
+    // price: amount_subtotal is the price before tax (older messages only carry the total).
+    const price = typeof session.amount_subtotal === 'number' ? session.amount_subtotal : session.amount_total
+    if (price !== order.amount_cents || String(session.currency).toLowerCase() !== order.currency) return console.error('[coins] paid amount differs from the order:', session.id)
     await sql`UPDATE vanity.coin_orders SET status = 'paid', payment_intent = ${typeof session.payment_intent === 'string' ? session.payment_intent : null}, paid_at = COALESCE(paid_at, to_timestamp(${now() / 1000})) WHERE session_id = ${order.session_id} AND status IN ('pending', 'paid')`
     await grant(order.user_id, order.coins, 'purchase', order.session_id, `${order.coins.toLocaleString('en-US')} Vanity Coins`)
   }

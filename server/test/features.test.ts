@@ -110,6 +110,7 @@ describe('Vanity Coins', () => {
     const asked = stripeCalls[0]
     expect(asked.get('line_items[0][price_data][unit_amount]')).toBe(String(B.priceCents))
     expect(asked.get('metadata[user_id]')).toBe(a.id)
+    expect(asked.get('line_items[0][price_data][product_data][tax_code]')).toBe('txcd_10000000')
     expect(asked.get('success_url')).toBe('https://vanity.test/coins/done')
     expect(await balance(a.token)).toBe(0) // opening the payment page gives nothing
 
@@ -120,11 +121,13 @@ describe('Vanity Coins', () => {
     expect((await app.request('/stripe/webhook', { method: 'POST', body: '{}' })).status).toBe(400)
     // Paid, but for less than was asked: nothing.
     await stripeEvent('checkout.session.completed', { id: session, payment_status: 'paid', amount_total: 1, currency: 'usd', payment_intent: 'pi_1' })
+    await stripeEvent('checkout.session.completed', { id: session, payment_status: 'paid', amount_subtotal: 1, amount_total: B.priceCents, currency: 'usd', payment_intent: 'pi_1' })
     // A session this server never made: nothing.
     await stripeEvent('checkout.session.completed', { id: 'cs_made_up', payment_status: 'paid', amount_total: B.priceCents, currency: 'usd', metadata: { user_id: a.id, bundle_id: B.id } })
     expect(await balance(a.token)).toBe(0)
 
-    const paid = { id: session, payment_status: 'paid', amount_total: B.priceCents, currency: 'usd', payment_intent: 'pi_1' }
+    // Stripe added sales tax on top: the price before tax is what must match.
+    const paid = { id: session, payment_status: 'paid', amount_subtotal: B.priceCents, amount_total: B.priceCents + 82, currency: 'usd', payment_intent: 'pi_1' }
     expect((await stripeEvent('checkout.session.completed', paid, { id: 'evt_paid' })).json).toEqual({ received: true })
     expect(await balance(a.token)).toBe(B.coins)
     // The same event again, and the same payment under a new event id: still counted once.
@@ -242,7 +245,7 @@ describe('Vanity Plus', () => {
     const r = await call('POST', '/coins/plus/checkout', a.token)
     expect(r.json.url).toMatch(/^https:\/\/checkout\.stripe\.com\//)
     const asked = stripeCalls.at(-1)!
-    expect(Object.fromEntries(asked)).toMatchObject({ mode: 'subscription', 'line_items[0][price_data][unit_amount]': '500', 'line_items[0][price_data][recurring][interval]': 'month', 'line_items[0][price_data][product_data][name]': 'Vanity Plus', 'subscription_data[metadata][user_id]': a.id, success_url: 'https://vanity.test/coins/done?plus=1' })
+    expect(Object.fromEntries(asked)).toMatchObject({ mode: 'subscription', 'line_items[0][price_data][unit_amount]': '500', 'line_items[0][price_data][recurring][interval]': 'month', 'line_items[0][price_data][product_data][name]': 'Vanity Plus', 'line_items[0][price_data][product_data][tax_code]': 'txcd_10000000', 'subscription_data[metadata][user_id]': a.id, success_url: 'https://vanity.test/coins/done?plus=1' })
     expect(asked.has('payment_method_types')).toBe(false)
     // Opening the page gives nothing; neither does a forged message.
     expect((await plus(a.token)).active).toBe(false)
