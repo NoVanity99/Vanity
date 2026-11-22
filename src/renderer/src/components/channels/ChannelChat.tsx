@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useStickToBottom } from '@/lib/useStickToBottom'
 import { AlertCircle, ArrowUp, CornerUpLeft, Download, FileText, Hash, Loader2, Lock, Megaphone, Pencil, RotateCw, SmilePlus, Trash2, Upload, X } from 'lucide-react'
 import { can, fileSize, INLINE_AUDIO, INLINE_IMAGE, INLINE_VIDEO, LIMITS, type Attachment, type Channel, type ChannelMessage, type CommunityMember, type Role } from '@shared/communities'
 import { gifOf } from '@shared/groups'
@@ -158,6 +159,9 @@ export function ChannelChat({ channel, role, myId, members, filesEnabled, header
     seen.current = new Set()
     firstPaint.current = true
   }, [channel.id])
+
+  // Pictures loading late, or the chat being shown again after being hidden: still on the newest message.
+  useStickToBottom(box, atBottom, channel.id)
 
   useLayoutEffect(() => {
     const el = box.current

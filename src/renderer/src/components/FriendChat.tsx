@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useStickToBottom } from '@/lib/useStickToBottom'
 import { ArrowUp, AudioLines, CheckCheck, Loader2, MessageCircle } from 'lucide-react'
 import type { ChatMessage, Friend } from '@shared/types'
 import { cn } from '@/lib/cn'
@@ -108,6 +109,9 @@ export function FriendChat({
   }, [friend.id, merge]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stay on the newest message when one arrives (unless you scrolled up to read).
+  // Pictures loading late, or the chat being shown again after being hidden: still on the newest message.
+  useStickToBottom(box, atBottom, friend.id)
+
   useLayoutEffect(() => {
     const el = box.current
     if (el && atBottom.current) el.scrollTop = el.scrollHeight

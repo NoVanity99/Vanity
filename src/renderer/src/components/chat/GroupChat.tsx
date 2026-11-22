@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useStickToBottom } from '@/lib/useStickToBottom'
 import { ArrowUp, Loader2, Users } from 'lucide-react'
 import { gifOf, type GroupChat as Group, type GroupMessage } from '@shared/groups'
 import { Avatar } from '@/components/Avatar'
@@ -83,6 +84,9 @@ export function GroupChat({ group, header, className }: { group: Group; header?:
       unwatch()
     }
   }, [group.id, merge])
+
+  // Pictures loading late, or the chat being shown again after being hidden: still on the newest message.
+  useStickToBottom(box, atBottom, group.id)
 
   useLayoutEffect(() => {
     const el = box.current
