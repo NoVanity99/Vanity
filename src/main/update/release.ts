@@ -151,9 +151,11 @@ export class ReleaseUpdater implements Updater {
   }
 }
 
-function quietMessage(err: unknown): string {
+function quietMessage(err: unknown): string | null {
   const msg = err instanceof Error ? err.message : String(err)
   if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|net::|network|offline|socket/i.test(msg)) return "Couldn't reach GitHub to check for updates. Vanity will try again later."
-  if (/404/.test(msg)) return 'No releases found on GitHub yet.'
+  // GitHub has nothing newer to hand over (no release yet, or one that is still being
+  // published): that isn't a fault, it means this copy is the newest there is.
+  if (/404/.test(msg)) return null
   return "Couldn't check for updates right now. Vanity will try again later."
 }

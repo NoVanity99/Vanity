@@ -32,7 +32,7 @@ export function UpdateButton(): React.JSX.Element | null {
     else if (s.mode === 'release' && s.progress != null) toast(`Downloading v${s.latest} in the background (${s.progress}%)…`)
     else if (s.needsToken) toast('Updates need a GitHub token. Add one in Settings → Updates.', 'error')
     else if (s.error) toast(s.error, 'error')
-    else toast(`You're up to date (v${s.current})`)
+    else toast(`You are on the up to date version (v${s.current})`)
   }
 
   const title =

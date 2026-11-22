@@ -60,5 +60,12 @@ describe('ReleaseUpdater', () => {
     const upToDate = fakeUpdater(async (em) => void em.emit('update-not-available', { version: '1.0.0' }))
     const r2 = new ReleaseUpdater({ updater: upToDate, currentVersion: '1.0.0', onUpdate: () => {} })
     expect(await r2.check()).toMatchObject({ available: false, checking: false, error: null, latest: '1.0.0' })
+
+    // GitHub answering "nothing there" (a release still being published) is not shown as a fault.
+    const nothing = fakeUpdater(async () => {
+      throw new Error('Cannot find latest.yml in the latest release artifacts: HttpError: 404')
+    })
+    const r3 = new ReleaseUpdater({ updater: nothing, currentVersion: '1.0.0', onUpdate: () => {} })
+    expect(await r3.check()).toMatchObject({ available: false, checking: false, error: null })
   })
 })

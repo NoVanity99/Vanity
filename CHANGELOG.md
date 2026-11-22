@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.32.2 (2026-11-22)
+- Changed: when you check for updates and there is nothing new, Vanity now says **"You are on the up to date version"** (with your version number) instead of "No releases found on GitHub". The same wording is used in Settings → Updates.
+
 ## 0.32.1 (2026-11-22)
 - New: on your Account page, every premium look you own from the coin shop (bought with coins, or included with Vanity Plus) now has a **golden border** around it, so you can see at a glance what's yours.
 - Changed: **Verified and Staff are now separate.** Verified is only a badge that shows who is verified; it gives no extra access. Staff means admins, and only admins can open Settings → Admin. This is done on Vanity's servers, so it applies to every copy of Vanity already installed, with no update needed.

@@ -148,7 +148,7 @@ function Palette({ onClose }: { onClose: () => void }): React.JSX.Element {
         label: 'Check for updates',
         icon: ArrowDownToLine,
         run: () =>
-          void checkForUpdate().then((s) => toast(s.available ? `v${s.latest} is ready: use the update button at the top right` : s.error ?? `You're up to date (v${s.current})`))
+          void checkForUpdate().then((s) => toast(s.available ? `v${s.latest} is ready: use the update button at the top right` : s.error ?? `You are on the up to date version (v${s.current})`))
       }
     ]
     const rank = (xs: Item[]): Item[] =>

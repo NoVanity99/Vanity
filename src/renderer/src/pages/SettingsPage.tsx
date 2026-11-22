@@ -153,7 +153,7 @@ function UpdatesSection({
                 : update.error
                   ? update.error
                   : update.lastChecked
-                    ? `You're on the latest version (v${update.current}). Checked ${formatAgo(update.lastChecked)}.`
+                    ? `You are on the up to date version (v${update.current}). Checked ${formatAgo(update.lastChecked)}.`
                     : `Vanity v${update.current}`}
         </span>
       </div>
