@@ -10,6 +10,7 @@ import { usernameProblem } from './words'
 import { coinRoutes, type StripeConfig } from './coins'
 import { commentRoutes } from './comments'
 import { adminRoutes } from './admin'
+import { communityRoutes } from './communities'
 import { createSteam, SteamError, type FetchFn } from './steam'
 import { SyncError, syncUser } from './sync'
 import { keyMatches, type UpdateBundle } from './updates'
@@ -972,6 +973,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   app.route('/coins', coins.routes)
   app.route('/stripe', coins.webhook)
   app.route('/', commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, mayModerate: (id, author) => people.rolesOf(id).admin && people.mayActAgainst(id, author), now: clock }))
+  app.route('/communities', communityRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isVanityAdmin: (id) => people.rolesOf(id).admin, messageRateLimit, now: clock }))
   app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin, problems, usernameChangeAt: async (id) => (await usernameChange(id)).usernameChangeAt, giftPlus: coins.giftPlus, plusOf: coins.plusOf }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))

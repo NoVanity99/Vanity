@@ -329,6 +329,106 @@ CREATE TABLE IF NOT EXISTS vanity.shop_owned (
   PRIMARY KEY (user_id, item_id)
 );
 
+-- "Channels": communities (what the app calls a Channel) with channels (rooms) inside them,
+-- grouped in categories. See src/shared/communities.ts for the naming.
+CREATE TABLE IF NOT EXISTS vanity.communities (
+  id           text PRIMARY KEY,
+  name         text NOT NULL,
+  description  text NOT NULL DEFAULT '',
+  icon         text,
+  banner       text NOT NULL DEFAULT 'default',
+  visibility   text NOT NULL DEFAULT 'open' CHECK (visibility IN ('open', 'private', 'hidden')),
+  owner_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS communities_discover ON vanity.communities (visibility, lower(name));
+CREATE TABLE IF NOT EXISTS vanity.community_members (
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  user_id       text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  role          text NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'mod', 'member')),
+  joined_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS community_members_user ON vanity.community_members (user_id);
+CREATE TABLE IF NOT EXISTS vanity.community_categories (
+  id            text PRIMARY KEY,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  name          text NOT NULL,
+  position      integer NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS community_categories_community ON vanity.community_categories (community_id);
+CREATE TABLE IF NOT EXISTS vanity.community_channels (
+  id            text PRIMARY KEY,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  category_id   text REFERENCES vanity.community_categories (id) ON DELETE SET NULL,
+  name          text NOT NULL,
+  position      integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS community_channels_community ON vanity.community_channels (community_id);
+-- changed_at moves whenever a message is posted, edited, deleted or reacted to: apps ask for
+-- "what changed since" to stay current.
+CREATE TABLE IF NOT EXISTS vanity.channel_messages (
+  id            bigserial PRIMARY KEY,
+  channel_id    text NOT NULL REFERENCES vanity.community_channels (id) ON DELETE CASCADE,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  sender_id     text NOT NULL,
+  body          text NOT NULL,
+  reply_to      bigint,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  edited_at     timestamptz,
+  deleted_at    timestamptz,
+  changed_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS channel_messages_channel ON vanity.channel_messages (channel_id, id DESC);
+CREATE INDEX IF NOT EXISTS channel_messages_changed ON vanity.channel_messages (channel_id, changed_at);
+CREATE TABLE IF NOT EXISTS vanity.channel_reactions (
+  message_id  bigint NOT NULL REFERENCES vanity.channel_messages (id) ON DELETE CASCADE,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  emoji       text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (message_id, user_id, emoji)
+);
+-- The newest message each person has read in each channel.
+CREATE TABLE IF NOT EXISTS vanity.channel_reads (
+  channel_id  text NOT NULL REFERENCES vanity.community_channels (id) ON DELETE CASCADE,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  last_read   bigint NOT NULL DEFAULT 0,
+  PRIMARY KEY (channel_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS vanity.community_invites (
+  code          text PRIMARY KEY,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  created_by    text NOT NULL,
+  expires_at    timestamptz,
+  max_uses      integer,
+  uses          integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS community_invites_community ON vanity.community_invites (community_id);
+CREATE TABLE IF NOT EXISTS vanity.community_requests (
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  user_id       text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  message       text NOT NULL DEFAULT '',
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS vanity.community_bans (
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  user_id       text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  banned_by     text NOT NULL,
+  reason        text NOT NULL DEFAULT '',
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+-- Where each account last was, so Vanity reopens there on any PC.
+CREATE TABLE IF NOT EXISTS vanity.community_last_place (
+  user_id       text PRIMARY KEY REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  community_id  text,
+  channel_id    text,
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
 -- Vanity Plus: one row per account that ever subscribed (or was given Plus by an admin).
 -- status is Stripe's own word for the subscription; event_at is the time of the newest Stripe
 -- message applied, so an older one arriving late can't undo a newer one.
