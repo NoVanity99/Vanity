@@ -128,7 +128,8 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
       WHERE (${ids}::text[] IS NULL OR p.id = ANY(${ids}::text[]))
         AND (${filter} <> 'banned' OR m.banned)
         AND (${filter} <> 'timedout' OR m.timeout_until > now())
-        AND (${filter} <> 'staff' OR ro.admin OR ro.verified)
+        AND (${filter} <> 'staff' OR ro.admin)
+        AND (${filter} <> 'verified' OR ro.verified)
         AND (${filter} <> 'online' OR (NOT pr.signed_off AND pr.updated_at > now() - interval '3 minutes'))
       ORDER BY p.created_at DESC, p.id LIMIT ${PAGE} OFFSET ${page * PAGE}`
     const mail = await emails(rows.map((r) => r.id))

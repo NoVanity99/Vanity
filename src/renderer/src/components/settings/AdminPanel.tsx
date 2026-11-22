@@ -366,7 +366,7 @@ function UserDialog({ id, myName, onClose, onChanged }: { id: string; myName: st
   )
 }
 
-const FILTERS = [['', 'Everyone'], ['online', 'Online'], ['staff', 'Staff'], ['banned', 'Banned'], ['timedout', 'Timed out']] as const
+const FILTERS = [['', 'Everyone'], ['online', 'Online'], ['staff', 'Staff (admins)'], ['verified', 'Verified'], ['banned', 'Banned'], ['timedout', 'Timed out']] as const
 
 interface AdminChannel {
   id: string

@@ -555,6 +555,17 @@ describe('admin tools', () => {
     expect(await balance(a.token)).toBe(0)
   })
 
+  it('verified is only a badge: staff means admins, and only admins reach the admin tools', async () => {
+    const boss = await admin()
+    // Verified is only a badge: a verified account is not staff, and gets no admin access.
+    const star = await register('JustVerified')
+    expect((await call('POST', `/admin/users/${star.id}/roles`, boss.token, { verified: true })).status).toBeLessThan(300)
+    expect((await call('GET', '/admin/users?filter=staff', boss.token)).json.users.map((u: { username: string }) => u.username)).toEqual(['TestBoss'])
+    expect((await call('GET', '/admin/users?filter=verified', boss.token)).json.users.map((u: { username: string }) => u.username)).toContain('JustVerified')
+    expect((await call('GET', '/pulse', star.token)).json).toMatchObject({ verified: true, admin: false })
+    for (const path of ['/admin/users', '/admin/overview', '/admin/log', '/admin/communities', '/admin/reports']) expect((await call('GET', path, star.token)).status).toBe(403)
+  })
+
   it('lists and searches every account, and shows one in full', async () => {
     const boss = await admin()
     const a = await register('alice')

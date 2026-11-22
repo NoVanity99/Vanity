@@ -3,6 +3,10 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.32.1 (2026-11-22)
+- Changed: **Verified and Staff are now separate.** Verified is only a badge that shows who is verified; it gives no extra access. Staff means admins, and only admins can open Settings → Admin. This is done on Vanity's servers, so it applies to every copy of Vanity already installed, with no update needed.
+- Changed for admins: the account list's **Staff** filter now shows admins only, and there is a new **Verified** filter (the new filter's button arrives with this version).
+
 ## 0.32.0 (2026-11-22)
 - New in Channels: **pictures and files.** Attach with the paperclip, drag a file onto the chat, or paste a screenshot. Up to 10 per message, 25 MB each, with a progress bar while they go up. Pictures, videos and sound show right in the chat (click a picture to see it big); anything else is a card you open in your browser to save. Deleting a message deletes its files. (This switches on once Vanity's file storage key is set; until then the paperclip is hidden.)
 - New in Channels: **@mentions.** Type @ and a name to pick someone from the list. Messages that mention you are highlighted, and the channel and the Channel's icon show a yellow @ count.
