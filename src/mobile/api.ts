@@ -438,6 +438,7 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
     },
     account: {
       state: async () => account.state(),
+      fileBases: async () => ({ show: backendConfig().apiUrl, open: backendConfig().apiUrl }),
       onChange: (cb) => accountChanged.on(cb),
       signUp: (email, u, p, remember) => wrap(() => account.signUp(text(email, 320), text(u), text(p), remember !== false)),
       signIn: (email, p, remember) => wrap(() => account.signIn(text(email, 320), text(p), remember !== false)),

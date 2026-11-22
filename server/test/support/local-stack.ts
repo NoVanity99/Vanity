@@ -6,6 +6,7 @@
 //
 // Password-reset codes are printed here instead of being emailed. Nothing is kept after it stops.
 import { serve } from '@hono/node-server'
+import { workerFileStore } from './file-store'
 import { PGlite } from '@electric-sql/pglite'
 import { betterAuth } from 'better-auth'
 import { memoryAdapter } from 'better-auth/adapters/memory'
@@ -68,6 +69,8 @@ const api = createApp({
   steamApiKey: process.env.NO_STEAM ? '' : KEY,
   // GIF search answers like KLIPY does (KLIPY_FAKE=1), since tests can't reach it.
   klipyKey: process.env.KLIPY_FAKE ? 'local-test-key' : '',
+  // Pictures and files: the real storage Worker, on a pretend bucket in memory.
+  fileStore: process.env.NO_FILES ? null : workerFileStore().store,
   fetchFn: async (url: string, init?: RequestInit) => {
     if (url === 'https://api.stripe.com/v1/billing_portal/sessions') return new Response(JSON.stringify({ id: 'bps_local', url: 'https://billing.stripe.com/p/session/local' }), { status: 200 })
     if (url.startsWith('https://api.stripe.com/v1/checkout/sessions')) {

@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { setupOverlay } from './overlay/setup'
 import type { GameOverlay } from './overlay/manager'
-import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeTheme, net, Notification, protocol, shell, Tray } from 'electron'
+import { app, ipcMain, BrowserWindow, dialog, globalShortcut, Menu, nativeTheme, net, Notification, protocol, shell, Tray } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { openDatabase, type Db } from './db/database'
 import { registerIpc } from './ipc'
@@ -125,6 +125,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vanity-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   // Music for the mini player: vanity-music://track/<index> (streams with Range support) and vanity-music://art/<index>.
   { scheme: 'vanity-music', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  // Pictures and files sent in Channels: vanity-file://f/files/<id>/<token>/<name>, fetched from Vanity's server.
+  { scheme: 'vanity-file', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
   // Web games added with "Add a game": vanity-game://game-<id>/… serves the game's folder (see launcher/gameWindows.ts).
   { scheme: GAME_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
@@ -340,6 +342,20 @@ app.whenReady().then(() => {
     headers.set('Access-Control-Allow-Origin', '*')
     return new Response(res.body, { status: res.status, headers })
   })
+
+  // Pictures and files in Channels come from Vanity's server and nowhere else: only addresses
+  // shaped like a file's are passed on.
+  protocol.handle('vanity-file', async (request) => {
+    const url = new URL(request.url)
+    const api = backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }).apiUrl
+    if (!api || url.hostname !== 'f' || !/^\/files\/[\w-]{8,60}\/[\w-]{8,80}(\/[^/]{0,400})?$/.test(url.pathname)) return new Response('Not found', { status: 404 })
+    try {
+      return await net.fetch(api + url.pathname)
+    } catch {
+      return new Response('Offline', { status: 503 })
+    }
+  })
+  ipcMain.handle(IPC.accountFileBases, () => ({ show: 'vanity-file://f', open: backendConfig({ authUrl: import.meta.env.MAIN_VITE_NEON_AUTH_URL, apiUrl: import.meta.env.MAIN_VITE_VANITY_BACKEND_URL }).apiUrl }))
 
   metadata = new MetadataService({
     store,

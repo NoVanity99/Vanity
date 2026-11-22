@@ -368,9 +368,24 @@ function UserDialog({ id, myName, onClose, onChanged }: { id: string; myName: st
 
 const FILTERS = [['', 'Everyone'], ['online', 'Online'], ['staff', 'Staff'], ['banned', 'Banned'], ['timedout', 'Timed out']] as const
 
+interface AdminChannel {
+  id: string
+  name: string
+  description: string
+  visibility: 'open' | 'private' | 'hidden'
+  createdAt: number | null
+  owner: string
+  members: number
+  messages: number
+  files: number
+}
+
 export function AdminPanel(): React.JSX.Element {
   const toast = useToast()
-  const [view, setView] = useState<'users' | 'reports' | 'log'>('users')
+  const [view, setView] = useState<'users' | 'reports' | 'channels' | 'log'>('users')
+  const [channels, setChannels] = useState<AdminChannel[] | null>(null)
+  const [channelQ, setChannelQ] = useState('')
+  const [removing, setRemoving] = useState<AdminChannel | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState('')
@@ -411,6 +426,21 @@ export function AdminPanel(): React.JSX.Element {
     if (view === 'reports') void get<{ reports: Report[] }>('/admin/reports').then((r) => setReports(r.reports), (e: Error) => setError(e.message))
     if (view === 'log') void get<{ log: LogRow[] }>('/admin/log').then((r) => setLog(r.log), (e: Error) => setError(e.message))
   }, [view, tick])
+  useEffect(() => {
+    if (view !== 'channels') return
+    const wait = setTimeout(() => void get<{ communities: AdminChannel[] }>(`/admin/communities${channelQ.trim() ? `?q=${encodeURIComponent(channelQ.trim().replace(/[!'()*]/g, ' '))}` : ''}`).then((r) => setChannels(r.communities), (e: Error) => setError(e.message)), 250)
+    return () => clearTimeout(wait)
+  }, [view, channelQ, tick])
+  const removeChannel = async (ch: AdminChannel): Promise<void> => {
+    setRemoving(null)
+    try {
+      await call('DELETE', `/admin/communities/${ch.id}`)
+      toast(`${ch.name} was deleted`)
+      refresh()
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'That did not work.', 'error')
+    }
+  }
 
   const settle = async (r: Report, remove: boolean): Promise<void> => {
     try {
@@ -471,6 +501,7 @@ export function AdminPanel(): React.JSX.Element {
           <button className={tabClass(view === 'reports')} onClick={() => setView('reports')} data-admin-view-reports>
             Reported comments{overview?.reports ? <span className="ml-1.5 rounded-full bg-amber-400 px-1.5 text-[10px] font-black text-black">{overview.reports}</span> : null}
           </button>
+          <button className={tabClass(view === 'channels')} onClick={() => setView('channels')} data-admin-view-channels>Channels</button>
           <button className={tabClass(view === 'log')} onClick={() => setView('log')} data-admin-view-log>Admin log</button>
           <button onClick={refresh} title="Refresh" className="ml-auto rounded-lg p-2 text-muted transition hover:bg-white/5 hover:text-text"><RefreshCw className={cn('size-4', loading && 'animate-spin')} /></button>
         </div>
@@ -553,6 +584,42 @@ export function AdminPanel(): React.JSX.Element {
               ))}
             </ul>
           )
+        )}
+
+        {view === 'channels' && (
+          <>
+            <div className="relative mb-3">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <input className={cn(field, 'w-full pl-9')} placeholder="Search Channels by name, description or owner" aria-label="Search Channels" value={channelQ} onChange={(e) => setChannelQ(e.target.value.slice(0, 60))} spellCheck={false} data-admin-channel-search />
+            </div>
+            <p className="mb-3 text-xs text-muted">Every Channel on Vanity, Hidden ones included. This is the only place Hidden Channels are listed.</p>
+            {!channels ? <div className="flex h-24 items-center justify-center text-muted"><Loader2 className="size-5 animate-spin" /></div>
+            : channels.length === 0 ? <p className="py-8 text-center text-sm text-muted">No Channels{channelQ.trim() ? ' match that' : ' yet'}.</p>
+            : (
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border text-sm" data-admin-channels>
+                {channels.map((ch) => (
+                  <li key={ch.id} className="flex items-center gap-3 px-3 py-2.5" data-admin-channel={ch.name}>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2 font-semibold">
+                        <span className="truncate">{ch.name}</span>
+                        <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', ch.visibility === 'hidden' ? 'bg-amber-400/20 text-amber-300' : ch.visibility === 'private' ? 'bg-sky-400/20 text-sky-300' : 'bg-emerald-400/15 text-emerald-300')}>{ch.visibility}</span>
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        Owner: {ch.owner} · {ch.members.toLocaleString()} member{ch.members === 1 ? '' : 's'} · {ch.messages.toLocaleString()} message{ch.messages === 1 ? '' : 's'} · {ch.files.toLocaleString()} file{ch.files === 1 ? '' : 's'}{ch.createdAt ? ` · made ${new Date(ch.createdAt).toLocaleDateString()}` : ''}
+                      </span>
+                      {ch.description && <span className="block truncate text-xs text-muted/80">{ch.description}</span>}
+                    </span>
+                    <button onClick={() => setRemoving(ch)} className="rounded-lg border border-accent/40 px-2.5 py-1.5 text-xs font-bold text-accent transition hover:bg-accent/15" data-admin-delete-channel>Delete</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {removing && (
+              <Dialog title={`Delete ${removing.name}?`} description={`Its channels, messages, files and ${removing.members} member${removing.members === 1 ? '' : 's'} are removed for everyone, for good. This is written to the admin log.`} onClose={() => setRemoving(null)} footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>Cancel</Button><Button variant="primary" onClick={() => void removeChannel(removing)} data-admin-delete-channel-confirm>Delete for good</Button></>}>
+                <div className="p-2" />
+              </Dialog>
+            )}
+          </>
         )}
 
         {view === 'log' && (

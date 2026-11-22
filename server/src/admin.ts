@@ -27,6 +27,8 @@ interface AdminDeps {
   /** Gives Vanity Plus for a number of days without payment (0 takes the gift away). */
   giftPlus(userId: string, days: number): Promise<void>
   plusOf(userId: string): Promise<{ active: boolean; subscribed: boolean; status: string; renewsAt: number | null; giftedUntil: number | null }>
+  /** Deletes a community ("Channel") with everything in it. */
+  removeCommunity(communityId: string): Promise<void>
 }
 
 /** Accounts made from the Admin tab to try things on. Nobody can sign in to one. */
@@ -40,7 +42,7 @@ const MAX_COINS = 1_000_000
 
 type UserRow = { id: string; username: string; avatar: string | null; style: unknown; created_at: unknown; last_seen: unknown; online: boolean; game_name: string | null; balance: number | null; level: number | null }
 
-export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin, problems, usernameChangeAt, giftPlus, plusOf }: AdminDeps): Hono<Env> {
+export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant, now, logAdmin, problems, usernameChangeAt, giftPlus, plusOf, removeCommunity }: AdminDeps): Hono<Env> {
   const app = new Hono<Env>()
   app.use('*', requireAuth, requireUser, requireAdmin)
 
@@ -308,6 +310,37 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
     await sql`DELETE FROM vanity.profiles WHERE id = ${t.id}`
     await logAdmin(me, 'delete account', t.id, t.username)
     await after()
+    return c.body(null, 204)
+  })
+
+  // ---- Channels (communities) ----
+  // Every one of them, Hidden ones included: this is the only place those are ever listed.
+
+  app.get('/communities', async (c) => {
+    const q = (c.req.query('q') ?? '').trim().toLowerCase().slice(0, 60)
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`
+    const page = Math.max(0, Math.min(10_000, Math.trunc(Number(c.req.query('page')) || 0)))
+    const rows = await sql<{ id: string; name: string; description: string; visibility: string; created_at: unknown; owner_id: string; owner: string | null; members: number; messages: number; files: number }>`
+      SELECT co.id, co.name, co.description, co.visibility, co.created_at, co.owner_id, p.username AS owner,
+        (SELECT COUNT(*) FROM vanity.community_members m WHERE m.community_id = co.id)::int AS members,
+        (SELECT COUNT(*) FROM vanity.channel_messages m WHERE m.community_id = co.id)::int AS messages,
+        (SELECT COUNT(*) FROM vanity.channel_files f WHERE f.community_id = co.id)::int AS files
+      FROM vanity.communities co LEFT JOIN vanity.profiles p ON p.id = co.owner_id
+      WHERE ${q} = '' OR lower(co.name) LIKE ${like} OR lower(co.description) LIKE ${like} OR lower(p.username) LIKE ${like}
+      ORDER BY co.created_at DESC LIMIT 51 OFFSET ${page * 50}`
+    return c.json({
+      communities: rows.slice(0, 50).map((r) => ({ id: r.id, name: r.name, description: r.description, visibility: r.visibility, createdAt: toMs(r.created_at), ownerId: r.owner_id, owner: r.owner ?? 'deleted account', members: r.members, messages: r.messages, files: r.files })),
+      hasMore: rows.length > 50
+    })
+  })
+  /** Removes a community for everyone. An admin can't remove one owned by another admin. */
+  app.delete('/communities/:id', async (c) => {
+    const me = c.get('userId')
+    const [co] = await sql<{ id: string; name: string; owner_id: string }>`SELECT id, name, owner_id FROM vanity.communities WHERE id = ${c.req.param('id')}`
+    if (!co) fail(404, 'That Channel is already gone.')
+    if (co.owner_id !== me) guard(me, co.owner_id)
+    await removeCommunity(co.id)
+    await logAdmin(me, 'delete channel', co.owner_id, co.name)
     return c.body(null, 204)
   })
 

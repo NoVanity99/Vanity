@@ -71,6 +71,29 @@ How the money side is kept safe:
 - Every change is a row in `vanity.coin_ledger` (purchase, spend, refund, chargeback, reversal, admin) that is never edited. `(kind, ref)` is unique, so a repeated Stripe message or a double click can't count twice. The balance is the running total of those rows.
 - A refund takes the same share of the coins back; a chargeback takes back what is left of that purchase (a balance can go below zero if the coins were already spent); a dispute won gives them back.
 
+### Channels: where pictures and files are kept
+
+Pictures and files sent in Channels are stored in a Cloudflare R2 bucket, behind a small Cloudflare
+Worker (`files-worker/worker.js`). Apps never talk to Cloudflare: they send a file to this server a
+part at a time, and download it from this server, which passes the bytes along. The Worker's
+address is a secret and is in neither the app nor this repository.
+
+1. Create a Cloudflare API token with **Workers Scripts: Edit** and **Workers R2 Storage: Edit**
+   (R2 must be switched on for the account once, in the Cloudflare dashboard).
+2. Run `CLOUDFLARE_API_TOKEN=... node scripts/deploy-files-worker.mjs files-url.txt` in `server/`.
+   It makes the `vanity-files` bucket, uploads the Worker and writes its address to `files-url.txt`.
+   That address ends in a long random key: treat the whole line as a password and delete the file
+   afterwards.
+3. Add that line as the GitHub repository secret **`FILES_URL`** and run **Deploy backend**. Its
+   check uploads a file, downloads it again and compares the two.
+
+Without `FILES_URL` Channels work as normal and the attach button is hidden. Limits: 25 MB per
+file, 10 files per message. A file's address contains a long random token and is only ever given
+out inside the messages of its channel, so only people who can read that channel get it (as with
+any link, someone who has it could pass it on). Pictures, MP4/WebM video and MP3/OGG/WAV sound are
+shown in the chat; every other type is sent as a download and never opened as a page. Deleting a
+message, a channel, a Channel or an account removes its files from the bucket.
+
 ### Admins
 
 `server/src/roles.ts` is only the starting list: each name on it is turned into a badge on the account that holds the name, once, and from then on the badge belongs to that account whatever it is renamed to. After that, badges are given and taken in the app (Settings → Admin), and removing a name from the file changes nothing. Everything an admin does is checked on the server and written to `vanity.admin_log`.

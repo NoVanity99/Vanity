@@ -3,6 +3,18 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.32.0 (2026-11-22)
+- New in Channels: **pictures and files.** Attach with the paperclip, drag a file onto the chat, or paste a screenshot. Up to 10 per message, 25 MB each, with a progress bar while they go up. Pictures, videos and sound show right in the chat (click a picture to see it big); anything else is a card you open in your browser to save. Deleting a message deletes its files. (This switches on once Vanity's file storage key is set; until then the paperclip is hidden.)
+- New in Channels: **@mentions.** Type @ and a name to pick someone from the list. Messages that mention you are highlighted, and the channel and the Channel's icon show a yellow @ count.
+- New in Channels: **"is typing…"** under the chat when someone is writing.
+- New in Channels: **sending while offline.** A message shows at once as "Sending…" and goes out by itself when your connection is back, even if you restart Vanity in between. If the server says no, you get **Try again** and **Delete**.
+- New in Channels: **custom roles with colours.** The owner makes roles like "VIP" (Channel settings → Roles), and gives them out in Members. A role colours the person's name in chat.
+- New in Channels: **private and read-only channels.** In Channel settings → Channels, the lock button sets who a channel is for: everyone, read-only (only chosen roles can write, good for announcements), or private (only chosen roles can see it at all). Owners, Admins and Moderators are always let in.
+- New in Channels: **invite a friend directly** (Channel settings → Invites). They get an invitation at the top of their Channels tab and can join even a Private or Hidden Channel.
+- New in Channels: **drag and drop** channels and categories into a new order in the sidebar (Windows; on Android use the arrows in settings).
+- New for admins: Settings → Admin → **Channels** lists every Channel, Hidden ones included, and can delete one.
+- Fixed: the member list now updates straight away when someone joins.
+
 ## 0.31.0 (2026-11-22)
 - New: **the Channels tab.** A Channel is a place for a group to hang out, with its own channels to talk in, sorted into categories you can fold shut. Your Channels sit as a strip of icons down the left, with a dot and a count when there is something new. On Windows and Android.
 - New: **Create Channel**, in three short steps: pick a starting point (Gaming Group, Friends, Community or Start from Scratch), give it a name, picture and banner, and choose who can find it. A preview shows how it will look before you create it.

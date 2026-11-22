@@ -120,7 +120,7 @@ export function CreateCommunity({ onClose, onCreated }: { onClose: () => void; o
 
           {step === 3 && (
             <div className="grid grid-cols-[15rem_1fr] gap-5 max-md:grid-cols-1" data-create-preview>
-              <CommunityCardView c={{ id: 'preview', name: clean || 'Your Channel', description: tidyName(description, LIMITS.description), icon, banner, visibility, members: 1, online: 1, role: 'owner', requested: false, unread: 0 }} />
+              <CommunityCardView c={{ id: 'preview', name: clean || 'Your Channel', description: tidyName(description, LIMITS.description), icon, banner, visibility, members: 1, online: 1, role: 'owner', requested: false, unread: 0, mentions: 0 }} />
               <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted">It starts with these channels</p>
                 <div className="mt-3 space-y-3">

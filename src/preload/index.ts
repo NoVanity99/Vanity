@@ -231,6 +231,7 @@ const api: VanityApi = {
     setProfile: (patch) => ipcRenderer.invoke(IPC.accountSetProfile, patch),
     refresh: () => ipcRenderer.invoke(IPC.accountRefresh),
     request: (method, path, body) => ipcRenderer.invoke(IPC.accountRequest, method, path, body),
+    fileBases: () => ipcRenderer.invoke(IPC.accountFileBases),
     sendResetCode: (email) => ipcRenderer.invoke(IPC.accountSendResetCode, email),
     resetPassword: (email, code, password) => ipcRenderer.invoke(IPC.accountResetPassword, email, code, password),
     deleteAccount: () => ipcRenderer.invoke(IPC.accountDelete)

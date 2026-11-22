@@ -55,8 +55,48 @@ export const LIMITS = {
   members: 5000,
   invites: 50,
   /** Different emoji on one message. */
-  reactions: 20
+  reactions: 20,
+  /** Custom roles in one community. */
+  customRoles: 25,
+  roleName: 30,
+  /** Pictures and files on one message, and how big each may be. */
+  attachments: 10,
+  fileBytes: 25 * 1024 * 1024,
+  fileName: 120
 } as const
+
+/** Who a channel is for. 'view': only chosen roles see it. 'post': everyone reads, only chosen roles write. */
+export type Restriction = 'none' | 'view' | 'post'
+
+/** A role an owner made up: a name and a colour, and a way into restricted channels. */
+export interface CustomRole {
+  id: string
+  name: string
+  /** A colour as #rrggbb. */
+  color: string
+  position: number
+}
+/** The colours offered for a custom role. */
+export const ROLE_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899', '#94a3b8'] as const
+
+/** The names written after an @ in a message (letters, numbers and underscores, as usernames are). */
+export function mentionedNames(text: string): string[] {
+  const found = new Set<string>()
+  for (const m of text.matchAll(/(^|[^A-Za-z0-9_@])@([A-Za-z0-9_]{3,20})(?![A-Za-z0-9_])/g)) found.add(m[2].toLowerCase())
+  return [...found].slice(0, 20)
+}
+
+/** Types shown right in the chat. Everything else is a file to download. */
+export const INLINE_IMAGE = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
+export const INLINE_VIDEO = ['video/mp4', 'video/webm'] as const
+export const INLINE_AUDIO = ['audio/mpeg', 'audio/ogg', 'audio/wav'] as const
+
+/** A file size in words: "3.2 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
 
 /**
  * A name as typed, tidied: spaces at the ends removed and runs of spaces made one. Capitals,
@@ -112,6 +152,8 @@ export interface CommunityCard {
   requested: boolean
   /** Messages you haven't read, across its channels (0 when you're not in it). */
   unread: number
+  /** How many of those mention you. */
+  mentions: number
 }
 
 export interface Channel {
@@ -120,6 +162,13 @@ export interface Channel {
   categoryId: string | null
   position: number
   unread: number
+  /** Unread messages that mention you. */
+  mentions: number
+  restricted: Restriction
+  /** The custom roles a restricted channel is for (staff are always let in). */
+  roleIds: string[]
+  /** You may write here. */
+  canPost: boolean
 }
 export interface Category {
   id: string
@@ -135,6 +184,11 @@ export interface CommunityDetail extends CommunityCard {
   /** People waiting to be let in (shown to those who may approve them). */
   pendingRequests: number
   createdAt: number | null
+  roles: CustomRole[]
+  /** The custom roles you hold. */
+  myRoleIds: string[]
+  /** Pictures and files can be sent (the server has somewhere to keep them). */
+  filesEnabled: boolean
 }
 
 export interface CommunityMember {
@@ -142,6 +196,17 @@ export interface CommunityMember {
   role: Role
   online: boolean
   joinedAt: number | null
+  roleIds: string[]
+}
+
+/** A picture or file on a message. */
+export interface Attachment {
+  id: string
+  name: string
+  size: number
+  type: string
+  /** Where to get it, from the server's address onwards ("/files/…"). */
+  path: string
 }
 
 export interface Reaction {
@@ -163,6 +228,15 @@ export interface ChannelMessage {
   /** The message this one answers (a short quote of it), if any. */
   replyTo: { id: number; sender: string; text: string } | null
   reactions: Reaction[]
+  attachments: Attachment[]
+  /** The colour of the sender's top custom role, if they have one. */
+  color: string | null
+  /** This message mentions you. */
+  mentionsMe: boolean
+  /** The people it mentions, as they're named now: [id, username]. */
+  mentions: [string, string][]
+  /** The sender's own tag for it, so a message sent twice (after a lost answer) is kept once. */
+  nonce: string | null
 }
 
 export interface MessagePage {
@@ -170,6 +244,15 @@ export interface MessagePage {
   hasMore: boolean
   /** Pass back as `since` to get what changed after this (new, edited, deleted, reacted). */
   now: number
+  /** People writing in this channel right now. */
+  typing: string[]
+}
+
+/** Someone invited you to a community directly. */
+export interface DirectInvite {
+  community: CommunityCard
+  by: string
+  at: number | null
 }
 
 export interface Invite {

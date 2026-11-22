@@ -146,6 +146,51 @@ try {
   const listed = await settled(() => api('GET', '/games/g:vanity-deploy-check/comments', jwt))
   step('a game comment can be posted and read', posted.status === 201 && listed.json?.comments?.some((c) => c.id === posted.json?.comment?.id), `HTTP ${posted.status} ${posted.text.slice(0, 160)}`)
   if (posted.json?.comment?.id) step('and deleted again', (await settled(() => api('DELETE', `/comments/${posted.json.comment.id}`, jwt))).status === 204)
+  // Channels: a Hidden one never shows in Discover, and (when file storage is set up) a file goes
+  // up in parts and comes back the same.
+  const made = await settled(() => api('POST', '/communities', jwt, { name: `Deploy check ${tag}`, visibility: 'hidden', template: 'scratch' }))
+  const community = made.json?.community
+  step('a Channel can be created', made.status === 201 && community?.channels?.length === 1, `HTTP ${made.status} ${made.text.slice(0, 160)}`)
+  if (community) {
+    const found = await api('GET', `/communities/discover?q=${encodeURIComponent(`Deploy check ${tag}`)}`, jwt)
+    step('a Hidden Channel is not in Discover or search', found.status === 200 && found.json?.communities?.length === 0, `HTTP ${found.status} ${found.text.slice(0, 120)}`)
+    const channelId = community.channels[0].id
+    // The newest copy of the server says whether it has somewhere to keep files.
+    let detail = await api('GET', `/communities/${community.id}`, jwt)
+    for (let i = 0; i < 12 && detail.json?.community?.filesEnabled === undefined; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      detail = await api('GET', `/communities/${community.id}`, jwt)
+    }
+    // (An older copy still answering for a few seconds keeps both: try again with a new tag.)
+    let said, saidAgain
+    for (let i = 0; i < 12; i++) {
+      said = await api('POST', `/communities/channels/${channelId}/messages`, jwt, { text: 'Deploy check', nonce: `smoke-${tag}-${i}` })
+      saidAgain = await api('POST', `/communities/channels/${channelId}/messages`, jwt, { text: 'Deploy check', nonce: `smoke-${tag}-${i}` })
+      if (said.status === 201 && saidAgain.json?.message?.id === said.json?.message?.id) break
+      await new Promise((r) => setTimeout(r, 5000))
+    }
+    step('a message can be sent, and sending it twice keeps it once', said.status === 201 && saidAgain.json?.message?.id === said.json?.message?.id, `HTTP ${said.status} / ${saidAgain.status}`)
+    if (detail.json?.community?.filesEnabled) {
+      const bytes = Buffer.alloc(1024 * 1024 + 4321)
+      for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 31 + 7) % 251
+      const start = await settled(() => api('POST', `/communities/channels/${channelId}/uploads`, jwt, { name: 'deploy-check.png', type: 'image/png', size: bytes.length }))
+      let last = start
+      for (let n = 0; n < (start.json?.parts ?? 0); n++) last = await settled(() => api('PUT', `/communities/uploads/${start.json.id}/parts/${n}`, jwt, { data: bytes.subarray(n * start.json.partSize, (n + 1) * start.json.partSize).toString('base64') }))
+      const sent = await api('POST', `/communities/channels/${channelId}/messages`, jwt, { text: '', attachments: [start.json?.id] })
+      const path = sent.json?.message?.attachments?.[0]?.path
+      const back = path ? await fetch(API + path) : null
+      const same = back?.ok ? Buffer.compare(Buffer.from(await back.arrayBuffer()), bytes) === 0 : false
+      step('a file goes up in parts and comes back identical (file storage works)', start.status === 201 && last.json?.ready === true && same, `start HTTP ${start.status} ${start.text.slice(0, 120)}, last part HTTP ${last.status}, download HTTP ${back?.status ?? 'none'}`)
+      const guessed = path ? await fetch(API + path.replace(/\/[^/]+\/[^/]+$/, '/guessedtoken/x.png')) : null
+      step('a guessed file address gets nothing', guessed?.status === 404, `HTTP ${guessed?.status}`)
+      const removed = await api('DELETE', `/communities/${community.id}`, jwt)
+      const after = path ? await fetch(API + path) : null
+      step('deleting the Channel removes its files', removed.status === 204 && after?.status === 404, `HTTP ${removed.status} / ${after?.status}`)
+    } else {
+      console.log('note  pictures and files in Channels are off: add the FILES_URL repository secret and deploy again (see server/README.md)')
+      step('the Channel can be deleted again', (await api('DELETE', `/communities/${community.id}`, jwt)).status === 204)
+    }
+  }
   // Right after a deploy, some requests still reach the previous copy of the server for a few
   // seconds. It doesn't know this route yet (404): give the new copy a moment before judging.
   let profile = await api('PUT', '/me/profile', jwt, { bio: 'Deploy check' })

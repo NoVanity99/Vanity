@@ -11,6 +11,7 @@ import { coinRoutes, type StripeConfig } from './coins'
 import { commentRoutes } from './comments'
 import { adminRoutes } from './admin'
 import { communityRoutes } from './communities'
+import { createFileStore, type FileStore } from './files'
 import { createSteam, SteamError, type FetchFn } from './steam'
 import { SyncError, syncUser } from './sync'
 import { keyMatches, type UpdateBundle } from './updates'
@@ -57,6 +58,10 @@ export interface AppOptions {
   signInRateLimit?: number
   /** Stripe, for buying Vanity Coins. Without keys the store says purchases aren't set up. */
   stripe?: StripeConfig
+  /** The secret address of the file store (server/files-worker), for pictures and files in Channels. */
+  filesUrl?: string
+  /** A file store to use instead of the one at filesUrl (tests). */
+  fileStore?: FileStore | null
   /** How long between username changes (ms). */
   usernameCooldownMs?: number
 }
@@ -176,7 +181,7 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10, stripe, usernameCooldownMs = USERNAME_COOLDOWN_MS }: AppOptions): Hono<Env> {
+export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10, stripe, usernameCooldownMs = USERNAME_COOLDOWN_MS, filesUrl, fileStore }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const clock = now ?? Date.now
   const people = createPeople(sql, clock)
@@ -973,8 +978,10 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   app.route('/coins', coins.routes)
   app.route('/stripe', coins.webhook)
   app.route('/', commentRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, mayModerate: (id, author) => people.rolesOf(id).admin && people.mayActAgainst(id, author), now: clock }))
-  app.route('/communities', communityRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isVanityAdmin: (id) => people.rolesOf(id).admin, messageRateLimit, now: clock }))
-  app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin, problems, usernameChangeAt: async (id) => (await usernameChange(id)).usernameChangeAt, giftPlus: coins.giftPlus, plusOf: coins.plusOf }))
+  const communities = communityRoutes({ sql, requireAuth, requireUser, publicUser, canSpeak, isVanityAdmin: (id) => people.rolesOf(id).admin, messageRateLimit, now: clock, files: fileStore === undefined ? createFileStore(filesUrl) : fileStore, areFriends })
+  app.route('/communities', communities.routes)
+  app.route('/files', communities.files)
+  app.route('/admin', adminRoutes({ sql, requireAuth, requireUser, requireAdmin, people, publicUser, emailOf, grant: coins.grant, now: clock, logAdmin, problems, usernameChangeAt: async (id) => (await usernameChange(id)).usernameChangeAt, giftPlus: coins.giftPlus, plusOf: coins.plusOf, removeCommunity: communities.removeCommunity }))
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404))
   app.onError((err, c) => {

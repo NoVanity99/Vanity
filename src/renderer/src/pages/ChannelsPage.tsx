@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, Compass, Hash, KeyRound, Loader2, Plus, Search, Settings, UserPlus, Users, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Compass, GripVertical, Hash, KeyRound, Loader2, Lock, Mail, Megaphone, Plus, Search, Settings, UserPlus, Users, X } from 'lucide-react'
 import { can, ROLES, type Category, type Channel, type CommunityCard, type CommunityDetail, type CommunityMember } from '@shared/communities'
 import type { ProfileStyle } from '@shared/profileStyle'
 import { Avatar } from '@/components/Avatar'
@@ -13,7 +13,7 @@ import { CardSkeleton, CommunityCardView, CommunityIcon, VISIBILITY_ICON } from 
 import { cn } from '@/lib/cn'
 import { useIsPhone } from '@/lib/platform'
 import { useAccount } from '@/state/account'
-import { api, lastPlace, refreshCommunities, rememberPlace, useCommunity, useMembers, useMyCommunities } from '@/state/communities'
+import { api, lastPlace, refreshCommunities, rememberPlace, useCommunity, useInvitations, useMembers, useMyCommunities } from '@/state/communities'
 import { usePulse } from '@/state/pulse'
 import { useToast } from '@/state/toasts'
 
@@ -83,8 +83,8 @@ export function ChannelsPage(): React.JSX.Element {
               <button onClick={() => navigate(`/channels/${c.id}`)} title={c.name} aria-label={c.name} className="relative" data-strip-community={c.name}>
                 <CommunityIcon name={c.name} icon={c.icon} className="strip-icon size-12 text-sm" />
                 {c.unread > 0 && c.id !== communityId && (
-                  <span className="absolute -bottom-1 -right-1 min-w-5 rounded-full bg-accent px-1 text-center text-[10px] font-bold leading-5 text-white ring-[3px] ring-bg" data-strip-unread>
-                    {c.unread > 99 ? '99+' : c.unread}
+                  <span className={cn('absolute -bottom-1 -right-1 min-w-5 rounded-full px-1 text-center text-[10px] font-bold leading-5 ring-[3px] ring-bg', c.mentions > 0 ? 'bg-amber-400 text-black' : 'bg-accent text-white')} title={c.mentions > 0 ? `${c.mentions} mention${c.mentions > 1 ? 's' : ''} of you` : undefined} data-strip-unread data-strip-mentions={c.mentions}>
+                    {c.mentions > 0 ? `@${c.mentions > 99 ? '99+' : c.mentions}` : c.unread > 99 ? '99+' : c.unread}
                   </span>
                 )}
               </button>
@@ -131,6 +131,23 @@ function Home({ mine, onCreate, onJoinCode }: { mine: CommunityCard[] | null; on
   const [asking, setAsking] = useState<CommunityCard | null>(null)
   const [note, setNote] = useState('')
   const asked = useRef(0)
+  const invitations = useInvitations()
+  const answer = async (communityId: string, name: string, accept: boolean): Promise<void> => {
+    setBusy(communityId)
+    try {
+      await api('POST', `/direct-invites/${communityId}`, { accept })
+      await refreshCommunities()
+      if (accept) {
+        toast(`Welcome to ${name}`)
+        navigate(`/channels/${communityId}`)
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'That did not work.', 'error')
+      void refreshCommunities()
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const search = (q: string): Promise<void> => {
     const turn = ++asked.current
@@ -218,6 +235,38 @@ function Home({ mine, onCreate, onJoinCode }: { mine: CommunityCard[] | null; on
             <Plus className="size-4" /> Create Channel
           </Button>
         </header>
+
+        {invitations.length > 0 && (
+          <section className="pane-in space-y-2" data-invitations>
+            <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+              <Mail className="size-3.5" /> Invitations · {invitations.length}
+            </h2>
+            <ul className="grid gap-2 md:grid-cols-2">
+              {invitations.map((inv) => {
+                const Vis = VISIBILITY_ICON[inv.community.visibility]
+                return (
+                  <li key={inv.community.id} className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/[0.06] p-3 shadow-lg shadow-black/20" data-invitation={inv.community.name}>
+                    <CommunityIcon name={inv.community.name} icon={inv.community.icon} className="size-12 rounded-xl text-sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 truncate font-display font-bold">
+                        {inv.community.name} {inv.community.visibility !== 'open' && <Vis className="size-3 shrink-0 text-muted" />}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        <span className="font-semibold text-text/80">{inv.by}</span> invited you · {inv.community.members.toLocaleString()} {inv.community.members === 1 ? 'member' : 'members'}
+                      </span>
+                    </span>
+                    <Button variant="primary" disabled={busy === inv.community.id} onClick={() => void answer(inv.community.id, inv.community.name, true)} data-invitation-accept>
+                      <Check className="size-4" /> Join
+                    </Button>
+                    <Button variant="ghost" disabled={busy === inv.community.id} onClick={() => void answer(inv.community.id, inv.community.name, false)} aria-label="Decline" title="Decline" data-invitation-decline>
+                      <X className="size-4" />
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
 
         <div role="tablist" className="flex gap-6 border-b border-border">
           {tabButton('mine', 'My Channels', mine?.length)}
@@ -408,6 +457,7 @@ function JoinWithCode({ onClose, onJoined }: { onClose: () => void; onJoined: (c
 
 function CommunityView({ id, channelId, phone }: { id: string; channelId: string | null; phone: boolean }): React.JSX.Element {
   const navigate = useNavigate()
+  const toast = useToast()
   const { community: c, error, refresh } = useCommunity(id)
   const myId = usePulse().myId ?? undefined
   const [settings, setSettings] = useState<null | 'main' | 'invites' | 'requests'>(null)
@@ -423,7 +473,16 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
   const showMembers = phone ? membersPhone : membersPc
   useEffect(() => setMembersPhone(false), [channelId, phone])
   const [collapsed, setCollapsed] = useState(readCollapsed)
-  const { members } = useMembers(id, showMembers)
+  // Loaded even with the list hidden: the chat suggests these names after an @.
+  const { members, refresh: refreshMembers } = useMembers(id, true)
+  // Someone joined, left or got a role: the list is asked for again straight away.
+  const memberCount = c?.members
+  useEffect(() => {
+    if (memberCount !== undefined) refreshMembers()
+  }, [memberCount]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Dragging a channel or a category to a new place (for those who may manage channels).
+  const [drag, setDrag] = useState<{ kind: 'channel' | 'category'; id: string } | null>(null)
+  const [over, setOver] = useState<string | null>(null)
 
   const channel = c?.channels.find((ch) => ch.id === channelId) ?? null
   // On a PC a community always opens on a channel: the one you asked for, else its first.
@@ -483,14 +542,75 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
     })
   }
 
+  const mayArrange = can(role, 'manageChannels') && !phone
+  /** Puts what is being dragged just before `target` (a channel or a category), or at the end of a category. */
+  const dropOn = async (target: { kind: 'channel' | 'category' | 'end'; id: string | null }): Promise<void> => {
+    const moving = drag
+    setDrag(null)
+    setOver(null)
+    if (!moving || !c || moving.id === target.id) return
+    const cats = ordered.filter((g) => g.category).map((g) => ({ id: g.category!.id, channels: g.channels.map((ch) => ch.id) }))
+    const loose = ordered.find((g) => !g.category)?.channels.map((ch) => ch.id) ?? []
+    if (moving.kind === 'category') {
+      if (target.kind !== 'category' || !target.id) return
+      const from = cats.findIndex((x) => x.id === moving.id)
+      const [taken] = cats.splice(from, 1)
+      cats.splice(cats.findIndex((x) => x.id === target.id), 0, taken)
+    } else {
+      for (const list of [loose, ...cats.map((x) => x.channels)]) {
+        const at = list.indexOf(moving.id)
+        if (at >= 0) list.splice(at, 1)
+      }
+      if (target.kind === 'channel') {
+        const list = [loose, ...cats.map((x) => x.channels)].find((l) => l.includes(target.id!))
+        if (!list) return
+        list.splice(list.indexOf(target.id!), 0, moving.id)
+      } else (target.id ? (cats.find((x) => x.id === target.id)?.channels ?? loose) : loose).push(moving.id)
+    }
+    try {
+      await api('PUT', `/${id}/layout`, { categories: cats, uncategorized: loose })
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'That did not work.', 'error')
+    }
+    await refresh()
+  }
+  const dragProps = (kind: 'channel' | 'category', itemId: string): React.HTMLAttributes<HTMLElement> =>
+    mayArrange
+      ? {
+          draggable: true,
+          onDragStart: (e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', itemId)
+            setDrag({ kind, id: itemId })
+          },
+          onDragEnd: () => (setDrag(null), setOver(null)),
+          onDragOver: (e) => {
+            if (!drag || (drag.kind === 'category' && kind !== 'category')) return
+            e.preventDefault()
+            setOver(itemId)
+          },
+          onDrop: (e) => {
+            e.preventDefault()
+            // A channel dropped on a category's name goes to the end of that category.
+            void dropOn(drag?.kind === 'channel' && kind === 'category' ? { kind: 'end', id: itemId } : { kind, id: itemId })
+          }
+        }
+      : {}
+
   const channelRow = (ch: Channel): React.JSX.Element => {
     const active = ch.id === channelId
     const unread = !active && ch.unread > 0
+    const Icon = ch.restricted === 'view' ? Lock : ch.restricted === 'post' ? Megaphone : Hash
     return (
-      <button key={ch.id} onClick={() => navigate(`/channels/${id}/${ch.id}`)} className={cn('group flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition', active ? 'bg-white/10 font-semibold text-text' : unread ? 'font-semibold text-text hover:bg-white/5' : 'text-muted hover:bg-white/5 hover:text-text')} data-channel={ch.name} data-active={active}>
-        <Hash className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted')} />
+      <button key={ch.id} {...dragProps('channel', ch.id)} onClick={() => navigate(`/channels/${id}/${ch.id}`)} title={ch.restricted === 'view' ? 'Only certain roles can see this channel' : ch.restricted === 'post' ? 'Only certain roles can write here' : undefined} className={cn('group flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition', active ? 'bg-white/10 font-semibold text-text' : unread ? 'font-semibold text-text hover:bg-white/5' : 'text-muted hover:bg-white/5 hover:text-text', drag?.id === ch.id && 'opacity-40', over === ch.id && drag?.kind === 'channel' && drag.id !== ch.id && 'shadow-[inset_0_2px_0] shadow-accent')} data-channel={ch.name} data-active={active} data-restricted={ch.restricted}>
+        <Icon className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted')} />
         <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-        {unread && <span className="min-w-5 rounded-full bg-accent px-1.5 text-center text-[10px] font-bold leading-5 text-white" data-channel-unread>{ch.unread > 99 ? '99+' : ch.unread}</span>}
+        {unread && (
+          <span className={cn('min-w-5 rounded-full px-1.5 text-center text-[10px] font-bold leading-5', ch.mentions > 0 ? 'bg-amber-400 text-black' : 'bg-accent text-white')} title={ch.mentions > 0 ? `${ch.mentions} mention${ch.mentions > 1 ? 's' : ''} of you` : undefined} data-channel-unread data-channel-mentions={ch.mentions}>
+            {ch.mentions > 0 ? `@${ch.mentions}` : ch.unread > 99 ? '99+' : ch.unread}
+          </span>
+        )}
+        {mayArrange && <GripVertical className="size-3.5 shrink-0 cursor-grab text-muted/0 transition group-hover:text-muted/70" />}
       </button>
     )
   }
@@ -537,7 +657,7 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
           return (
             <div key={g.category?.id ?? 'none'} data-category={g.category?.name ?? ''}>
               {g.category && (
-                <button onClick={() => toggle(g.category!.id)} aria-expanded={!shut} className="flex w-full items-center gap-1 px-1 py-1 text-[11px] font-bold uppercase tracking-widest text-muted transition hover:text-text" data-category-toggle>
+                <button {...dragProps('category', g.category.id)} onClick={() => toggle(g.category!.id)} aria-expanded={!shut} className={cn('flex w-full items-center gap-1 rounded px-1 py-1 text-[11px] font-bold uppercase tracking-widest text-muted transition hover:text-text', drag?.id === g.category.id && 'opacity-40', over === g.category.id && drag && drag.id !== g.category.id && (drag.kind === 'category' ? 'shadow-[inset_0_2px_0] shadow-accent' : 'bg-accent/15 text-text'))} data-category-toggle>
                   <ChevronDown className={cn('size-3 transition-transform duration-200', shut && '-rotate-90')} />
                   <span className="truncate">{g.category.name}</span>
                 </button>
@@ -550,6 +670,8 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
     </aside>
   )
 
+  /** The colour of someone's top custom role. */
+  const colorOf = (m: CommunityMember): string | undefined => c.roles.find((r) => m.roleIds.includes(r.id))?.color
   const memberList = (
     <aside className={cn('thin-scroll shrink-0 overflow-y-auto border-l border-border p-3', phone ? 'pane-in absolute inset-y-0 right-0 z-10 w-64 max-w-[85%] bg-bg shadow-2xl shadow-black' : 'w-56 bg-surface/40 max-lg:hidden')} data-member-list>
       {members === null ? (
@@ -567,7 +689,16 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
                       <span className={cn('absolute -bottom-0.5 -right-0.5 size-3 rounded-full ring-2 ring-surface', m.online ? 'bg-emerald-400' : 'bg-zinc-500')} />
                     </span>
                     <span className="min-w-0">
-                      <UserName name={m.user.username} style={styleOf(m.user.style)} verified={m.user.verified} admin={m.user.admin} className="text-sm font-semibold" />
+                      <span style={colorOf(m) ? { color: colorOf(m) } : undefined}>
+                        <UserName name={m.user.username} style={styleOf(m.user.style)} verified={m.user.verified} admin={m.user.admin} className="text-sm font-semibold" />
+                      </span>
+                      {m.roleIds.length > 0 && (
+                        <span className="flex flex-wrap gap-1 pt-0.5">
+                          {c.roles.filter((r) => m.roleIds.includes(r.id)).map((r) => (
+                            <span key={r.id} className="rounded-full border px-1.5 text-[9px] font-bold leading-4" style={{ borderColor: `${r.color}66`, color: r.color }}>{r.name}</span>
+                          ))}
+                        </span>
+                      )}
                       {m.role !== 'member' && <span className={cn('block text-[10px] font-bold uppercase tracking-wide', m.role === 'owner' ? 'text-amber-300' : 'text-accent')}>{ROLES.find((r) => r.id === m.role)?.label}</span>}
                     </span>
                   </li>
@@ -595,6 +726,8 @@ function CommunityView({ id, channelId, phone }: { id: string; channelId: string
             channel={channel}
             role={role}
             myId={myId}
+            members={members}
+            filesEnabled={c.filesEnabled}
             headerStart={
               phone ? (
                 <button onClick={() => navigate(`/channels/${id}`)} aria-label="Back to the channel list" className="rounded-lg p-1.5 text-muted hover:bg-white/10 hover:text-text" data-chat-back>

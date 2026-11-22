@@ -19,5 +19,5 @@ export function appFromEnv(env: NodeJS.ProcessEnv = process.env, extra: Pick<Par
   const authBase = env.NEON_AUTH_BASE_URL || (jwks ? jwks.replace(/\/\.well-known\/jwks\.json.*$/, '') : '')
   // Stripe, for Vanity Coins: both are secrets of the function (set by the Deploy backend workflow from GitHub secrets).
   const stripe = env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET ? { secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET } : undefined
-  return createApp({ stripe, authSignIn: authBase && authBase !== jwks ? neonAuthSignIn(authBase) : undefined, sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', klipyKey: env.KLIPY_API_KEY ?? '', voiceIce: iceConfigFromEnv(env), ...extra })
+  return createApp({ stripe, filesUrl: env.FILES_URL, authSignIn: authBase && authBase !== jwks ? neonAuthSignIn(authBase) : undefined, sql: neonSql(url), verifyToken: jwks ? neonAuthVerifierFromUrl(jwks) : async () => null, migrate: neonMigrate(url), steamApiKey: env.STEAM_WEB_API_KEY ?? '', klipyKey: env.KLIPY_API_KEY ?? '', voiceIce: iceConfigFromEnv(env), ...extra })
 }

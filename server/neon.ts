@@ -22,6 +22,9 @@ export default defineConfig({
         // Server only, passed from GitHub secrets; without them the store says buying isn't set up.
         STRIPE_SECRET_KEY: { value: process.env.STRIPE_SECRET_KEY, required: false, onUndefined: 'skip' },
         STRIPE_WEBHOOK_SECRET: { value: process.env.STRIPE_WEBHOOK_SECRET, required: false, onUndefined: 'skip' },
+        // Pictures and files in Channels: the secret address of the file store (server/files-worker).
+        // Without it, Channels work and the attach button stays hidden.
+        FILES_URL: { value: process.env.FILES_URL, required: false, onUndefined: 'skip' },
         // Optional TURN relay for voice rooms (players on strict networks). TURN_SECRET makes each
         // player a short-lived login and never leaves this function. Passed from GitHub secrets.
         TURN_URLS: { value: process.env.TURN_URLS, required: false, onUndefined: 'skip' },

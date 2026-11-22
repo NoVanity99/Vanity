@@ -239,6 +239,11 @@ export interface VanityApi {
      * comments, calls, admin). Only the paths in src/shared/apiPaths.ts are let through.
      */
     request<T = unknown>(method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<Result<T>>
+    /**
+     * Where pictures and files sent in Channels are fetched from: `show` for showing one inside
+     * Vanity, `open` for opening one in the web browser. A file's path is added to either.
+     */
+    fileBases(): Promise<{ show: string; open: string }>
     /** Emails a 6-digit code for choosing a new password. */
     sendResetCode(email: string): Promise<Result<true>>
     resetPassword(email: string, code: string, password: string): Promise<Result<true>>
@@ -561,6 +566,7 @@ export const IPC = {
   accountSetProfile: 'account:set-profile',
   accountRefresh: 'account:refresh',
   accountRequest: 'account:request',
+  accountFileBases: 'account:file-bases',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',
   accountDelete: 'account:delete',

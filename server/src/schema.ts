@@ -428,6 +428,84 @@ CREATE TABLE IF NOT EXISTS vanity.community_last_place (
   channel_id    text,
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
+-- Custom roles: a name and a colour an owner makes up. They let people into restricted channels.
+CREATE TABLE IF NOT EXISTS vanity.community_roles (
+  id            text PRIMARY KEY,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  name          text NOT NULL,
+  color         text NOT NULL DEFAULT '#94a3b8',
+  position      integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS community_roles_community ON vanity.community_roles (community_id);
+CREATE TABLE IF NOT EXISTS vanity.community_member_roles (
+  community_id  text NOT NULL,
+  user_id       text NOT NULL,
+  role_id       text NOT NULL REFERENCES vanity.community_roles (id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, user_id),
+  FOREIGN KEY (community_id, user_id) REFERENCES vanity.community_members (community_id, user_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS community_member_roles_member ON vanity.community_member_roles (community_id, user_id);
+-- restricted: 'none' (everyone), 'view' (only the roles below see it), 'post' (everyone reads,
+-- only the roles below write). Owners, admins and moderators are always let in.
+ALTER TABLE vanity.community_channels ADD COLUMN IF NOT EXISTS restricted text NOT NULL DEFAULT 'none';
+CREATE TABLE IF NOT EXISTS vanity.channel_role_access (
+  channel_id  text NOT NULL REFERENCES vanity.community_channels (id) ON DELETE CASCADE,
+  role_id     text NOT NULL REFERENCES vanity.community_roles (id) ON DELETE CASCADE,
+  PRIMARY KEY (channel_id, role_id)
+);
+-- mentions: the ids of the accounts a message names with @. nonce: the sender's own tag for a
+-- message, so one sent again after a lost answer is kept once.
+ALTER TABLE vanity.channel_messages ADD COLUMN IF NOT EXISTS mentions text[] NOT NULL DEFAULT '{}';
+ALTER TABLE vanity.channel_messages ADD COLUMN IF NOT EXISTS nonce text;
+CREATE UNIQUE INDEX IF NOT EXISTS channel_messages_nonce ON vanity.channel_messages (sender_id, nonce) WHERE nonce IS NOT NULL;
+-- Who is writing where, right now.
+CREATE TABLE IF NOT EXISTS vanity.channel_typing (
+  channel_id  text NOT NULL REFERENCES vanity.community_channels (id) ON DELETE CASCADE,
+  user_id     text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  at          timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (channel_id, user_id)
+);
+-- Pictures and files. The bytes are in cloud storage (see server/files-worker); this is the
+-- record of each one. token is the unguessable part of its address. message_id is set once it
+-- has been sent on a message.
+CREATE TABLE IF NOT EXISTS vanity.channel_files (
+  id            text PRIMARY KEY,
+  token         text NOT NULL,
+  channel_id    text NOT NULL REFERENCES vanity.community_channels (id) ON DELETE CASCADE,
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  uploader_id   text NOT NULL,
+  message_id    bigint REFERENCES vanity.channel_messages (id) ON DELETE SET NULL,
+  name          text NOT NULL,
+  size          bigint NOT NULL,
+  type          text NOT NULL,
+  parts         integer NOT NULL DEFAULT 0,
+  received      bigint NOT NULL DEFAULT 0,
+  ready         boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS channel_files_message ON vanity.channel_files (message_id);
+CREATE INDEX IF NOT EXISTS channel_files_uploader ON vanity.channel_files (uploader_id, created_at);
+-- Files whose channel or community was deleted: their bytes still need removing from storage.
+CREATE TABLE IF NOT EXISTS vanity.channel_files_gone (
+  id     text PRIMARY KEY,
+  parts  integer NOT NULL,
+  at     timestamptz NOT NULL DEFAULT now()
+);
+-- However a file's record goes (its message, channel, community or the owner's account was
+-- deleted), it is noted here so its bytes get removed from storage too.
+CREATE OR REPLACE FUNCTION vanity.channel_file_gone() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.parts > 0 THEN INSERT INTO vanity.channel_files_gone (id, parts) VALUES (OLD.id, OLD.parts) ON CONFLICT DO NOTHING; END IF; RETURN OLD; END $$;
+DROP TRIGGER IF EXISTS channel_file_gone ON vanity.channel_files;
+CREATE TRIGGER channel_file_gone BEFORE DELETE ON vanity.channel_files FOR EACH ROW EXECUTE FUNCTION vanity.channel_file_gone();
+-- Someone with permission invited an account straight into a community.
+CREATE TABLE IF NOT EXISTS vanity.community_direct_invites (
+  community_id  text NOT NULL REFERENCES vanity.communities (id) ON DELETE CASCADE,
+  user_id       text NOT NULL REFERENCES vanity.profiles (id) ON DELETE CASCADE,
+  invited_by    text NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS community_direct_invites_user ON vanity.community_direct_invites (user_id);
 
 -- Vanity Plus: one row per account that ever subscribed (or was given Plus by an admin).
 -- status is Stripe's own word for the subscription; event_at is the time of the newest Stripe
