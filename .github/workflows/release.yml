@@ -15,6 +15,10 @@ on:
         description: 'Only build and check everything; publish nothing'
         type: boolean
         default: false
+      mac_only:
+        description: 'Only build the Mac app and add it to the existing release of this version'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,6 +27,7 @@ jobs:
   # The Android app. It is only built here; the windows job attaches it to the release,
   # so the APK is in place before installed copies are told about the new version.
   android:
+    if: ${{ !inputs.mac_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -161,6 +166,7 @@ jobs:
 
   windows:
     needs: android
+    if: ${{ !inputs.mac_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -280,7 +286,8 @@ jobs:
   # Vanity-<version>-universal.dmg is the download; the .zip and latest-mac.yml are for updates.
   mac-release:
     needs: [mac, windows]
-    if: ${{ !inputs.test_only }}
+    # After the windows job has created the release, or on its own with mac_only (the release exists).
+    if: ${{ always() && !inputs.test_only && needs.mac.result == 'success' && (needs.windows.result == 'success' || inputs.mac_only) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -295,5 +302,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          ls -la mac
-          gh release upload "v$VERSION" mac/*.dmg mac/*.zip mac/*.blockmap mac/latest-mac.yml --clobber
+          # The artifact keeps the files' folder (dist/) inside it.
+          ls -la mac/dist
+          gh release upload "v$VERSION" mac/dist/*.dmg mac/dist/*.zip mac/dist/*.blockmap mac/dist/latest-mac.yml --clobber
