@@ -71,7 +71,7 @@ export function groupRoutes({ sql, requireAuth, requireUser, areFriends, publicU
     if (!groups.length) return []
     const ids = groups.map((g) => g.id)
     const members = await sql<MemberRow>`
-      SELECT m.group_id, m.user_id, p.username, p.avatar, p.style, m.joined_at
+      SELECT m.group_id, m.user_id, p.username, p.avatar_ref AS avatar, p.style, m.joined_at
       FROM vanity.chat_group_members m JOIN vanity.profiles p ON p.id = m.user_id
       WHERE m.group_id = ANY(${ids}::text[]) ORDER BY m.joined_at, p.username`
     const last = await sql<MessageRow & { sender_name: string }>`

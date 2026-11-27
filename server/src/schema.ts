@@ -428,6 +428,13 @@ CREATE TABLE IF NOT EXISTS vanity.community_last_place (
   channel_id    text,
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
+-- A short reference to each picture ("ref:" + its md5), kept by the database. Lists of people and
+-- Channels select this instead of the picture itself; the server swaps it for the picture from
+-- its memory (see withPictures in db.ts), so the same picture isn't read out again and again.
+ALTER TABLE vanity.profiles ADD COLUMN IF NOT EXISTS avatar_ref text GENERATED ALWAYS AS (CASE WHEN avatar IS NULL THEN NULL ELSE 'ref:' || md5(avatar) END) STORED;
+CREATE INDEX IF NOT EXISTS profiles_avatar_ref ON vanity.profiles (avatar_ref) WHERE avatar_ref IS NOT NULL;
+ALTER TABLE vanity.communities ADD COLUMN IF NOT EXISTS icon_ref text GENERATED ALWAYS AS (CASE WHEN icon IS NULL THEN NULL ELSE 'ref:' || md5(icon) END) STORED;
+CREATE INDEX IF NOT EXISTS communities_icon_ref ON vanity.communities (icon_ref) WHERE icon_ref IS NOT NULL;
 -- Custom roles: a name and a colour an owner makes up. They let people into restricted channels.
 CREATE TABLE IF NOT EXISTS vanity.community_roles (
   id            text PRIMARY KEY,

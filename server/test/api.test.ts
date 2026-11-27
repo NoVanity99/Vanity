@@ -84,7 +84,7 @@ describe('accounts', () => {
   it('never stores passwords or emails', async () => {
     await register('alice')
     const { rows } = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'vanity' AND table_name = 'profiles'")
-    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'bio', 'created_at', 'id', 'stats_visibility', 'style', 'username'])
+    expect(rows.map((r) => r.column_name).sort()).toEqual(['avatar', 'avatar_ref', 'bio', 'created_at', 'id', 'stats_visibility', 'style', 'username'])
   })
 
   it('rejects bad and taken usernames with clear messages, and allows renaming', async () => {

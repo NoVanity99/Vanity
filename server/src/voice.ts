@@ -135,7 +135,7 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, publicU
     const [r] = await sql<{ id: string; host_id: string; private: boolean; locked: boolean; chat: string | null }>`SELECT id, host_id, private, locked, chat FROM vanity.voice_rooms WHERE id = ${roomId}`
     if (!r) return null
     const rows = await sql<MemberRow>`
-      SELECT m.user_id, p.username, p.avatar, p.style, m.muted, m.deafened, m.sharing, m.camera, m.streams, m.watching, m.joined_at, m.last_seen
+      SELECT m.user_id, p.username, p.avatar_ref AS avatar, p.style, m.muted, m.deafened, m.sharing, m.camera, m.streams, m.watching, m.joined_at, m.last_seen
       FROM vanity.voice_members m JOIN vanity.profiles p ON p.id = m.user_id
       WHERE m.room_id = ${roomId} ORDER BY m.joined_at, m.user_id`
     const t = now()
@@ -154,7 +154,7 @@ export function voiceRoutes({ sql, requireAuth, requireUser, areFriends, publicU
     }))
     const ringing = r.chat
       ? await sql<{ id: string; username: string; avatar: string | null; style: unknown }>`
-          SELECT p.id, p.username, p.avatar, p.style FROM vanity.voice_rings g JOIN vanity.profiles p ON p.id = g.user_id
+          SELECT p.id, p.username, p.avatar_ref AS avatar, p.style FROM vanity.voice_rings g JOIN vanity.profiles p ON p.id = g.user_id
           WHERE g.room_id = ${roomId} AND g.created_at > to_timestamp(${(t - RING_MS) / 1000}) ORDER BY p.username`
       : []
     return { id: r.id, hostId: r.host_id, private: r.private, locked: r.locked, members, chat: r.chat, ringing: ringing.map((p) => publicUser(p)) }

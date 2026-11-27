@@ -75,7 +75,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
 
   /** The community and the caller's role in it, for members only. Anyone else: "doesn't exist". */
   async function asMember(communityId: string, me: string): Promise<{ c: CommunityRow; role: Role }> {
-    const [c] = await sql<CommunityRow>`SELECT id, name, description, icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${communityId}`
+    const [c] = await sql<CommunityRow>`SELECT id, name, description, icon_ref AS icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${communityId}`
     const role = c ? await roleIn(communityId, me) : null
     if (!c || !role) fail(404, NOT_FOUND, 'no_community')
     return { c: c!, role: role! }
@@ -229,7 +229,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   app.get('/', async (c) => {
     const me = c.get('userId')
     const rows = await sql<CommunityRow>`
-      SELECT co.id, co.name, co.description, co.icon, co.banner, co.visibility, co.owner_id, co.created_at
+      SELECT co.id, co.name, co.description, co.icon_ref AS icon, co.banner, co.visibility, co.owner_id, co.created_at
       FROM vanity.communities co JOIN vanity.community_members m ON m.community_id = co.id AND m.user_id = ${me} ORDER BY m.joined_at`
     const [place] = await sql<{ community_id: string | null; channel_id: string | null }>`SELECT community_id, channel_id FROM vanity.community_last_place WHERE user_id = ${me}`
     return c.json({ communities: await cards(rows, me), last: { communityId: place?.community_id ?? null, channelId: place?.channel_id ?? null } })
@@ -244,7 +244,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
     const q = tidyName(c.req.query('q'), 60).toLowerCase()
     const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`
     const rows = await sql<CommunityRow>`
-      SELECT co.id, co.name, co.description, co.icon, co.banner, co.visibility, co.owner_id, co.created_at
+      SELECT co.id, co.name, co.description, co.icon_ref AS icon, co.banner, co.visibility, co.owner_id, co.created_at
       FROM vanity.communities co
       WHERE co.visibility IN ('open', 'private')
         AND (${q} = '' OR lower(co.name) LIKE ${like} OR lower(co.description) LIKE ${like})
@@ -269,7 +269,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   app.get('/direct-invites', async (c) => {
     const me = c.get('userId')
     const rows = await sql<CommunityRow & { by: string | null; invited_at: unknown }>`
-      SELECT co.id, co.name, co.description, co.icon, co.banner, co.visibility, co.owner_id, co.created_at, p.username AS by, d.created_at AS invited_at
+      SELECT co.id, co.name, co.description, co.icon_ref AS icon, co.banner, co.visibility, co.owner_id, co.created_at, p.username AS by, d.created_at AS invited_at
       FROM vanity.community_direct_invites d JOIN vanity.communities co ON co.id = d.community_id LEFT JOIN vanity.profiles p ON p.id = d.invited_by
       WHERE d.user_id = ${me} AND NOT EXISTS (SELECT 1 FROM vanity.community_bans b WHERE b.community_id = co.id AND b.user_id = ${me})
       ORDER BY d.created_at DESC LIMIT 50`
@@ -326,7 +326,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
    */
   app.get('/:id', async (c) => {
     const me = c.get('userId')
-    const [co] = await sql<CommunityRow>`SELECT id, name, description, icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${c.req.param('id')}`
+    const [co] = await sql<CommunityRow>`SELECT id, name, description, icon_ref AS icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${c.req.param('id')}`
     const role = co ? await roleIn(co.id, me) : null
     if (co && role) return c.json({ community: await detail(co, me, role), member: true })
     if (!co || co.visibility === 'hidden') fail(404, NOT_FOUND, 'no_community')
@@ -404,7 +404,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   /** Joins an Open community. */
   app.post('/:id/join', async (c) => {
     const me = c.get('userId')
-    const [co] = await sql<CommunityRow>`SELECT id, name, description, icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${c.req.param('id')}`
+    const [co] = await sql<CommunityRow>`SELECT id, name, description, icon_ref AS icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${c.req.param('id')}`
     if (!co || co.visibility === 'hidden') fail(404, NOT_FOUND, 'no_community')
     if (await banned(co!.id, me)) fail(403, "You can't join this Channel.", 'banned_here')
     if (co!.visibility === 'private') fail(403, 'This Channel is private. Ask to join, or use an invite.', 'needs_request')
@@ -451,7 +451,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
     const { c: co } = await asMember(c.req.param('id'), c.get('userId'))
     const offset = Math.max(0, Math.min(100_000, Math.trunc(Number(c.req.query('offset')) || 0)))
     const rows = await sql<{ user_id: string; role: Role; joined_at: unknown; username: string; avatar: string | null; style: unknown; online: boolean; role_ids: string | null }>`
-      SELECT m.user_id, m.role, m.joined_at, p.username, p.avatar, p.style, COALESCE(NOT pr.signed_off AND pr.updated_at > now() - interval '3 minutes', false) AS online,
+      SELECT m.user_id, m.role, m.joined_at, p.username, p.avatar_ref AS avatar, p.style, COALESCE(NOT pr.signed_off AND pr.updated_at > now() - interval '3 minutes', false) AS online,
         (SELECT string_agg(mr.role_id, ',') FROM vanity.community_member_roles mr WHERE mr.community_id = m.community_id AND mr.user_id = m.user_id) AS role_ids
       FROM vanity.community_members m JOIN vanity.profiles p ON p.id = m.user_id LEFT JOIN vanity.presence pr ON pr.user_id = m.user_id
       WHERE m.community_id = ${co.id}
@@ -559,7 +559,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   app.get('/:id/bans', async (c) => {
     const { c: co } = await asStaff(c.req.param('id'), c.get('userId'), 'ban')
     const rows = await sql<{ user_id: string; reason: string; created_at: unknown; username: string; avatar: string | null; style: unknown }>`
-      SELECT b.user_id, b.reason, b.created_at, p.username, p.avatar, p.style FROM vanity.community_bans b JOIN vanity.profiles p ON p.id = b.user_id WHERE b.community_id = ${co.id} ORDER BY b.created_at DESC`
+      SELECT b.user_id, b.reason, b.created_at, p.username, p.avatar_ref AS avatar, p.style FROM vanity.community_bans b JOIN vanity.profiles p ON p.id = b.user_id WHERE b.community_id = ${co.id} ORDER BY b.created_at DESC`
     return c.json({ bans: rows.map((r): Ban => ({ user: publicUser({ id: r.user_id, username: r.username, avatar: r.avatar, style: r.style }), reason: r.reason, at: toMs(r.created_at) })) })
   })
   /** Takes someone out and keeps them out (invites and requests included). */
@@ -589,7 +589,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   app.get('/:id/requests', async (c) => {
     const { c: co } = await asStaff(c.req.param('id'), c.get('userId'), 'approveRequests')
     const rows = await sql<{ user_id: string; message: string; created_at: unknown; username: string; avatar: string | null; style: unknown }>`
-      SELECT r.user_id, r.message, r.created_at, p.username, p.avatar, p.style FROM vanity.community_requests r JOIN vanity.profiles p ON p.id = r.user_id WHERE r.community_id = ${co.id} ORDER BY r.created_at`
+      SELECT r.user_id, r.message, r.created_at, p.username, p.avatar_ref AS avatar, p.style FROM vanity.community_requests r JOIN vanity.profiles p ON p.id = r.user_id WHERE r.community_id = ${co.id} ORDER BY r.created_at`
     return c.json({ requests: rows.map((r): JoinRequest => ({ user: publicUser({ id: r.user_id, username: r.username, avatar: r.avatar, style: r.style }), message: r.message, at: toMs(r.created_at) })) })
   })
   app.post('/:id/requests/:userId', async (c) => {
@@ -665,7 +665,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
     const [invite] = await sql<{ code: string; community_id: string }>`
       SELECT code, community_id FROM vanity.community_invites
       WHERE code = ${code.trim().toUpperCase().slice(0, 20)} AND (expires_at IS NULL OR expires_at > to_timestamp(${now() / 1000})) AND (max_uses IS NULL OR uses < max_uses)`
-    const [co] = invite ? await sql<CommunityRow>`SELECT id, name, description, icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${invite.community_id}` : []
+    const [co] = invite ? await sql<CommunityRow>`SELECT id, name, description, icon_ref AS icon, banner, visibility, owner_id, created_at FROM vanity.communities WHERE id = ${invite.community_id}` : []
     if (!invite || !co) fail(404, "That invite doesn't work. It may have run out, been used up or been revoked.", 'bad_invite')
     return { invite: invite!, co: co! }
   }
@@ -805,7 +805,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
 
   // ---- messages ------------------------------------------------------------------------
 
-  const COLUMNS = `m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar, p.style`
+  const COLUMNS = `m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar_ref AS avatar, p.style`
   void COLUMNS // (the column list, written out in each query below because queries are tagged templates)
 
   const attachmentOf = (f: { id: string; token: string; name: string; size: string | number; type: string }): Attachment => ({ id: f.id, name: f.name, size: Number(f.size), type: f.type, path: `/files/${f.id}/${f.token}/${encodeURIComponent(f.name)}` })
@@ -856,7 +856,7 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
   }
   const one = async (messageId: number): Promise<MessageRow | null> =>
     (await sql<MessageRow>`
-      SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar, p.style
+      SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar_ref AS avatar, p.style
       FROM vanity.channel_messages m LEFT JOIN vanity.profiles p ON p.id = m.sender_id WHERE m.id = ${messageId}`)[0] ?? null
   const messageId = (v: string): number => (/^\d{1,15}$/.test(v) ? Number(v) : fail(404, 'That message is gone.'))
 
@@ -877,12 +877,12 @@ export function communityRoutes({ sql, requireAuth, requireUser, publicUser, can
     if (since !== null) {
       // A second of overlap, so nothing written at the same moment as the last look is missed.
       rows = await sql<MessageRow>`
-        SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar, p.style
+        SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar_ref AS avatar, p.style
         FROM vanity.channel_messages m LEFT JOIN vanity.profiles p ON p.id = m.sender_id
         WHERE m.channel_id = ${channel.id} AND m.changed_at > to_timestamp(${(since - 1000) / 1000}) ORDER BY m.id LIMIT 200`
     } else {
       const page = await sql<MessageRow>`
-        SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar, p.style
+        SELECT m.id, m.channel_id, m.community_id, m.sender_id, m.body, m.reply_to, m.created_at, m.edited_at, m.deleted_at, array_to_string(m.mentions, ',') AS mentions, m.nonce, p.username, p.avatar_ref AS avatar, p.style
         FROM vanity.channel_messages m LEFT JOIN vanity.profiles p ON p.id = m.sender_id
         WHERE m.channel_id = ${channel.id} AND (${before}::bigint IS NULL OR m.id < ${before}::bigint) ORDER BY m.id DESC LIMIT ${PAGE + 1}`
       hasMore = page.length > PAGE

@@ -44,7 +44,7 @@ export function commentRoutes({ sql, requireAuth, requireUser, publicUser, canSp
     mine: r.user_id === me
   })
   const one = async (id: number): Promise<Row | null> =>
-    (await sql<Row>`SELECT c.id, c.game_key, c.user_id, c.body, c.created_at, c.edited_at, p.username, p.avatar, p.style FROM vanity.game_comments c JOIN vanity.profiles p ON p.id = c.user_id WHERE c.id = ${id}`)[0] ?? null
+    (await sql<Row>`SELECT c.id, c.game_key, c.user_id, c.body, c.created_at, c.edited_at, p.username, p.avatar_ref AS avatar, p.style FROM vanity.game_comments c JOIN vanity.profiles p ON p.id = c.user_id WHERE c.id = ${id}`)[0] ?? null
   const idOf = (v: string): number => (/^\d{1,15}$/.test(v) ? Number(v) : fail(404, 'That comment is gone.'))
   const textOf = (v: unknown): string => {
     if (typeof v !== 'string') fail(400, 'Write something first.')
@@ -60,7 +60,7 @@ export function commentRoutes({ sql, requireAuth, requireUser, publicUser, canSp
     if (!GAME_KEY.test(key)) return c.json({ comments: [], hasMore: false, total: 0 })
     const before = /^\d{1,15}$/.test(c.req.query('before') ?? '') ? Number(c.req.query('before')) : null
     const rows = await sql<Row>`
-      SELECT c.id, c.game_key, c.user_id, c.body, c.created_at, c.edited_at, p.username, p.avatar, p.style
+      SELECT c.id, c.game_key, c.user_id, c.body, c.created_at, c.edited_at, p.username, p.avatar_ref AS avatar, p.style
       FROM vanity.game_comments c JOIN vanity.profiles p ON p.id = c.user_id
       WHERE c.game_key = ${key} AND (${before}::bigint IS NULL OR c.id < ${before}::bigint) ORDER BY c.id DESC LIMIT ${PAGE + 1}`
     const [n] = await sql<{ n: number }>`SELECT COUNT(*)::int AS n FROM vanity.game_comments WHERE game_key = ${key}`

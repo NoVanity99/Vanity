@@ -100,6 +100,14 @@ message, a channel, a Channel or an account removes its files from the bucket.
 
 ### Things to know
 
+- **Data transfer.** Neon's free plan allows 5 GB of data out of the database per month, and the
+  database stops answering ("exceeded the quota") until the month resets if that is used up.
+  Profile pictures and Channel icons are stored in their rows, so list queries select a short
+  reference (`avatar_ref`, `icon_ref`) and `withPictures` in `src/db.ts` swaps in the picture from
+  memory, reading it from the database only the first time. Keep that pattern for any new query
+  that returns a picture, and keep large values out of anything the apps ask for every few seconds.
+
+
 - **Emails** (password-reset codes) are sent by Neon's shared mail service from `auth@mail.myneon.app`, which is meant for getting started. They can land in spam. For a wider release, set your own SMTP provider in the Neon console → **Auth** → *Email*. [Resend](https://resend.com) works there (it offers SMTP): it needs a Resend account and a domain you own, verified in Resend. Its key is typed into the Neon console only: it never goes in the app, this repository or a `.env` file.
 - **Passwords** are hashed by Neon Auth (Better Auth: scrypt with a per-password salt) and stored in the `neon_auth` schema of the same database, with the sessions and reset codes. Neon Auth also rate-limits sign-in, sign-up and reset requests itself; this server adds its own limits to the public checks and to signing in with a username.
 - **Email confirmation at sign-up** is off by default in Neon Auth, and Vanity expects that: a new account is signed in straight away. If you turn it on in the Neon console, new users must confirm their address before they can sign in.

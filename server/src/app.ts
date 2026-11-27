@@ -3,7 +3,7 @@ import { groupRoutes, validGifText } from './groups'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { VerifyToken } from './auth'
-import type { Sql } from './db'
+import { withPictures, type Sql } from './db'
 import { mergeStyle, readStyle, type ProfileStyle } from './profileStyle'
 import { createPeople, type People } from './people'
 import { usernameProblem } from './words'
@@ -181,9 +181,11 @@ function status(row: { online: boolean; game_name: string | null; started_at: un
   return { state: row.online ? 'online' : 'offline', gameName: null, since: null, lastSeen: toMs(row.updated_at) }
 }
 
-export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10, stripe, usernameCooldownMs = USERNAME_COOLDOWN_MS, filesUrl, fileStore }: AppOptions): Hono<Env> {
+export function createApp({ sql: rawSql, verifyToken, migrate, lookupRateLimit = 60, syncRateLimit = 30, messageRateLimit = MESSAGE_RATE, klipyKey = '', voiceIce, voiceRateLimit, steamApiKey = '', steamRateLimit = 30, steamDailyBudget, fetchFn, now, updates, updateKey, authSignIn, emailOfUser, signInRateLimit = 10, stripe, usernameCooldownMs = USERNAME_COOLDOWN_MS, filesUrl, fileStore }: AppOptions): Hono<Env> {
   const app = new Hono<Env>()
   const clock = now ?? Date.now
+  // Every query goes through this: pictures come from memory after their first read.
+  const sql = withPictures(rawSql)
   const people = createPeople(sql, clock)
   const publicUser = publicUserWith(people)
 
@@ -306,7 +308,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
 
   /** The signed-in account as the app sees it. */
   const account = async (c: Context<Env>) => {
-    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown; stats_visibility: string | null }>`SELECT username, avatar, bio, style, stats_visibility FROM vanity.profiles WHERE id = ${c.get('userId')}`
+    const [profile] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown; stats_visibility: string | null }>`SELECT username, avatar_ref AS avatar, bio, style, stats_visibility FROM vanity.profiles WHERE id = ${c.get('userId')}`
     return { id: c.get('userId'), email: c.get('email'), username: profile?.username ?? null, avatar: profile?.avatar ?? null, bio: profile?.bio ?? '', style: readStyle(profile?.style), statsVisibility: visibilityOf(profile?.stats_visibility), ...people.rolesOf(c.get('userId')), ...(await usernameChange(c.get('userId'))), standing: people.standingOf(c.get('userId')) }
   }
 
@@ -473,7 +475,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     const [w] = await sql<{ balance: number }>`SELECT balance FROM vanity.coin_wallets WHERE user_id = ${me}`
     const rings = p
       ? await sql<{ room_id: string; from_id: string; username: string; avatar: string | null; style: unknown; chat: string | null; created_at: unknown }>`
-          SELECT g.room_id, g.from_id, f.username, f.avatar, f.style, r.chat, g.created_at
+          SELECT g.room_id, g.from_id, f.username, f.avatar_ref AS avatar, f.style, r.chat, g.created_at
           FROM vanity.voice_rings g JOIN vanity.voice_rooms r ON r.id = g.room_id JOIN vanity.profiles f ON f.id = g.from_id
           WHERE g.user_id = ${me} AND g.created_at > to_timestamp(${(clock() - RING_MS) / 1000}) ORDER BY g.created_at DESC LIMIT 3`
       : []
@@ -690,7 +692,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       last_at: unknown
       last_mine: boolean | null
     }>`
-      SELECT u.id, u.username, u.avatar, u.bio, u.style,
+      SELECT u.id, u.username, u.avatar_ref AS avatar, u.bio, u.style,
         COALESCE(NOT p.signed_off AND p.updated_at > now() - ${ONLINE_WINDOW}::interval, false) AS online,
         p.game_name, p.started_at, p.updated_at,
         COALESCE((SELECT SUM(playtime_seconds) FROM vanity.game_stats s WHERE s.user_id = u.id), 0)::int AS total,
@@ -711,10 +713,10 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
       WHERE f.status = 'accepted' AND (f.requester_id = ${me} OR f.addressee_id = ${me})
       ORDER BY lower(u.username)`
     const incoming = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.requester_id
+      SELECT u.id, u.username, u.avatar_ref AS avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.requester_id
       WHERE f.addressee_id = ${me} AND f.status = 'pending' ORDER BY f.created_at DESC`
     const outgoing = await sql<{ id: string; username: string; avatar: string | null; style: unknown; created_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.addressee_id
+      SELECT u.id, u.username, u.avatar_ref AS avatar, u.style, f.created_at FROM vanity.friendships f JOIN vanity.profiles u ON u.id = f.addressee_id
       WHERE f.requester_id = ${me} AND f.status = 'pending' ORDER BY f.created_at DESC`
     // Which friends are in a voice room you may see (and join).
     const voiceOf = await friendsVoice(sql, me, friends.map((f) => f.id), (now ?? Date.now)())
@@ -795,7 +797,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     if (viewer !== id && (visibility === 'private' || (visibility === 'friends' && !friends))) {
       fail(403, visibility === 'private' ? `${who!.username} keeps their profile private.` : `${who!.username} only shows their profile to friends.`, 'stats_hidden')
     }
-    const [user] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar, bio, style FROM vanity.profiles WHERE id = ${id}`
+    const [user] = await sql<{ username: string; avatar: string | null; bio: string | null; style: unknown }>`SELECT username, avatar_ref AS avatar, bio, style FROM vanity.profiles WHERE id = ${id}`
     const [st] = await sql<{ level: number; xp: number; badges: unknown }>`SELECT level, xp, badges FROM vanity.user_state WHERE user_id = ${id}`
     const badges = typeof st?.badges === 'string' ? (JSON.parse(st.badges) as Record<string, number>) : ((st?.badges as Record<string, number> | undefined) ?? {})
     const me = c.get('userId')
@@ -889,7 +891,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
     if (!/^[A-Za-z0-9_]{1,20}$/.test(q)) return c.json({ users: [] })
     const me = c.get('userId')
     const rows = await sql<{ id: string; username: string; avatar: string | null; style: unknown }>`
-      SELECT id, username, avatar, style FROM vanity.profiles
+      SELECT id, username, avatar_ref AS avatar, style FROM vanity.profiles
       WHERE lower(username) LIKE ${q.toLowerCase().replace(/_/g, '\\_') + '%'} AND id <> ${me} AND id NOT LIKE 'test-%'
       ORDER BY (lower(username) = ${q.toLowerCase()}) DESC, length(username), username LIMIT 10`
     return c.json({ users: rows.map((r) => publicUser(r)) })
@@ -956,7 +958,7 @@ export function createApp({ sql, verifyToken, migrate, lookupRateLimit = 60, syn
   app.get('/games/:key/friends', requireAuth, requireUser, async (c) => {
     const me = c.get('userId')
     const rows = await sql<{ id: string; username: string; avatar: string | null; style: unknown; playtime_seconds: number; last_played_at: unknown }>`
-      SELECT u.id, u.username, u.avatar, u.style, s.playtime_seconds, s.last_played_at
+      SELECT u.id, u.username, u.avatar_ref AS avatar, u.style, s.playtime_seconds, s.last_played_at
       FROM vanity.friendships f
       JOIN vanity.profiles u ON u.id = CASE WHEN f.requester_id = ${me} THEN f.addressee_id ELSE f.requester_id END
       JOIN vanity.game_stats s ON s.user_id = u.id AND s.game_key = ${c.req.param('key')} AND s.playtime_seconds > 0

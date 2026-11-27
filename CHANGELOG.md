@@ -3,6 +3,9 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.32.5 (2026-11-27)
+- Fixed: Vanity's servers were reading every profile picture and Channel icon out of the database again on each background refresh (every few seconds, for every list of friends, members and Channels). That used up the database's monthly data allowance and made the Friends tab show "exceeded the quota". Pictures are now read once and remembered, which removes almost all of that traffic. This is done on Vanity's servers, so it needs no update.
+
 ## 0.32.4 (2026-11-22)
 - Fixed: **chats always open on the newest message.** A chat with pictures or GIFs in it could open scrolled up at old messages, because the pictures finished loading after Vanity had scrolled down. The same could happen to a chat that was tucked away and shown again. This covers friend chats, group chats and Channels. If you scroll up to read older messages, Vanity still leaves you there.
 

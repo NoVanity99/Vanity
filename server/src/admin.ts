@@ -116,7 +116,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
       ids = [...new Set([...byName, ...byEmail, ...old].map((r) => r.id))]
     }
     const rows = await sql<UserRow & { total: number }>`
-      SELECT p.id, p.username, p.avatar, p.style, p.created_at, pr.updated_at AS last_seen,
+      SELECT p.id, p.username, p.avatar_ref AS avatar, p.style, p.created_at, pr.updated_at AS last_seen,
         COALESCE(NOT pr.signed_off AND pr.updated_at > now() - interval '3 minutes', false) AS online, pr.game_name,
         w.balance, us.level, COUNT(*) OVER ()::int AS total
       FROM vanity.profiles p
@@ -140,7 +140,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   app.get('/users/:id', async (c) => {
     const id = c.req.param('id')
     const [r] = await sql<UserRow & { bio: string }>`
-      SELECT p.id, p.username, p.avatar, p.style, p.bio, p.created_at, pr.updated_at AS last_seen,
+      SELECT p.id, p.username, p.avatar_ref AS avatar, p.style, p.bio, p.created_at, pr.updated_at AS last_seen,
         COALESCE(NOT pr.signed_off AND pr.updated_at > now() - interval '3 minutes', false) AS online, pr.game_name, w.balance, us.level
       FROM vanity.profiles p LEFT JOIN vanity.presence pr ON pr.user_id = p.id LEFT JOIN vanity.coin_wallets w ON w.user_id = p.id LEFT JOIN vanity.user_state us ON us.user_id = p.id
       WHERE p.id = ${id}`
@@ -381,7 +381,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
    */
   app.get('/users/:id/view', async (c) => {
     const id = c.req.param('id')
-    const [p] = await sql<{ id: string; username: string; avatar: string | null; style: unknown; bio: string }>`SELECT id, username, avatar, style, bio FROM vanity.profiles WHERE id = ${id}`
+    const [p] = await sql<{ id: string; username: string; avatar: string | null; style: unknown; bio: string }>`SELECT id, username, avatar_ref AS avatar, style, bio FROM vanity.profiles WHERE id = ${id}`
     if (!p) fail(404, 'That account no longer exists.')
     const [w] = await sql<{ balance: number }>`SELECT balance FROM vanity.coin_wallets WHERE user_id = ${id}`
     const owned = await sql<{ item_id: string }>`SELECT item_id FROM vanity.shop_owned WHERE user_id = ${id}`
@@ -409,7 +409,7 @@ export function adminRoutes({ sql, requireAuth, requireUser, requireAdmin, peopl
   /** Reported comments that nobody has dealt with yet, most reported first. */
   app.get('/reports', async (c) => {
     const rows = await sql<{ id: string | number; game_key: string; body: string; created_at: unknown; user_id: string; username: string; avatar: string | null; style: unknown; reports: number; reasons: string[] | string; first_at: unknown }>`
-      SELECT gc.id, gc.game_key, gc.body, gc.created_at, gc.user_id, p.username, p.avatar, p.style,
+      SELECT gc.id, gc.game_key, gc.body, gc.created_at, gc.user_id, p.username, p.avatar_ref AS avatar, p.style,
         COUNT(*)::int AS reports, array_remove(array_agg(DISTINCT NULLIF(cr.reason, '')), NULL) AS reasons, MIN(cr.created_at) AS first_at
       FROM vanity.comment_reports cr JOIN vanity.game_comments gc ON gc.id = cr.comment_id JOIN vanity.profiles p ON p.id = gc.user_id
       WHERE cr.resolved_at IS NULL GROUP BY gc.id, p.id ORDER BY COUNT(*) DESC, MIN(cr.created_at) LIMIT 100`
