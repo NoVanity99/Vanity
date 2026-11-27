@@ -38,6 +38,8 @@ export function parseUbisoftRegistry(keys: RegistryKey[]): UbisoftEntry[] {
 export const ubisoftScanner: Scanner = {
   source: 'ubisoft',
   async isAvailable() {
+    // Ubisoft Connect is found through the Windows registry: there is nothing to read elsewhere.
+    if (process.platform !== 'win32') return false
     return (await readRegistryKeys([UBISOFT_LAUNCHER_KEY])).length > 0
   },
   async scan() {

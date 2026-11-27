@@ -7,6 +7,7 @@ const SHORT: Record<GameSource, string> = {
   gog: 'GOG',
   ea: 'EA',
   ubisoft: 'Ubisoft',
+  macapp: 'Mac',
   custom: 'Local',
   manual: 'Local',
   android: 'Android'

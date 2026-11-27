@@ -1,5 +1,5 @@
 import { Download, Play } from 'lucide-react'
-import type { Game } from '@shared/types'
+import { notPlayableHere, type Game } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/state/library'
 import { StopBubble } from './StopBubble'
@@ -8,6 +8,18 @@ import { StopBubble } from './StopBubble'
 export function PlayButton({ game }: { game: Game }): React.JSX.Element {
   const { sessions, launch, install } = useLibrary()
   const state = sessions[game.id]
+
+  // A game this computer can't run (a Windows game on a Mac): a greyed-out button that says so.
+  const why = notPlayableHere(game, window.vanity.os)
+  if (why && !state) {
+    return (
+      <span className="flex flex-col gap-1.5" data-not-playable={why}>
+        <button disabled className="flex h-14 min-w-44 cursor-not-allowed items-center justify-center gap-3 rounded-xl bg-white/10 px-10 text-lg font-bold text-white/50" title={why === 'Windows only' ? "This is a Windows game. It can't run on a Mac." : "This is a Mac app. It can't run on this computer."}>
+          <Play className="size-5" /> {why}
+        </button>
+      </span>
+    )
+  }
 
   // Owned but not installed: the button installs instead.
   if (!game.installed && !state) {

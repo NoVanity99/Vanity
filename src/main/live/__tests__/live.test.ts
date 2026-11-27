@@ -15,7 +15,7 @@ const settings = (keys: boolean): Settings =>
     igdbClientId: keys ? 'CID' : '',
     igdbClientSecret: keys ? 'S' : '',
     customFolders: [],
-    enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, custom: true },
+    enabledSources: { steam: true, epic: true, gog: true, ea: true, ubisoft: true, macapp: true, custom: true },
     ignoredExecutables: [],
     theme: 'midnight',
     font: 'system',

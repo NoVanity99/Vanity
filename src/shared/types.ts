@@ -6,12 +6,18 @@ import type { ProfileStyle } from './profileStyle'
 // Types shared between the main process, preload and renderer.
 
 /** 'android': an app installed on the phone (the Android version of Vanity). */
-export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'custom' | 'manual' | 'android'
+export type GameSource = 'steam' | 'epic' | 'gog' | 'ea' | 'ubisoft' | 'macapp' | 'custom' | 'manual' | 'android'
 
 /** Sources that have a scanner and can be toggled in settings. */
 export type ScanSource = Exclude<GameSource, 'manual' | 'android'>
 
-export const SCAN_SOURCES: ScanSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'custom']
+export const SCAN_SOURCES: ScanSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'macapp', 'custom']
+
+/** The sources that can find anything on each kind of computer (EA and Ubisoft are read from the Windows registry; Mac apps only exist on a Mac). */
+export function scanSourcesFor(os: string): ScanSource[] {
+  if (os === 'darwin') return SCAN_SOURCES.filter((s) => s !== 'ea' && s !== 'ubisoft')
+  return SCAN_SOURCES.filter((s) => s !== 'macapp')
+}
 
 export const SOURCE_LABELS: Record<GameSource, string> = {
   steam: 'Steam',
@@ -19,6 +25,7 @@ export const SOURCE_LABELS: Record<GameSource, string> = {
   gog: 'GOG Galaxy',
   ea: 'EA app',
   ubisoft: 'Ubisoft Connect',
+  macapp: 'Mac apps',
   custom: 'Custom folders',
   manual: 'Added manually',
   android: 'Android'
@@ -623,6 +630,11 @@ export interface UpdateState {
   needsToken: boolean
   /** While installing: what it's doing now. */
   applying: string | null
+  /**
+   * The Mac app without an Apple Developer ID signature: macOS won't let it replace itself, so a
+   * new version is offered as a download of the new .dmg from this page instead.
+   */
+  downloadUrl?: string | null
   /** Installed copies: download progress of a new version, 0–100, while it downloads in the background. */
   progress?: number | null
 }
@@ -828,4 +840,20 @@ export interface StoreAccounts {
   supported: boolean
   epic: { available: boolean; signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
   gog: { signedIn: boolean; name: string | null; games: number | null; busy: boolean; error: string | null }
+}
+
+/**
+ * Why a game can't be played on this computer, or null when it can. A Mac can't run Windows
+ * programs, and Windows can't open Mac apps. Games started through a launcher (Steam, Epic) are
+ * left to the launcher, which only lists what it can run.
+ */
+export function notPlayableHere(game: Pick<Game, 'source' | 'executablePath'>, os: string): string | null {
+  const exe = game.executablePath ?? ''
+  if (os === 'darwin') {
+    if (game.source === 'ea' || game.source === 'ubisoft') return 'Windows only'
+    if (game.source !== 'steam' && game.source !== 'epic' && /\.(exe|bat|cmd|msi|lnk)$/i.test(exe)) return 'Windows only'
+  } else if (os === 'win32') {
+    if (game.source === 'macapp' || /\.app\/?$/i.test(exe)) return 'Mac only'
+  }
+  return null
 }

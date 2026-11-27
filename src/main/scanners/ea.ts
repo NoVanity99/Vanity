@@ -77,6 +77,8 @@ async function resolveExecutable(entry: EaEntry): Promise<string | null> {
 export const eaScanner: Scanner = {
   source: 'ea',
   async isAvailable() {
+    // The EA app is found through the Windows registry: there is nothing to read elsewhere.
+    if (process.platform !== 'win32') return false
     if ((await readRegistryKeys(EA_LAUNCHER_KEYS)).length > 0) return true
     return isDirectory(join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Electronic Arts', 'EA Desktop'))
   },

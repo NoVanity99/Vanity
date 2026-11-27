@@ -1,4 +1,4 @@
-# Windows installer and auto-update settings. See RELEASING.md for how releases are shipped.
+# Windows installer, Mac .dmg and auto-update settings. See RELEASING.md for how releases are shipped.
 appId: com.vanity.launcher
 productName: Vanity
 copyright: Copyright © 2026 NoVanity99
@@ -10,7 +10,10 @@ files:
   - "resources/**"
   - "package.json"
   - "!resources/icon.svg"
-# better-sqlite3 ships prebuilt binaries (prebuilds/win32-x64.node), so nothing is compiled.
+  # Mac packaging sources (icon, installer background, entitlements): used to build, not at run time.
+  - "!resources/mac/**"
+# better-sqlite3 ships prebuilt binaries (prebuilds/win32-x64.node, darwin-arm64.node,
+# darwin-x64.node…) and picks the right one when it loads, so nothing is compiled.
 npmRebuild: false
 asarUnpack:
   - "**/node_modules/better-sqlite3/**"
@@ -44,6 +47,57 @@ nsis:
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   artifactName: Vanity-Setup-${version}.${ext}
+
+# The Mac app: one Universal app (Apple Silicon and Intel) in a drag-to-Applications .dmg, plus a
+# .zip of the same app, which is what Mac auto-updates download. Built on a Mac: `npm run build:mac`
+# (or the macOS job in .github/workflows/release.yml). See INSTALL-MAC.md and RELEASING.md.
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  icon: resources/mac/icon.icns
+  category: public.app-category.games
+  minimumSystemVersion: "12.0"
+  darkModeSupport: true
+  # Ad-hoc signed ("-") unless a Developer ID certificate is given: Apple Silicon Macs won't open
+  # an app with no signature at all. The release workflow switches to Developer ID signing and
+  # notarization when the Apple secrets are set (see RELEASING.md).
+  identity: "-"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/mac/entitlements.plist
+  entitlementsInherit: resources/mac/entitlements.plist
+  notarize: false
+  # Native parts that come as separate Intel and Apple Silicon files (each copy holds both), so
+  # they are the same in both halves of the Universal app and are kept as they are.
+  x64ArchFiles: "**/{node_modules/better-sqlite3/prebuilds/**,node_modules/uiohook-napi/prebuilds/**,node_modules/@ffmpeg-installer/darwin-*/**}"
+  extendInfo:
+    NSMicrophoneUsageDescription: Vanity uses the microphone for voice chat with your friends.
+    NSCameraUsageDescription: Vanity uses the camera when you turn on video in a voice room.
+    LSApplicationCategoryType: public.app-category.games
+  artifactName: Vanity-${version}-${arch}.${ext}
+
+dmg:
+  title: Vanity ${version}
+  # The window: Vanity on the left, Applications on the right, on Vanity's own background
+  # (background@2x.png next to it is used on Retina screens).
+  background: resources/mac/background.png
+  icon: resources/mac/icon.icns
+  iconSize: 120
+  window:
+    width: 660
+    height: 400
+  contents:
+    - x: 180
+      y: 200
+      type: file
+    - x: 480
+      y: 200
+      type: link
+      path: /Applications
+  artifactName: Vanity-${version}-${arch}.${ext}
 
 # Where installed copies look for updates (electron-updater) and where CI publishes.
 publish:

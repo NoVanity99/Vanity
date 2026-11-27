@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* `mac:` classes apply only in the Mac app (html[data-os="darwin"], set in main.tsx). */
+@custom-variant mac (&:where(html[data-os='darwin'] *));
+
 @theme {
   --color-bg: #0b0d12;
   --color-surface: #12151c;
@@ -10,9 +13,9 @@
   --color-accent: #ff4747;
   --color-accent-2: #be123c;
   /* Defaults (Midnight). Other skins override these at runtime: src/renderer/src/lib/theme.ts */
-  --font-sans: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  --font-reading: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-reading: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 html,
@@ -1554,4 +1557,17 @@ html.overlay-window #root {
 html[data-motion='reduced'] .strip-icon,
 html[data-motion='reduced'] .strip-item::before {
   transition: none;
+}
+
+/* ---- The Mac app ----
+   The window's traffic lights sit in the top-left corner (see trafficLightPosition in
+   src/main/index.ts). The sidebar's header moves down to make room for them, the title strip
+   leaves them space on the left, and the 150px kept on the right for Windows' buttons goes. */
+html[data-os='darwin'] [data-sidebar-header] {
+  height: 5.25rem;
+  padding-top: 1.75rem;
+}
+html[data-os='darwin'] [data-title-strip] {
+  padding-left: 5.5rem;
+  padding-right: 0.75rem;
 }

@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+
+// Lets the stylesheet adjust for the computer it runs on (the Mac app's traffic lights, for one).
+document.documentElement.dataset.os = window.vanity.os
 import { OverlayApp } from './overlay/OverlayApp'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/outfit'

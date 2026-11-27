@@ -1,6 +1,6 @@
 # Vanity
 
-A unified game launcher for Windows 10/11 and Android. On a PC it finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games; on a phone it finds every installed game. Either way they show in one dark, cover-art library.
+A unified game launcher for Windows 10/11, macOS and Android. On a PC it finds your Steam, Epic, GOG, EA, Ubisoft and custom-folder games; on a Mac, your Steam, Epic, GOG and Applications-folder games; on a phone, every installed game. Either way they show in one dark, cover-art library.
 
 Built with Electron, React, TypeScript, Vite (via electron-vite), Tailwind CSS v4 and SQLite (better-sqlite3).
 
@@ -11,6 +11,10 @@ Download **[Vanity-Installer.exe](https://github.com/NoVanity99/Vanity/releases/
 - **What you get:** a Start Menu entry, a desktop shortcut, and an uninstaller in Windows **Apps & features**.
 - **SmartScreen:** the installer isn't code-signed, so Windows may show "Windows protected your PC". Click **More info → Run anyway**.
 - **Updates:** the installed app keeps itself up to date from GitHub Releases. See [RELEASING.md](RELEASING.md) for how releases are made.
+
+## Install (Mac)
+
+Download **Vanity-&lt;version&gt;-universal.dmg** from the [newest release](https://github.com/NoVanity99/Vanity/releases/latest), open it and drag Vanity onto Applications. It runs natively on Apple Silicon and Intel Macs (macOS 12 or newer). The first time, right-click Vanity and choose **Open**: see **[INSTALL-MAC.md](INSTALL-MAC.md)** for that and everything else Mac-specific.
 
 ## Install (Android)
 
@@ -34,7 +38,8 @@ npm start          # build and run the app as it ships (updates rebuild and rest
 npm test           # run the unit tests (scanners, parsers, filters)
 npm run typecheck  # type-check main and renderer
 npm run build      # type-check, then build to out/
-npm run dist:win   # build a Windows installer into dist/
+npm run dist:win   # build a Windows installer into dist/ (on Windows)
+npm run build:mac  # build the Universal Mac app and .dmg into dist/ (on a Mac)
 ```
 
 ## Project layout
@@ -137,12 +142,13 @@ Each release build tests the built-in keys and warns in the Actions log if Twitc
 
 | Source | How games are found | ID |
 | --- | --- | --- |
-| Steam | `libraryfolders.vdf` for every library, then each `appmanifest_*.acf` | App ID |
-| Epic Games | `.item` manifests in `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests` | App name |
-| GOG Galaxy | `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games` | GOG game ID |
+| Steam | `libraryfolders.vdf` for every library, then each `appmanifest_*.acf` (on a Mac, in `~/Library/Application Support/Steam`) | App ID |
+| Epic Games | `.item` manifests in `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests` (on a Mac, `~/Library/Application Support/Epic/EpicGamesLauncher/Data/Manifests`) | App name |
+| GOG Galaxy | `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games` (on a Mac, the `goggame-<id>.info` inside game apps in /Applications) | GOG game ID |
 | EA app | Windows uninstall entries from EA, plus EA's own registry keys; exe from `__Installer\installerdata.xml` | Install folder |
 | Ubisoft Connect | `HKLM\SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs` | Ubisoft ID |
-| Custom folders | `.exe` files, minus uninstallers, crash reporters, redistributables and launchers; you confirm each one | Exe path |
+| Mac apps (Mac only) | Apps in `/Applications` and `~/Applications` whose Info.plist category is one of Apple's game categories | Bundle ID |
+| Custom folders | `.exe` files, minus uninstallers, crash reporters, redistributables and launchers (on a Mac, `.app` bundles); you confirm each one | Exe path |
 
 Registry keys are read with one PowerShell call per lookup, which keeps non-ASCII names intact. A source whose launcher is missing is shown as skipped; one that fails is shown as failed. Neither stops the rest of the scan.
 

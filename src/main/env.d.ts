@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly MAIN_VITE_GITHUB_TOKEN?: string
   readonly MAIN_VITE_DISCORD_CLIENT_ID?: string
   readonly MAIN_VITE_UPDATE_KEY?: string
+  /** "1" when the Mac app is built with an Apple Developer ID signature (it can then update itself). */
+  readonly MAIN_VITE_MAC_SIGNED?: string
   readonly MAIN_VITE_IGDB_CLIENT_SECRET?: string
   /** Address of the old Vercel server. Only the run-from-source updater still uses it. */
   readonly MAIN_VITE_VANITY_API_URL?: string

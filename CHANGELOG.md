@@ -3,6 +3,14 @@
 Every version of Vanity, newest first. The in-app updater shows these notes before you install.
 Format: one `## <version> (<date>)` heading per release, then one `- ` bullet per change.
 
+## 0.33.0 (2026-11-27)
+- New: **Vanity for Mac.** A native app for Apple Silicon and Intel Macs (macOS 12 or newer), downloaded as **Vanity-0.33.0-universal.dmg**: open it and drag Vanity onto Applications. The first time, right-click it and choose Open (see INSTALL-MAC.md).
+- On a Mac, Vanity finds your **Steam** games, **Epic Games Launcher** games, **GOG** games and the games in your **Applications** folders, and Play starts them. Windows games show as "Windows only" instead of trying to start.
+- It feels like a Mac app: the window's traffic-light buttons, a menu bar (Settings is ⌘, and quit is ⌘Q), ⌘ shortcuts shown everywhere, the Mac's own font, and closing the window keeps Vanity in the Dock. Its data is kept in ~/Library/Application Support/Vanity.
+- On a Mac, a new version is announced with a **Download** button (macOS only lets apps signed with a paid Apple Developer ID update themselves).
+- Not on Mac yet: the in-game overlay, sharing your computer's sound with your screen, and Vanity's own Epic and GOG downloads (they install the Windows versions; use the launchers on a Mac).
+- Windows: nothing changes. The system font setting is now called "System (Segoe / SF Pro)".
+
 ## 0.32.5 (2026-11-27)
 - Fixed: Vanity's servers were reading every profile picture and Channel icon out of the database again on each background refresh (every few seconds, for every list of friends, members and Channels). That used up the database's monthly data allowance and made the Friends tab show "exceeded the quota". Pictures are now read once and remembered, which removes almost all of that traffic. This is done on Vanity's servers, so it needs no update.
 

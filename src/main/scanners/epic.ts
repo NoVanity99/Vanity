@@ -1,9 +1,11 @@
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { DetectedGame } from '@shared/types'
 import { isDirectory, safeReadFile, safeReaddir } from '../util/fs'
 import type { Scanner } from './types'
 
-export function epicManifestDir(): string {
+export function epicManifestDir(platform = process.platform, home = homedir()): string {
+  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests')
   const programData = process.env.ProgramData ?? process.env.PROGRAMDATA ?? 'C:\\ProgramData'
   return join(programData, 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests')
 }

@@ -2,6 +2,8 @@ import { basename, join } from 'node:path'
 import type { GameCandidate } from '@shared/types'
 import { isDirectory, safeReaddir } from '../util/fs'
 import { isJunkDirName, isLikelyNotGame, prettifyName, rankExecutables } from '../util/executables'
+import { readInfoPlist } from '../mac/plist'
+import { appDisplayName, listApps } from './macApps'
 import type { Scanner } from './types'
 
 const MAX_ALTERNATIVES = 10
@@ -29,7 +31,14 @@ async function candidateFor(folder: string): Promise<GameCandidate | null> {
  * Scans a user folder for games. If the folder itself contains a game exe it is
  * treated as one game; otherwise each subfolder is treated as a separate game.
  */
-export async function scanCustomFolder(root: string): Promise<GameCandidate[]> {
+export async function scanCustomFolder(root: string, platform = process.platform): Promise<GameCandidate[]> {
+  // On a Mac a game is an .app: every app in the folder (or one folder down) is offered.
+  if (platform === 'darwin') {
+    const apps = root.toLowerCase().endsWith('.app') ? [root] : await listApps(root)
+    return Promise.all(
+      apps.map(async (app): Promise<GameCandidate> => ({ source: 'custom', externalId: exeExternalId(app), name: appDisplayName(app, await readInfoPlist(app)), installPath: app, executablePath: app, alternatives: [] }))
+    )
+  }
   const entries = await safeReaddir(root)
   const hasOwnExe = entries.some(
     (e) => e.isFile() && e.name.toLowerCase().endsWith('.exe') && !isLikelyNotGame(join(root, e.name), root)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { START_PAGES } from '@shared/interfaceOptions'
 import { applyFont, applyTheme } from './lib/theme'
 import { AmbientBackground } from './components/AmbientBackground'
@@ -70,6 +70,9 @@ function Shell(): React.JSX.Element {
   const { candidates, clearCandidates, refresh } = useLibrary()
   const location = useLocation()
   const toast = useToast()
+  // The Mac menu bar's "Settings…" (⌘,) opens a page here.
+  const navigate = useNavigate()
+  useEffect(() => window.vanity.onNavigate((path) => navigate(path)), [navigate])
 
   const settings = useSettings()
   useEffect(() => {
@@ -129,7 +132,7 @@ function Shell(): React.JSX.Element {
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <main className="relative z-10 min-w-0 flex-1 max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] max-md:pt-[env(safe-area-inset-top)]">
         {/* Draggable strip under the native title-bar buttons (the window is frameless), with launcher status. */}
-        <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] max-md:top-[env(safe-area-inset-top)] max-md:px-3 [-webkit-app-region:drag]">
+        <div data-title-strip className="absolute inset-x-0 top-0 z-20 flex h-9 items-center bg-gradient-to-b from-bg via-bg/85 to-transparent pl-10 pr-[150px] max-md:top-[env(safe-area-inset-top)] max-md:px-3 [-webkit-app-region:drag]">
           {/* Brings a hidden sidebar back. It lives inside this strip, and after it in the page, on purpose:
               the strip drags the window, and Windows only lets a button be clicked there if the button
               is declared after the draggable area it sits on. */}
@@ -139,7 +142,7 @@ function Shell(): React.JSX.Element {
               title="Show the sidebar"
               aria-label="Show the sidebar"
               data-sidebar-expand
-              className="absolute left-2 top-1 flex size-7 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-muted backdrop-blur transition hover:border-accent/60 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
+              className="absolute left-2 top-1 mac:left-[84px] flex size-7 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-muted backdrop-blur transition hover:border-accent/60 hover:text-text max-md:hidden [-webkit-app-region:no-drag]"
             >
               <PanelLeftOpen className="size-4" />
             </button>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { shortcut } from '@/lib/platform'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -242,7 +243,7 @@ function Palette({ onClose }: { onClose: () => void }): React.JSX.Element {
                     <span className="flex shrink-0 items-center gap-2 text-[11px] text-muted">
                       {item.alt && (
                         <span className="flex items-center gap-1">
-                          <Play className="size-3" /> Ctrl+Enter
+                          <Play className="size-3" /> {shortcut('Enter')}
                         </span>
                       )}
                       <CornerDownLeft className="size-3.5" />

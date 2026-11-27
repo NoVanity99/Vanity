@@ -12,7 +12,9 @@ export interface FontTheme {
 export type FontGroup = 'Clean' | 'Friendly' | 'Gaming' | 'Stylish'
 export const FONT_GROUPS: FontGroup[] = ['Clean', 'Friendly', 'Gaming', 'Stylish']
 
-const SEGOE = "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif"
+// The computer's own font: Segoe UI on Windows, SF Pro on a Mac (-apple-system), and the system
+// font anywhere else.
+const SEGOE = "'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif"
 
 /** A font with Segoe UI as the fallback. */
 const f = (family: string): string => `'${family}', ${SEGOE}`
@@ -20,7 +22,7 @@ const MONO = `'JetBrains Mono Variable', ui-monospace, monospace`
 
 export const FONT_THEMES: FontTheme[] = [
   // Clean
-  { id: 'system', name: 'Segoe (Windows)', group: 'Clean', body: SEGOE, display: SEGOE },
+  { id: 'system', name: 'System (Segoe / SF Pro)', group: 'Clean', body: SEGOE, display: SEGOE },
   { id: 'inter', name: 'Inter', group: 'Clean', body: f('Inter Variable'), display: f('Inter Variable') },
   { id: 'manrope', name: 'Manrope', group: 'Clean', body: f('Manrope Variable'), display: f('Manrope Variable') },
   { id: 'dmsans', name: 'DM Sans', group: 'Clean', body: f('DM Sans Variable'), display: f('DM Sans Variable') },

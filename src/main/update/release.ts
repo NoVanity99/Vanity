@@ -59,6 +59,12 @@ export interface ReleaseDeps {
   currentVersion: string
   onUpdate(state: UpdateState): void
   log?(message: string): void
+  /**
+   * Set for a Mac copy that isn't signed with an Apple Developer ID: macOS's updater refuses to
+   * install into such an app, so nothing is downloaded. A new version is announced, and "apply"
+   * opens this page (the release, with the new .dmg) instead.
+   */
+  manual?: { url: string; open(url: string): Promise<void> }
 }
 
 /**
@@ -89,9 +95,12 @@ export class ReleaseUpdater implements Updater {
       progress: null
     }
     const u = deps.updater
-    u.autoDownload = true
-    u.autoInstallOnAppQuit = true
-    u.on('update-available', ((info: UpdateInfo) => this.set({ latest: info.version, notes: notesFromRelease(info), checking: true, progress: 0, error: null })) as never)
+    u.autoDownload = !deps.manual
+    u.autoInstallOnAppQuit = !deps.manual
+    u.on('update-available', ((info: UpdateInfo) =>
+      deps.manual
+        ? this.set({ latest: info.version, notes: notesFromRelease(info), available: true, downloadUrl: deps.manual.url, checking: false, progress: null, error: null })
+        : this.set({ latest: info.version, notes: notesFromRelease(info), checking: true, progress: 0, error: null })) as never)
     u.on('update-not-available', ((info: UpdateInfo) => this.set({ latest: info?.version ?? this.s.current, checking: false, progress: null, error: null })) as never)
     u.on('download-progress', ((p: { percent?: number }) => this.set({ progress: Math.round(p?.percent ?? 0) })) as never)
     u.on('update-downloaded', ((info: UpdateInfo) =>
@@ -146,6 +155,7 @@ export class ReleaseUpdater implements Updater {
   /** Restarts into the downloaded version. */
   async apply(): Promise<void> {
     if (!this.s.available) throw new Error('No update has been downloaded yet.')
+    if (this.deps.manual) return this.deps.manual.open(this.deps.manual.url)
     this.set({ applying: 'Restarting to install…' })
     this.deps.updater.quitAndInstall(true, true)
   }

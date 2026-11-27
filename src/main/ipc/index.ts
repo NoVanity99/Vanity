@@ -45,13 +45,25 @@ import { exeExternalId } from '../scanners/custom'
 import { getSettings, updateSettings } from '../settings'
 import { nameFromExecutable, prettifyName } from '../util/executables'
 import { isDirectory, pathExists } from '../util/fs'
+import { readInfoPlist } from '../mac/plist'
+import { appDisplayName } from '../scanners/macApps'
 
 /** File types "Add a game" and "Change" accept: programs, and web games played in a Vanity window. */
-const GAME_FILE_FILTERS: Electron.FileFilter[] = [
-  { name: 'Games (.exe, .html)', extensions: ['exe', 'html', 'htm'] },
-  { name: 'Programs (.exe)', extensions: ['exe'] },
-  { name: 'Web games (.html)', extensions: ['html', 'htm'] }
-]
+const GAME_FILE_FILTERS: Electron.FileFilter[] =
+  process.platform === 'darwin'
+    ? // On a Mac a game is an app (the open panel treats an .app as one file).
+      [
+        { name: 'Games (apps, .html)', extensions: ['app', 'html', 'htm'] },
+        { name: 'Apps', extensions: ['app'] },
+        { name: 'Web games (.html)', extensions: ['html', 'htm'] }
+      ]
+    : [
+        { name: 'Games (.exe, .html)', extensions: ['exe', 'html', 'htm'] },
+        { name: 'Programs (.exe)', extensions: ['exe'] },
+        { name: 'Web games (.html)', extensions: ['html', 'htm'] }
+      ]
+/** A Mac app is its own install folder (it is a folder): its playtime is tracked inside it, not in /Applications. */
+const isMacApp = (p: string): boolean => /\.app\/?$/i.test(p)
 
 /** Runs a handler and turns any failure into a message the UI can show. */
 /** Notifications are kept until closed: one that's garbage-collected stops reacting to clicks. */
@@ -267,7 +279,7 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
 
   ipcMain.handle(IPC.gamesAddManually, async (e) => {
     const options: Electron.OpenDialogOptions = {
-      title: 'Choose a game: a program (.exe) or a web game (.html)',
+      title: process.platform === 'darwin' ? 'Choose a game: an app or a web game (.html)' : 'Choose a game: a program (.exe) or a web game (.html)',
       properties: ['openFile'],
       filters: GAME_FILE_FILTERS
     }
@@ -279,8 +291,8 @@ export function registerIpc({ store, collections, gameWindows, tracker, metadata
       {
         source: 'manual',
         externalId: exeExternalId(exe),
-        name: isHtmlGame(exe) ? nameFromHtml(exe, prettifyName) : nameFromExecutable(exe),
-        installPath: dirname(exe),
+        name: isHtmlGame(exe) ? nameFromHtml(exe, prettifyName) : isMacApp(exe) ? appDisplayName(exe, await readInfoPlist(exe)) : nameFromExecutable(exe),
+        installPath: isMacApp(exe) ? exe : dirname(exe),
         executablePath: exe
       }
     ], { restore: true }).games

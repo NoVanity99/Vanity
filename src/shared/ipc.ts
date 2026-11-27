@@ -93,6 +93,10 @@ export interface InstalledApp {
 export interface VanityApi {
   /** Which version of Vanity this is: the Windows desktop app or the Android app. */
   platform: 'desktop' | 'android'
+  /** Called when the app is asked to show one of its pages (the Mac menu bar's Settings…). */
+  onNavigate(callback: (path: string) => void): () => void
+  /** The operating system: 'win32' (Windows), 'darwin' (Mac), 'linux', or 'android'. */
+  os: 'win32' | 'darwin' | 'linux' | 'android'
   /** Shows a system notification (on Windows; Android shows these inside the app only). Clicking it brings Vanity forward. */
   /**
    * A Windows or Android notification. `action` says what clicking it opens ("chat:<friend id>",
@@ -566,6 +570,7 @@ export const IPC = {
   accountSetProfile: 'account:set-profile',
   accountRefresh: 'account:refresh',
   accountRequest: 'account:request',
+  appNavigate: 'app:navigate',
   accountFileBases: 'account:file-bases',
   accountSendResetCode: 'account:send-reset-code',
   accountResetPassword: 'account:reset-password',

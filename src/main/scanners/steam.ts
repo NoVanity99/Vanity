@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { DetectedGame } from '@shared/types'
 import { isDirectory, safeReadFile, safeReaddir } from '../util/fs'
@@ -17,7 +18,16 @@ const NON_GAME_APP_IDS = new Set([
 const NON_GAME_NAME = /^(proton\b|steam linux runtime|steamworks common redistributables)/i
 const STATE_FULLY_INSTALLED = 4
 
+/** Where Steam keeps its library on a Mac. */
+export function macSteamRoot(home = homedir()): string {
+  return join(home, 'Library', 'Application Support', 'Steam')
+}
+
 export async function findSteamRoot(): Promise<string | null> {
+  if (process.platform === 'darwin') {
+    const root = macSteamRoot()
+    return (await isDirectory(join(root, 'steamapps'))) ? root : null
+  }
   const keys = await readRegistryKeys(['HKCU\\Software\\Valve\\Steam', 'HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam'])
   const candidates = [
     ...keys.map((k) => getValue(k.values, 'SteamPath') ?? getValue(k.values, 'InstallPath')),

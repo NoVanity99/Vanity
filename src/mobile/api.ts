@@ -257,6 +257,8 @@ export function createMobileApi(db: Db, appVersion: string): VanityApi {
 
   return {
     platform: 'android',
+    onNavigate: () => () => {},
+    os: 'android',
     notify: async (title, body, action) => {
       await native.notify?.({ title: text(title, 120), body: text(body, 300), action: typeof action === 'string' ? text(action, 120) : '' }).catch(() => {})
     },

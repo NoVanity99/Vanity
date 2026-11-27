@@ -39,6 +39,9 @@ export function useStores(): StoreAccounts | null {
 
 /** Stores whose games Vanity downloads and installs itself (Steam games go to the Steam client). */
 export function installsInVanity(game: Pick<Game, 'source'>): boolean {
+  // Vanity's own downloads install the Windows versions (GOG's installers, Legendary for Epic):
+  // on a Mac, games install through their own launchers.
+  if (window.vanity.os === 'darwin') return false
   return game.source === 'epic' || game.source === 'gog'
 }
 

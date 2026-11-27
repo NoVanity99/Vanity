@@ -60,7 +60,10 @@ export class Installers {
   async install(game: Game): Promise<InstallStart> {
     if (game.installed) throw new InstallError(`${game.name} is already installed.`)
     const installer = this.list.find((i) => i.canInstall(game))
-    if (!installer) throw new InstallError(`Vanity can't install ${game.name} yet. Install it from its own launcher.`)
+    if (!installer) {
+      if (process.platform === 'darwin' && (game.source === 'epic' || game.source === 'gog')) throw new InstallError(`On a Mac, install ${game.name} from ${game.source === 'epic' ? 'the Epic Games Launcher' : 'GOG Galaxy'}. Vanity finds it there by itself.`)
+      throw new InstallError(`Vanity can't install ${game.name} yet. Install it from its own launcher.`)
+    }
     return installer.install(game)
   }
 }

@@ -1,6 +1,7 @@
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { setupOverlay } from './overlay/setup'
+import { setMacMenu } from './mac/menu'
 import type { GameOverlay } from './overlay/manager'
 import { app, ipcMain, BrowserWindow, dialog, globalShortcut, Menu, nativeTheme, net, Notification, protocol, shell, Tray } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
@@ -100,6 +101,8 @@ function minimizeWhilePlaying(state: 'launching' | 'running' | 'stopped'): void 
   }
 }
 
+const IS_MAC = process.platform === 'darwin'
+
 /** Window chrome colours for the current theme. */
 function chromeColors(): { bg: string; symbol: string } {
   const { colors } = themeById(getSettings().theme)
@@ -145,6 +148,11 @@ if (process.env.VANITY_USER_DATA) app.setPath('userData', process.env.VANITY_USE
   if (profile && !process.env.VANITY_USER_DATA) app.setPath('userData', `${app.getPath('userData')}-${profile}`)
 }
 
+// Mac: caches in ~/Library/Caches/Vanity and logs in ~/Library/Logs/Vanity, as Mac apps keep
+// them (Electron's own "logs" path is that folder). Windows keeps everything where it was.
+const cacheDir = (): string => (IS_MAC ? join(app.getPath('home'), 'Library', 'Caches', basename(app.getPath('userData'))) : app.getPath('userData'))
+const logsDir = (): string => (IS_MAC ? app.getPath('logs') : join(app.getPath('userData'), 'logs'))
+
 // "Keep running in the background": closing the window only hides it. Vanity stays reachable from
 // its icon next to the clock (click to open, right-click to quit), so calls, notifications and
 // downloads carry on. Settings → Appearance switches it off; then closing the window quits.
@@ -163,6 +171,8 @@ function showMainWindow(): void {
 
 /** The icon next to the clock is there exactly while the setting is on. */
 function syncTray(): void {
+  // A Mac app stays in the Dock when its window is closed: no icon by the clock needed.
+  if (IS_MAC) return
   const wanted = getSettings().closeToBackground
   if (!wanted) {
     tray?.destroy()
@@ -213,8 +223,11 @@ function createWindow(): void {
     show: false,
     backgroundColor: chrome.bg,
     icon,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { color: chrome.bg, symbolColor: chrome.symbol, height: 36 },
+    // Windows: Vanity's own title strip with Windows' buttons drawn over it. Mac: the traffic
+    // lights, inset into Vanity's top-left corner (the layout leaves room for them).
+    ...(IS_MAC
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 16, y: 13 } }
+      : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: chrome.bg, symbolColor: chrome.symbol, height: 36 } }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -229,6 +242,17 @@ function createWindow(): void {
   mainWindow = win
   syncTray()
   win.on('close', (event) => {
+    // Mac: closing a window never quits; the app stays in the Dock (⌘Q quits) and a click on the
+    // Dock icon brings the window back.
+    if (IS_MAC) {
+      if (quitting) return
+      event.preventDefault()
+      if (win.isFullScreen()) {
+        win.once('leave-full-screen', () => win.hide())
+        win.setFullScreen(false)
+      } else win.hide()
+      return
+    }
     // Really closing: quitting, an update, or the setting is off (or there is no icon to come back from).
     if (quitting || !getSettings().closeToBackground || !tray) return
     event.preventDefault()
@@ -329,7 +353,7 @@ app.whenReady().then(() => {
   breaks.start()
   // Electron's net.fetch uses Chromium's network stack, so system proxy settings apply.
   const fetchFn = (url: string, init?: RequestInit): Promise<Response> => net.fetch(url, init)
-  const media = new MediaCache(join(app.getPath('userData'), 'media'), fetchFn)
+  const media = new MediaCache(join(cacheDir(), 'media'), fetchFn)
 
   protocol.handle('vanity-media', async (request) => {
     const url = new URL(request.url)
@@ -383,7 +407,7 @@ app.whenReady().then(() => {
   status = new StatusService({ fetchFn, onUpdate: (s) => broadcast(IPC.statusUpdated, s) })
 
   // Formats the player can't decode (WMA, Apple Lossless, AIFF…) are converted with the bundled ffmpeg.
-  const converter = new AudioConverter(bundledFfmpeg(), join(app.getPath('userData'), 'music-cache'))
+  const converter = new AudioConverter(bundledFfmpeg(), join(cacheDir(), 'music-cache'))
   const music = new MusicLibrary(converter.available)
   void music.load(getSettings().musicFolder).catch((err) => console.warn('[music] scan failed:', err))
   protocol.handle('vanity-music', async (request) => {
@@ -405,7 +429,8 @@ app.whenReady().then(() => {
   })
 
   // Push-to-talk from anywhere: the key's ups and downs go to the voice engine in the window.
-  overlay = setupOverlay({ settings: () => getSettings().overlay, gameRunning: () => !!tracker?.running(), mainWindow: getMainWindow })
+  // The overlay is for Windows (a Mac's full-screen games live in their own Space): elsewhere it stays off.
+  overlay = setupOverlay({ settings: () => (IS_MAC ? { ...getSettings().overlay, enabled: false } : getSettings().overlay), gameRunning: () => !!tracker?.running(), mainWindow: getMainWindow })
   pushToTalk = new PushToTalkHotkey((down) => broadcast(IPC.voicePushToTalk, down))
   setupScreenShare()
   pushToTalk.configure(getSettings().voice.inputMode === 'ptt', getSettings().voice.pttKey)
@@ -463,10 +488,10 @@ app.whenReady().then(() => {
   setLegendaryInstalled(async () =>
     (await legendary.installed()).map((g) => ({ source: 'epic' as const, externalId: g.appName, name: g.title, installPath: g.installPath, executablePath: g.executable ? join(g.installPath, g.executable) : null }))
   )
-  const downloadLog = join(app.getPath('userData'), 'logs', 'downloads.log')
+  const downloadLog = join(logsDir(), 'downloads.log')
   const writeLog = (id: string, line: string): void => {
     void (async () => {
-      await mkdir(join(app.getPath('userData'), 'logs'), { recursive: true })
+      await mkdir(logsDir(), { recursive: true })
       // Kept small: when it passes 2 MB the old one is set aside.
       const size = await stat(downloadLog).then((s) => s.size, () => 0)
       if (size > 2 * 1024 * 1024) await rename(downloadLog, `${downloadLog}.old`).catch(() => {})
@@ -475,7 +500,8 @@ app.whenReady().then(() => {
   }
   downloads = new DownloadManager({
     kv: createKv(db),
-    drivers: [new EpicDriver(legendary), new GogDriver({ gog, tempDir: join(app.getPath('userData'), 'downloads', 'gog'), exec: runToEnd })],
+    // These install the Windows versions (Legendary for Epic, GOG's Windows installers), so a Mac has none.
+    drivers: IS_MAC ? [] : [new EpicDriver(legendary), new GogDriver({ gog, tempDir: join(app.getPath('userData'), 'downloads', 'gog'), exec: runToEnd })],
     getGame: (id) => store.get(id),
     defaultDir: join(homedir(), 'Games'),
     freeSpace: freeSpaceOn,
@@ -522,7 +548,9 @@ app.whenReady().then(() => {
         updater: autoUpdater,
         currentVersion: app.getVersion(),
         onUpdate: (s) => broadcast(IPC.updateChanged, s),
-        log: (m) => console.warn(m)
+        log: (m) => console.warn(m),
+        // A Mac build without a Developer ID signature can't update itself: it points to the new .dmg.
+        manual: IS_MAC && import.meta.env.MAIN_VITE_MAC_SIGNED !== '1' ? { url: 'https://github.com/NoVanity99/Vanity/releases/latest', open: (url) => shell.openExternal(url) } : undefined
       })
     : new UpdateService({
     root: app.getAppPath(),
@@ -554,6 +582,7 @@ app.whenReady().then(() => {
       overlay?.refresh()
     }
   })
+  if (IS_MAC) setMacMenu({ openSettings: () => openPage('/settings'), about: showAbout })
   createWindow()
 
   // Ctrl+Alt+V from anywhere (even in a game) brings Vanity to the front; pressed again while it's focused, it hides it.
@@ -573,9 +602,22 @@ app.whenReady().then(() => {
   status.start()
 
   app.on('activate', () => {
+    // Clicking the Dock icon: the window comes back.
     if (!getMainWindow()) createWindow()
+    else showMainWindow()
   })
 })
+
+/** Shows the window and goes to one of its pages (from the Mac menu bar). */
+function openPage(path: string): void {
+  showMainWindow()
+  getMainWindow()?.webContents.send(IPC.appNavigate, path)
+}
+
+function showAbout(): void {
+  app.setAboutPanelOptions({ applicationName: 'Vanity', applicationVersion: app.getVersion(), version: '', copyright: 'Copyright © 2026 NoVanity99', iconPath: icon })
+  app.showAboutPanel()
+}
 
 // Log rather than crash on unexpected errors (a scanner bug must never take the app down).
 process.on('uncaughtException', (err) => console.error('[main] uncaught exception:', err))

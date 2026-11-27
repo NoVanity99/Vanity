@@ -1,7 +1,7 @@
 import { StopBubble } from './StopBubble'
 import { memo } from 'react'
 import { Download, Play, Star } from 'lucide-react'
-import { PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
+import { notPlayableHere, PLAY_STATUS_LABELS, type Game, type SessionState } from '@shared/types'
 import { cn } from '@/lib/cn'
 import { STATUS_TONE } from '@/lib/status'
 import { formatCompact } from '@/lib/format'
@@ -27,6 +27,8 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
   const dimmed = (game.missing || game.hidden || !game.installed) && !session
   const tilt = useTilt<HTMLDivElement>()
 
+  // A game this computer can't run is greyed out with a label (it can still be opened and edited).
+  const notHere = notPlayableHere(game, window.vanity.os)
   return (
     // A div, not a button: it contains the Play button, and buttons can't nest.
     <div
@@ -51,9 +53,11 @@ export const GameCard = memo(function GameCard({ game, index, session, players, 
           'transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)]',
           'group-hover:-translate-y-1.5 group-hover:scale-[1.03] group-hover:shadow-2xl group-hover:shadow-black/70 group-hover:ring-white/25',
           'group-focus-visible:ring-2 group-focus-visible:ring-accent group-active:scale-[1.01]',
-          dimmed && game.installed && 'opacity-50 grayscale'
+          (dimmed || notHere) && game.installed && 'opacity-50 grayscale'
         )}
+        data-not-playable={notHere ?? undefined}
       >
+        {notHere && <span className="pointer-events-none absolute inset-x-2 bottom-2 z-10 rounded-md bg-black/75 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white/85 backdrop-blur">{notHere}</span>}
         <CoverArt game={game} className={cn('game-cover-art transition-transform duration-700 ease-out group-hover:scale-[1.06]', !game.installed && !session && 'opacity-45 grayscale')} />
 
         <div className="game-cover-shine tilt-glare pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

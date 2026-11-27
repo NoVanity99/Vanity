@@ -5,6 +5,12 @@ import type { AccountState, DownloadItem, Game, SteamState, StoreAccounts, Progr
 
 const api: VanityApi = {
   platform: 'desktop',
+  onNavigate: (callback) => {
+    const listener = (_e: unknown, path: string): void => callback(path)
+    ipcRenderer.on(IPC.appNavigate, listener)
+    return () => ipcRenderer.removeListener(IPC.appNavigate, listener)
+  },
+  os: process.platform === 'darwin' || process.platform === 'linux' ? process.platform : 'win32',
   notify: (title, body, action) => ipcRenderer.invoke(IPC.appNotify, title, body, action),
   onNotificationClick: (callback) => {
     const listener = (_e: unknown, action: string): void => callback(action)
@@ -13,7 +19,9 @@ const api: VanityApi = {
   },
   allowNotifications: async () => true,
   overlay: {
-    supported: true,
+    // Shown over games in borderless or windowed mode on Windows. On a Mac, full-screen games
+    // live in their own Space, where a window can't follow.
+    supported: process.platform === 'win32',
     setVoice: (members) => ipcRenderer.send(IPC.overlayVoice, members),
     setSpeaking: (ids) => ipcRenderer.send(IPC.overlaySpeaking, ids),
     note: (note) => ipcRenderer.invoke(IPC.overlayNote, note),

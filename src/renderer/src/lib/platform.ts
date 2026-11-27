@@ -1,5 +1,20 @@
 import { useEffect, useState } from 'react'
 
+/** True in the Mac app. */
+export function isMac(): boolean {
+  return window.vanity.os === 'darwin'
+}
+
+/** How a shortcut's modifier key is written: ⌘ on a Mac, Ctrl elsewhere. `keys` is the rest, e.g. "K". */
+export function shortcut(keys: string): string {
+  return isMac() ? `⌘${keys.replace(/^Enter$/, '↩')}` : `Ctrl+${keys}`
+}
+
+/** What the computer's own notifications are called here. */
+export function systemName(): string {
+  return isAndroid() ? 'phone' : isMac() ? 'Mac' : 'Windows'
+}
+
 /** True in the Android app (false in the Windows desktop app). */
 export function isAndroid(): boolean {
   return window.vanity.platform === 'android'

@@ -1,6 +1,6 @@
 import { installsInVanity, openInstallDialog } from './downloads'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Game, GameCandidate, GamePatch, MetadataProgress, ScanProgress, ScanSummary, SessionState } from '@shared/types'
+import { notPlayableHere, type Game, type GameCandidate, type GamePatch, type MetadataProgress, type ScanProgress, type ScanSummary, type SessionState } from '@shared/types'
 import { dedupeByName } from '@shared/dedupe'
 import { useToast } from './toasts'
 
@@ -54,6 +54,8 @@ const message = (err: unknown): string => (err instanceof Error ? err.message : 
 export function LibraryProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const toast = useToast()
   const [allGames, setGames] = useState<Game[]>([])
+  const gamesRef = useRef<Game[]>([])
+  gamesRef.current = allGames
   const library = useMemo(() => dedupeByName(allGames), [allGames])
   // Play, Surprise me, Vibe Check, Big Picture and the counts are about games you can start right now.
   const games = useMemo(() => library.filter((g) => g.installed), [library])
@@ -239,6 +241,10 @@ export function LibraryProvider({ children }: { children: ReactNode }): React.JS
 
   const launch = useCallback(
     async (id: number) => {
+      // A game this computer can't run says so, instead of trying.
+      const game = gamesRef.current.find((g) => g.id === id)
+      const why = game ? notPlayableHere(game, window.vanity.os) : null
+      if (game && why) return toast(`${game.name} is ${why === 'Windows only' ? 'a Windows game. It can\'t run on a Mac' : 'a Mac app. It can\'t run on this computer'}.`, 'error')
       setSessions((prev) => ({ ...prev, [id]: prev[id] ?? 'launching' }))
       const error = await window.vanity.games.launch(id).catch(message)
       if (error) {

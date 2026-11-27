@@ -19,7 +19,7 @@ import { openCommandPalette } from './CommandPalette'
 import { NameDialog } from './CollectionsDialog'
 import { LevelBadge } from './LevelBadge'
 import { openAppPicker } from './AppPicker'
-import { isAndroid, menuGesture } from '@/lib/platform'
+import { isAndroid, isMac, menuGesture, shortcut } from '@/lib/platform'
 import { useAccount } from '@/state/account'
 import { Avatar } from './Avatar'
 import { cn } from '@/lib/cn'
@@ -287,7 +287,8 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
     stats: shows('stats') ? <NavItem to="/stats" icon={BarChart3} label="Stats" animation="bounce" onMenu={menuFor('stats')} /> : null,
     profile: shows('profile') ? <NavItem to="/profile" icon={Award} label="Profile" animation="bounce" onMenu={menuFor('profile')} /> : null,
     // Downloads in progress always show, even with the entry hidden.
-    downloads: !isAndroid() && (shows('downloads') || queued > 0) ? <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" onMenu={menuFor('downloads')} /> : null
+    // Vanity's own downloads are for Windows: on a Mac, games install through their launchers.
+    downloads: !isAndroid() && !isMac() && (shows('downloads') || queued > 0) ? <NavItem to="/downloads" icon={Download} label="Downloads" count={queued || undefined} animation="bounce" onMenu={menuFor('downloads')} /> : null
   }
   const shownTabs = ui.navOrder.filter((id) => tabs[id] !== null)
   const tabDrag = useTabDrag(ui.navOrder, shownTabs, (navOrder) => setUi({ navOrder }))
@@ -356,7 +357,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
         )}
       />
       <Indicator {...indicator} />
-      <div className="flex h-16 items-center gap-2 px-4 [-webkit-app-region:drag]">
+      <div data-sidebar-header className="flex h-16 items-center gap-2 px-4 [-webkit-app-region:drag]">
         <div className="vanity-logo flex size-8 shrink-0 items-center justify-center rounded-lg">
           <Gamepad2 className="size-[18px] text-white" />
         </div>
@@ -392,7 +393,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       >
         <Search className="size-4" />
         <span className="flex-1 text-left">Search</span>
-        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">Ctrl K</kbd>
+        <kbd className="rounded border border-white/10 bg-black/30 px-1.5 py-px font-sans text-[10px] tracking-wide max-md:hidden">{shortcut('K').replace('+', ' ')}</kbd>
       </button>
       )}
 

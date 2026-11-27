@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import type { DiscordStatus } from '@shared/types'
 import { ArrowDownToLine, AudioLines, Ban, ShieldAlert, CheckCircle2, Eye, EyeOff, FolderPlus, Gamepad, Gamepad2, KeyRound, Library, Palette, RefreshCw, SlidersHorizontal, Trash2, XCircle, type LucideIcon } from 'lucide-react'
 import { THEMES } from '@shared/themes'
-import { SCAN_SOURCES, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
+import { scanSourcesFor, SOURCE_LABELS, type KeyCheck, type Settings } from '@shared/types'
 import { FONT_GROUPS, FONT_THEMES } from '@shared/fonts'
 import { applyFont, applyTheme } from '@/lib/theme'
 import { saveSettings, useSettings } from '@/state/settings'
@@ -19,7 +19,7 @@ import { useLibrary } from '@/state/library'
 import { useToast } from '@/state/toasts'
 import { checkForUpdate, openUpdateDialog, pendingCount, useUpdate } from '@/state/update'
 import { formatAgo } from '@/lib/format'
-import { isAndroid } from '@/lib/platform'
+import { isAndroid, isMac, systemName } from '@/lib/platform'
 import { loadPref, savePref } from '@/lib/storage'
 
 /**
@@ -474,7 +474,8 @@ export function SettingsPage(): React.JSX.Element {
 
           <div className="-mx-3 mt-6 border-t border-border pt-3">
             <Toggle label="Ambient background glow" checked={settings.ambientBackground !== false} onChange={(v) => save({ ambientBackground: v })} />
-            {!android && (
+            {/* On a Mac, closing the window always leaves Vanity in the Dock (the Mac way), so there is nothing to choose. */}
+            {!android && !isMac() && (
               <div data-close-to-background>
                 <Toggle label="Keep Vanity running in the background when I close it" hint="Closing the window only hides it, so calls, messages and downloads carry on. Open it again from the Vanity icon by the clock; right-click that icon to quit." checked={settings.closeToBackground !== false} onChange={(v) => save({ closeToBackground: v })} />
               </div>
@@ -516,7 +517,7 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
 
         {!android && (
-          <Section title="Wellbeing" description="While a game is running, Vanity can nudge you to take a break with a Windows notification.">
+          <Section title="Wellbeing" description={`While a game is running, Vanity can nudge you to take a break with a ${systemName()} notification.`}>
             <p className="mb-2 text-sm font-medium">Remind me to take a break every</p>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Break reminders">
               {[0, 30, 60, 90, 120, 180].map((m) => {
@@ -601,7 +602,7 @@ export function SettingsPage(): React.JSX.Element {
         {!android && (
           <Section title="Launchers" description="Turn off a source to skip it during scans. Games already in your library stay.">
             <div className="-mx-3">
-              {SCAN_SOURCES.map((s) => (
+              {scanSourcesFor(window.vanity.os).map((s) => (
                 <Toggle
                   key={s}
                   label={SOURCE_LABELS[s]}

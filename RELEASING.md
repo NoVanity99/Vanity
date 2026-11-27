@@ -101,8 +101,48 @@ The release workflow runs `node scripts/fetch-legendary.mjs` before building. It
 | Name ("Vanity") | `productName` in `package.json` and `electron-builder.yml` |
 | Version | `version` in `package.json` |
 | Publisher (shown in Apps & features) | `author.name` in `package.json` |
-| Icon | `resources/icon.ico` (multi-size, up to 256×256) and `resources/icon.png` (512×512, used by the window). Replace both files with your own art; keep the names. |
+| Icon | `resources/icon.ico` (multi-size, up to 256×256) and `resources/icon.png` (512×512, used by the window). Replace both files with your own art; keep the names. The Mac icon is `resources/mac/icon.icns`, made from `resources/mac/icon.svg` (see The Mac app). |
+| Mac app settings (bundle ID `com.vanity.launcher`, games category, macOS 12 or newer, the .dmg window) | `mac:` and `dmg:` in `electron-builder.yml` |
 | Installer options (shortcuts, install folder, uninstall) | `nsis:` in `electron-builder.yml` |
+
+## The Mac app
+
+Every release also builds the Mac app on GitHub's Mac machine (the `mac` job in
+`.github/workflows/release.yml`): one Universal app for Apple Silicon and Intel, as
+`Vanity-<version>-universal.dmg`, plus a `.zip` and `latest-mac.yml` used for updates. The job checks
+the app before anything is published: both chips are in it (`lipo`), the signature is valid
+(`codesign --verify --deep --strict`), the .dmg opens and has Applications in it, and the app itself
+starts, finds a test Steam game and a test Mac game, and starts the Mac game
+(`scripts/mac-smoke.mjs`). The `mac-release` job then attaches the files to the release. A problem
+with the Mac build never holds up the Windows and Android release.
+
+To build it yourself, on a Mac: `npm install`, then `npm run build:mac`. The .dmg lands in `dist/`.
+
+The icon (`resources/mac/icon.icns`) and the installer window's background
+(`resources/mac/background.png` and `background@2x.png`) are made from `resources/mac/icon.svg` and
+`resources/mac/dmg-background.html` by `node scripts/make-mac-assets.mjs`. Run it again after
+changing either.
+
+### Mac signing
+
+Without an Apple Developer account the app is **ad-hoc signed**, which every Mac (Apple Silicon
+included) accepts after the one-time "Open anyway" in INSTALL-MAC.md. Such a copy can't update
+itself: macOS's updater only installs into an app signed with a Developer ID, so Vanity shows the new
+version with a **Download** button that opens the release instead.
+
+With an Apple Developer account ($99 a year), add these repository secrets and the next release is
+signed with your Developer ID, notarized by Apple (no warning when opening it) and updates itself like
+on Windows:
+
+| Secret | What it is |
+| --- | --- |
+| `MAC_CERTIFICATE_P12_BASE64` | Your "Developer ID Application" certificate, exported from Keychain Access as a .p12 file, then base64-encoded (`base64 -i cert.p12 \| pbcopy`) |
+| `MAC_CERTIFICATE_PASSWORD` | The password you gave the .p12 when exporting it |
+| `APPLE_ID` | The Apple ID email of the developer account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password made at appleid.apple.com (Sign-In and Security) |
+| `APPLE_TEAM_ID` | Your 10-character Team ID (developer.apple.com → Membership) |
+
+Never put any of these in the repository.
 
 ## Code signing and SmartScreen
 

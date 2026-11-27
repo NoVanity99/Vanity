@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process'
  * as the current user. Returns null if the list could not be read.
  */
 export function listProcessPaths(): Promise<string[] | null> {
+  if (process.platform === 'darwin') return listMacProcesses().then((list) => (list ? [...new Set(list.map((p) => p.path))] : null))
   if (process.platform !== 'win32') return Promise.resolve(null)
   const command =
     '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' +
@@ -35,6 +36,7 @@ export function listProcessPaths(): Promise<string[] | null> {
 
 /** Running processes with their ids and program paths (the current user's only). Null if they can't be listed. */
 export function listProcesses(): Promise<{ pid: number; path: string }[] | null> {
+  if (process.platform === 'darwin') return listMacProcesses()
   if (process.platform !== 'win32') return Promise.resolve(null)
   const command =
     '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' +
@@ -49,6 +51,33 @@ export function listProcesses(): Promise<{ pid: number; path: string }[] | null>
       resolve(parseProcessList(stdout))
     })
   })
+}
+
+/**
+ * A Mac's running processes, from `ps` (on every Mac). `comm` is the program's full path, for
+ * example /Applications/Hades.app/Contents/MacOS/Hades; `-U` keeps it to this user's own.
+ */
+function listMacProcesses(): Promise<{ pid: number; path: string }[] | null> {
+  return new Promise((resolve) => {
+    execFile('/bin/ps', ['-x', '-ww', '-U', String(process.getuid?.() ?? ''), '-o', 'pid=,comm='], { timeout: 15_000, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8' }, (err, stdout) => {
+      if (err) {
+        console.warn('[processes] could not list processes:', err.message)
+        resolve(null)
+        return
+      }
+      resolve(parsePsList(stdout))
+    })
+  })
+}
+
+/** Parses `ps -o pid=,comm=` lines ("  123 /path/with spaces/Game"). Only full paths are kept. */
+export function parsePsList(stdout: string): { pid: number; path: string }[] {
+  const out: { pid: number; path: string }[] = []
+  for (const line of stdout.split(/\r?\n/)) {
+    const m = /^\s*(\d+)\s+(\/.*\S)\s*$/.exec(line)
+    if (m) out.push({ pid: Number(m[1]), path: m[2] })
+  }
+  return out
 }
 
 /** Parses "pid<TAB>path" lines. */

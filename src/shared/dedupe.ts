@@ -12,7 +12,7 @@ export function nameKey(name: string): string {
 }
 
 /** When two copies tie on everything else, the one from the launcher higher in this list is shown. */
-const SOURCE_ORDER: GameSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'android', 'custom', 'manual']
+const SOURCE_ORDER: GameSource[] = ['steam', 'epic', 'gog', 'ea', 'ubisoft', 'macapp', 'android', 'custom', 'manual']
 
 /** Higher is better: installed on this device, found by the last scan, then the copy you've played most, your favourite, then by launcher. */
 function better(a: Game, b: Game): Game {

@@ -22,7 +22,12 @@ const SHARED_FOLDERS = new Set([
   'downloads',
   'documents',
   'windows',
-  'users'
+  'users',
+  // Mac: the folders apps live in, and the home folder's usual ones.
+  'applications',
+  'library',
+  'application support',
+  'volumes'
 ])
 
 export function isTrackableFolder(folder: string): boolean {

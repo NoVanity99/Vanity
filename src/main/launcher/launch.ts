@@ -36,6 +36,9 @@ export interface LaunchDeps {
   launchOtherwise?(game: Game): Promise<boolean>
 }
 
+const isMacAppPath = (p: string): boolean => /\.app\/?$/i.test(p)
+const isWindowsProgram = (p: string): boolean => /\.(exe|bat|cmd|msi|lnk)$/i.test(p)
+
 export function launchUri(game: Game): string | null {
   if (game.source === 'steam') return `steam://rungameid/${game.externalId}`
   if (game.source === 'epic') {
@@ -86,6 +89,15 @@ export async function launchGame(game: Game, deps: LaunchDeps): Promise<LaunchRe
   }
 
   if (isHtmlGame(exe)) return { method: 'html', child: deps.openHtml(game, exe) }
+
+  // A Mac app is opened the way Finder opens it (`open`): it isn't a program file to run.
+  if (isMacAppPath(exe)) {
+    if (process.platform !== 'darwin') throw new LaunchError(`${game.name} is a Mac app. It can't run on this computer.`)
+    const error = await deps.openPath(exe)
+    if (error) throw new LaunchError(`Couldn't start ${game.name}: ${error}`)
+    return { method: 'exe' }
+  }
+  if (process.platform === 'darwin' && isWindowsProgram(exe)) throw new LaunchError(`${game.name} is a Windows game. It can't run on a Mac.`)
 
   try {
     return { method: 'exe', child: await spawnDetached(exe, deps) }

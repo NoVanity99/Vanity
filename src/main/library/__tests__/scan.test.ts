@@ -15,7 +15,7 @@ const settings: Settings = {
   igdbClientId: '',
   igdbClientSecret: '',
   customFolders: ['/games'],
-  enabledSources: { steam: true, epic: true, gog: true, ea: false, ubisoft: true, custom: true },
+  enabledSources: { steam: true, epic: true, gog: true, ea: false, ubisoft: true, macapp: true, custom: true },
   ignoredExecutables: ['/games/Declined/declined.exe'],
   theme: 'midnight',
   font: 'system',

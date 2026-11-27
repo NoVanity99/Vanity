@@ -1,5 +1,5 @@
-# Builds the Windows installer and the Android app (APK) and publishes both to a GitHub Release
-# when you push a tag like v1.0.1.
+# Builds the Windows installer, the Mac app (.dmg) and the Android app (APK) and publishes them to
+# a GitHub Release when you push a tag like v1.0.1.
 # Installed copies of Vanity find the new release through latest.yml and update themselves.
 # See RELEASING.md.
 name: Release
@@ -10,6 +10,11 @@ on:
   # Or start it from the Actions tab ("Run workflow"): it releases the version in package.json,
   # and the release creates the v<version> tag.
   workflow_dispatch:
+    inputs:
+      test_only:
+        description: 'Only build and check everything; publish nothing'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -50,6 +55,109 @@ jobs:
           name: vanity-apk
           path: apk/*.apk
           if-no-files-found: error
+
+  # The Mac app: one Universal app (Apple Silicon + Intel) in a .dmg, plus the .zip Mac updates use.
+  # Built and checked here on GitHub's Mac; the mac-release job attaches it once the release exists,
+  # so a problem with the Mac build never holds up Windows or Android.
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Signs with a Developer ID and notarizes when these secrets are set (see RELEASING.md);
+      # without them the app is ad-hoc signed, which is enough to run on any Mac.
+      - name: Choose how to sign
+        id: sign
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+            echo "Signing with a Developer ID and notarizing."
+            echo "signed=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Apple Developer secrets: the app is ad-hoc signed (see INSTALL-MAC.md for opening it the first time)."
+            echo "signed=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: node scripts/prepare-mac.mjs && npm run build
+        env:
+          MAIN_VITE_IGDB_CLIENT_ID: ${{ secrets.MAIN_VITE_IGDB_CLIENT_ID }}
+          MAIN_VITE_IGDB_CLIENT_SECRET: ${{ secrets.MAIN_VITE_IGDB_CLIENT_SECRET }}
+          MAIN_VITE_STEAMGRIDDB_API_KEY: ${{ secrets.MAIN_VITE_STEAMGRIDDB_API_KEY }}
+          MAIN_VITE_VANITY_API_URL: ${{ secrets.MAIN_VITE_VANITY_API_URL }}
+          MAIN_VITE_DISCORD_CLIENT_ID: ${{ secrets.MAIN_VITE_DISCORD_CLIENT_ID }}
+          # A Developer ID signed app can update itself; an ad-hoc one points to the new .dmg instead.
+          MAIN_VITE_MAC_SIGNED: ${{ steps.sign.outputs.signed }}
+
+      - name: Package the Universal app and the .dmg
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          if [ -n "${{ steps.sign.outputs.signed }}" ]; then
+            npx electron-builder --mac --universal --publish never -c.mac.identity="Developer ID Application" -c.mac.notarize=true
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD
+            CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --universal --publish never
+          fi
+          ls -la dist
+
+      # The checks: both chips in one app, a valid signature, a .dmg with Applications in it, and the
+      # app itself started and used (scripts/mac-smoke.mjs).
+      - name: Check the app
+        run: |
+          set -e
+          APP="dist/mac-universal/Vanity.app"
+          echo "== Architectures"
+          lipo -info "$APP/Contents/MacOS/Vanity" | tee /dev/stderr | grep -q "x86_64 arm64"
+          lipo -info "$APP/Contents/Frameworks/Electron Framework.framework/Electron Framework" | grep -q "x86_64 arm64"
+          echo "== Signature"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Identifier|Signature|TeamIdentifier|Runtime"
+          echo "== Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :LSApplicationCategoryType" -c "Print :LSMinimumSystemVersion" -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+          echo "== The .dmg"
+          VERSION=$(node -p "require('./package.json').version")
+          DMG="dist/Vanity-$VERSION-universal.dmg"
+          test -f "$DMG"
+          hdiutil verify "$DMG"
+          MOUNT=$(hdiutil attach -nobrowse -readonly "$DMG" | tail -1 | awk -F'\t' '{print $NF}')
+          ls -la "$MOUNT"
+          test -d "$MOUNT/Vanity.app"
+          test -L "$MOUNT/Applications"
+          hdiutil detach "$MOUNT"
+
+      - name: Start the app and use it
+        run: |
+          npm install --no-save playwright-core@1.63.0
+          node scripts/mac-smoke.mjs dist/mac-universal/Vanity.app mac-smoke
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vanity-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+            mac-smoke/*.png
+          if-no-files-found: warn
 
   windows:
     needs: android
@@ -115,6 +223,7 @@ jobs:
       # left to itself it uploads in parallel and each upload races to create the release.
       # Tags created with GITHUB_TOKEN don't trigger this workflow again.
       - name: Create the GitHub release
+        if: ${{ !inputs.test_only }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,18 +238,20 @@ jobs:
       # Vanity-<version>.apk, plus Vanity.apk so this link always gives the newest one:
       # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity.apk
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.test_only }}
         with:
           name: vanity-apk
           path: apk
 
       - name: Attach the Android app
+        if: ${{ !inputs.test_only }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "v$(node -p "require('./package.json').version")" apk/*.apk --clobber
 
       - name: Package and publish the installer
-        run: npx electron-builder --win --publish always --config.releaseInfo.releaseNotesFile=build-notes/release-notes.md
+        run: npx electron-builder --win --publish ${{ inputs.test_only && 'never' || 'always' }} --config.releaseInfo.releaseNotesFile=build-notes/release-notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -150,6 +261,7 @@ jobs:
       # installer/Vanity-Installer.apk is the same idea for Android:
       # https://github.com/NoVanity99/Vanity/releases/latest/download/Vanity-Installer.apk
       - name: Attach the web installers
+        if: ${{ !inputs.test_only }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,3 +275,25 @@ jobs:
             dist/*.exe
             dist/latest.yml
             dist/*.blockmap
+
+  # The Mac files go on the release once it exists (the windows job creates it).
+  # Vanity-<version>-universal.dmg is the download; the .zip and latest-mac.yml are for updates.
+  mac-release:
+    needs: [mac, windows]
+    if: ${{ !inputs.test_only }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vanity-mac
+          path: mac
+
+      - name: Attach the Mac app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ls -la mac
+          gh release upload "v$VERSION" mac/*.dmg mac/*.zip mac/*.blockmap mac/latest-mac.yml --clobber
